@@ -12,6 +12,10 @@ export const isOwlbear = (): boolean => {
 const LEGACY_METADATA_KEY = 'com.antigravity.dnd-sheet/characters';
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/character/';
 
+export const SESSION_CLIENT_ID = typeof window !== 'undefined'
+  ? ((window as any).__dndSessionId || ((window as any).__dndSessionId = Math.random().toString(36).substring(2)))
+  : '';
+
 /**
  * Minifies a full Character sheet to a lightweight format to save space in VTT metadata (under 1KB).
  */
@@ -709,6 +713,7 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
       OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
         type: 'FULL_CHARACTER_SYNC',
         id,
+        senderClientId: SESSION_CLIENT_ID,
         data: minifiedCharData // Send 100% complete data including base64 images!
       }).catch(err => console.warn('[DND Sheet] Broadcast sync failed:', err));
 

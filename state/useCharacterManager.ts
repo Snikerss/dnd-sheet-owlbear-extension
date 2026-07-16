@@ -6,7 +6,7 @@ import { isCharacter, migrateCharacterData } from './initialization';
 import { characterReducer } from './characterReducer';
 import { generateActionDescription } from '../utils/history';
 import { useNotifier } from '../context/NotificationContext';
-import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter, loadFromLocalStorage, saveToLocalStorage, stripLargeTexts, decompressData, restoreLocalData, mergeCharacter } from '../utils/storage';
+import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter, loadFromLocalStorage, saveToLocalStorage, stripLargeTexts, decompressData, restoreLocalData, mergeCharacter, SESSION_CLIENT_ID } from '../utils/storage';
 
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/character/';
 
@@ -304,6 +304,7 @@ export const useCharacterManager = (): CharacterManager => {
                 await OBR.broadcast.sendMessage(SYNC_CHANNEL, {
                   type: 'FULL_CHARACTER_SYNC',
                   id,
+                  senderClientId: SESSION_CLIENT_ID,
                   data: charData
                 });
               }
@@ -315,11 +316,12 @@ export const useCharacterManager = (): CharacterManager => {
           const charId = payload.id;
           const incomingData = payload.data;
           
-          // Only update if we don't own this character locally (we are not the source of truth)
-          const localData = loadFromLocalStorage();
-          if (localData[charId]) {
+          // Only update if the message did not originate from this client session (deduplication)
+          if ((payload as any).senderClientId === SESSION_CLIENT_ID) {
             return; 
           }
+          
+          const localData = loadFromLocalStorage();
           
           // Unminify and restore images if we have them cached locally
           const restoredCloud = restoreLocalData({ [charId]: incomingData }, localData);
