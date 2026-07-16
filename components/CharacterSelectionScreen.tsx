@@ -4,6 +4,7 @@ import type { Character } from '../types';
 import { isCharacter, migrateCharacterData } from '../state/initialization';
 import { useNotifier } from '../context/NotificationContext';
 import { generateUUID } from '../utils/uuid';
+import { compressCharacterImages } from '../utils/imageCompress';
 
 interface CharacterSelectionScreenProps {
   characters: Record<string, Character>;
@@ -51,7 +52,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
     }
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const text = e.target?.result;
         if (typeof text !== 'string') throw new Error("Не удалось прочитать файл.");
@@ -63,7 +64,10 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
           ? imported.character
           : imported;
 
-        const migratedCharacter = migrateCharacterData(characterData);
+        // Asynchronously compress any large base64 images inside characterData
+        const compressedCharacterData = await compressCharacterImages(characterData);
+
+        const migratedCharacter = migrateCharacterData(compressedCharacterData);
 
         if (isCharacter(migratedCharacter)) {
           const newId = generateUUID();

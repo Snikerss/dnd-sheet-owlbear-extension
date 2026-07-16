@@ -281,7 +281,7 @@ export function unminifyCharacter(min: any): Character {
 }
 
 // Helper to clean base64 data URLs recursively from any object
-function stripBase64(obj: any): any {
+export function stripBase64(obj: any): any {
   if (typeof obj !== 'object' || obj === null) {
     if (typeof obj === 'string' && obj.startsWith('data:image/')) {
       return ''; // Strip base64 data URL

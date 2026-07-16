@@ -6,7 +6,7 @@ import { isCharacter, migrateCharacterData } from './initialization';
 import { characterReducer } from './characterReducer';
 import { generateActionDescription } from '../utils/history';
 import { useNotifier } from '../context/NotificationContext';
-import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter } from '../utils/storage';
+import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64 } from '../utils/storage';
 
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/character/';
 
@@ -176,7 +176,11 @@ export const useCharacterManager = (): CharacterManager => {
           imageCache: rawChar.imageCache
         };
 
-        const serialized = JSON.stringify(obrCharData);
+        // Strip base64 before caching comparison to match what actually goes to the VTT cloud
+        const strippedObrChar = stripBase64(obrCharData);
+        strippedObrChar.imageCache = []; // Clear image cache to match cloud payload
+        const serialized = JSON.stringify(strippedObrChar);
+        
         if (currentCache[id] !== serialized) {
           console.log(`[DND Sheet] Local change detected for character ${id}. Saving granularly...`);
           currentCache[id] = serialized;
