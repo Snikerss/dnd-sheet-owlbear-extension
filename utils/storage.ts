@@ -602,7 +602,7 @@ export async function loadCharactersApi(): Promise<any> {
   }
 }
 
-const MAX_BROADCAST_CHUNK_SIZE = 40000;
+const MAX_BROADCAST_CHUNK_SIZE = 20000;
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Global in-memory cache to track what has already been broadcasted to peers in the current session
