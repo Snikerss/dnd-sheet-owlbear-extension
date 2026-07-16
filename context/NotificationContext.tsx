@@ -85,7 +85,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           }
 
           // Open a beautiful custom roll popup window in the bottom-right corner of the VTT
-          const popoverUrl = window.location.origin + 
+          // Get the base path dynamically from the current window location to support subdirectory hosting
+          const pathName = window.location.pathname;
+          const basePath = pathName.substring(0, pathName.lastIndexOf('/'));
+          const popoverUrl = window.location.origin + basePath + 
             `/index.html?mode=roll-popup` +
             `&playerName=${encodeURIComponent(playerName)}` +
             `&characterName=${encodeURIComponent(characterName)}` +
