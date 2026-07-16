@@ -499,13 +499,13 @@ export async function deleteCharacterApi(id: string): Promise<void> {
   }
 }
 
-function loadFromLocalStorage(): any {
+export function loadFromLocalStorage(): any {
   if (typeof window === 'undefined') return {};
   const data = localStorage.getItem('dnd-characters');
   return data ? JSON.parse(data) : {};
 }
 
-function saveToLocalStorage(characters: any) {
+export function saveToLocalStorage(characters: any) {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem('dnd-characters', JSON.stringify(characters));

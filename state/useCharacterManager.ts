@@ -6,7 +6,7 @@ import { isCharacter, migrateCharacterData } from './initialization';
 import { characterReducer } from './characterReducer';
 import { generateActionDescription } from '../utils/history';
 import { useNotifier } from '../context/NotificationContext';
-import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter } from '../utils/storage';
+import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter, loadFromLocalStorage, saveToLocalStorage } from '../utils/storage';
 
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/character/';
 
@@ -127,6 +127,18 @@ export const useCharacterManager = (): CharacterManager => {
           if (metadata[metadataKey] === null || metadata[metadataKey] === undefined) {
             delete currentCache[id];
             hasChanges = true;
+
+            // Remove from local storage backup immediately to prevent it from resurrecting on reload
+            try {
+              const localData = loadFromLocalStorage();
+              if (localData[id]) {
+                console.log(`[DND Sheet] Deletion sync: Removing character ${id} from local storage backup.`);
+                delete localData[id];
+                saveToLocalStorage(localData);
+              }
+            } catch (err) {
+              console.error('Failed to sync deletion to LocalStorage:', err);
+            }
           }
         }
 
