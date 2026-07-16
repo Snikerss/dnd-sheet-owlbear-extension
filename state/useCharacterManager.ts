@@ -172,6 +172,85 @@ export const useCharacterManager = (): CharacterManager => {
     }
   }, []);
 
+  // 2.5. Real-time peer-to-peer synchronization via broadcast channels
+  useEffect(() => {
+    if (isOwlbear()) {
+      const SYNC_CHANNEL = 'com.antigravity.dnd-sheet/sync';
+      
+      const handleMessage = async (event: any) => {
+        const payload = event.data as {
+          type: string;
+          id?: string;
+          data?: any;
+        };
+        
+        if (!payload) return;
+        
+        if (payload.type === 'REQUEST_FULL_CHARACTERS') {
+          // Someone requested full sheets (e.g. GM joined). Broadcast all our local sheets!
+          try {
+            const localData = loadFromLocalStorage();
+            for (const [id, charData] of Object.entries(localData)) {
+              if (charData) {
+                // Strip base64 to save WebSocket bandwidth, but keep all notes/descriptions!
+                const stripped = stripBase64(charData);
+                await OBR.broadcast.sendMessage(SYNC_CHANNEL, {
+                  type: 'FULL_CHARACTER_SYNC',
+                  id,
+                  data: stripped
+                });
+              }
+            }
+          } catch (err) {
+            console.error('[DND Sheet] Failed to respond to sheet request:', err);
+          }
+        } else if (payload.type === 'FULL_CHARACTER_SYNC' && payload.id && payload.data) {
+          const charId = payload.id;
+          const incomingData = payload.data;
+          
+          // Only update if we don't own this character locally (we are not the source of truth)
+          const localData = loadFromLocalStorage();
+          if (localData[charId]) {
+            return; 
+          }
+          
+          // Unminify and restore images if we have them cached locally
+          const restoredCloud = restoreLocalData({ [charId]: incomingData }, localData);
+          const parsedState = parseCharactersData(restoredCloud);
+          const entry = parsedState[charId];
+          
+          if (entry) {
+            console.log(`[DND Sheet] Received full character sync via P2P for ${charId}. Merging...`);
+            dispatch({
+              type: 'SYNC_REMOTE_CHARACTER',
+              payload: {
+                id: charId,
+                entry
+              }
+            });
+            // Also update serialization cache to match so we don't trigger save
+            const obrCharData = {
+              character: entry.history.present,
+              log: entry.log || [],
+              history: { past: [], future: [] },
+              imageCache: entry.imageCache ? Array.from(entry.imageCache.entries()) : []
+            };
+            lastSerializedRef.current[charId] = serializeForCache(obrCharData);
+          }
+        }
+      };
+
+      console.log('[DND Sheet] Subscribing to P2P sync channel:', SYNC_CHANNEL);
+      const unsubscribe = OBR.broadcast.onMessage(SYNC_CHANNEL, handleMessage);
+      
+      // Request full sheets on startup to sync with already online players
+      OBR.broadcast.sendMessage(SYNC_CHANNEL, { type: 'REQUEST_FULL_CHARACTERS' })
+        .catch(err => console.warn('[DND Sheet] Initial request broadcast failed:', err));
+
+      return unsubscribe;
+    }
+  }, []);
+
   // 3. Save local modifications to the storage/metadata granularly
   useEffect(() => {
     if (isLoading) return; // Do not save during initial loading phase

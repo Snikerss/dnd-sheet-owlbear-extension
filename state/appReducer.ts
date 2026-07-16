@@ -22,7 +22,8 @@ export type CharactersAction =
     | { type: 'DISPATCH_CHARACTER_ACTION'; payload: { id: string; action: import('../types').CharacterAction } }
     | { type: 'UNDO'; payload: { id: string } }
     | { type: 'REDO'; payload: { id: string } }
-    | { type: 'SET_CHARACTERS'; payload: CharactersState };
+    | { type: 'SET_CHARACTERS'; payload: CharactersState }
+    | { type: 'SYNC_REMOTE_CHARACTER'; payload: { id: string; entry: CharacterEntry } };
 
 const MAX_HISTORY_LENGTH = 20;
 
@@ -90,6 +91,14 @@ export const charactersReducer = (state: CharactersState, action: CharactersActi
     switch (action.type) {
         case 'SET_CHARACTERS':
             return action.payload;
+
+        case 'SYNC_REMOTE_CHARACTER': {
+            const { id, entry } = action.payload;
+            return {
+                ...state,
+                [id]: entry
+            };
+        }
 
         case 'ADD_CHARACTER':
             return {

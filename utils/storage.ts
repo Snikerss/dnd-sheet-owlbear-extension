@@ -705,6 +705,13 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
 
   if (isOwlbear()) {
     try {
+      // Broadcast the FULL character sheet (with notes/descriptions, but stripped of images to save bandwidth)
+      OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
+        type: 'FULL_CHARACTER_SYNC',
+        id,
+        data: stripBase64(minifiedCharData) // Only strip base64, keep descriptions!
+      }).catch(err => console.warn('[DND Sheet] Broadcast sync failed:', err));
+
       const key = `${GRANULAR_KEY_PREFIX}${id}`;
       // Clean base64 data URLs recursively to protect room metadata and stay under the 16KB total room limit
       const cloudCharData = stripLargeTexts(minifiedCharData);
