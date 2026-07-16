@@ -376,7 +376,7 @@ export function stripLargeTexts(minifiedChar: any): any {
 }
 
 // Merges local base64 images and stripped description texts from LocalStorage back into loaded cloud data
-const restoreLocalData = (cloudData: any, localBackup: any) => {
+export const restoreLocalData = (cloudData: any, localBackup: any) => {
   if (!cloudData) return cloudData;
   if (!localBackup) return cloudData;
 

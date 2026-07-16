@@ -6,7 +6,7 @@ import { isCharacter, migrateCharacterData } from './initialization';
 import { characterReducer } from './characterReducer';
 import { generateActionDescription } from '../utils/history';
 import { useNotifier } from '../context/NotificationContext';
-import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter, loadFromLocalStorage, saveToLocalStorage, stripLargeTexts, decompressData } from '../utils/storage';
+import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter, loadFromLocalStorage, saveToLocalStorage, stripLargeTexts, decompressData, restoreLocalData } from '../utils/storage';
 
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/character/';
 
@@ -148,7 +148,9 @@ export const useCharacterManager = (): CharacterManager => {
         if (hasChanges) {
           console.log('[DND Sheet] Remote granular changes detected. Syncing local state...');
           lastSerializedRef.current = currentCache;
-          const parsedState = parseCharactersData(rawData);
+          const localBackup = loadFromLocalStorage();
+          const restoredCloud = restoreLocalData(rawData, localBackup);
+          const parsedState = parseCharactersData(restoredCloud);
           dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
         }
       });
