@@ -300,57 +300,49 @@ export function stripBase64(obj: any): any {
   return cleaned;
 }
 
-// Strips heavy description text fields from minified character data to stay below OBR's 16KB metadata limit
+// Helper to recursively strip any large text fields by key
+function stripKeysRecursively(obj: any): any {
+  if (typeof obj !== 'object' || obj === null) {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(stripKeysRecursively);
+  }
+  const cleaned: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === 'description' || key === 'content' || key === 'notes' || key === 'materialDescription') {
+      cleaned[key] = '';
+    } else {
+      cleaned[key] = stripKeysRecursively(value);
+    }
+  }
+  return cleaned;
+}
+
+// Strips heavy description text fields from minified character data recursively to stay below OBR's 16KB metadata limit
 export function stripLargeTexts(minifiedChar: any): any {
-  if (!minifiedChar || !minifiedChar.character) return minifiedChar;
-  
-  const char = minifiedChar.character;
-
-  // 1. Strip note contents
-  if (Array.isArray(char.notes)) {
-    char.notes = char.notes.map((n: any) => ({ ...n, content: '' }));
-  }
-
-  // 2. Strip spell descriptions
-  if (Array.isArray(char.spells)) {
-    char.spells = char.spells.map((s: any) => ({ ...s, description: '' }));
-  }
-
-  // 3. Strip feature descriptions
-  if (Array.isArray(char.features)) {
-    char.features = char.features.map((f: any) => ({ ...f, description: '' }));
-  }
-
-  // 4. Strip inventory item descriptions
-  if (Array.isArray(char.inv)) {
-    char.inv = char.inv.map((entry: any) => {
-      if (entry && entry.item) {
-        return {
-          ...entry,
-          item: { ...entry.item, description: '' }
-        };
-      }
-      return entry;
-    });
-  }
-
-  // 5. Strip equipped item descriptions
-  if (Array.isArray(char.equippedItems)) {
-    char.equippedItems = char.equippedItems.map((item: any) => ({ ...item, description: '' }));
-  }
-
-  // 6. Strip attack notes
-  if (Array.isArray(char.attacks)) {
-    char.attacks = char.attacks.map((a: any) => ({ ...a, notes: '' }));
-  }
-
-  return minifiedChar;
+  return stripKeysRecursively(minifiedChar);
 }
 
 // Merges local base64 images and stripped description texts from LocalStorage back into loaded cloud data
 const restoreLocalData = (cloudData: any, localBackup: any) => {
   if (!cloudData) return cloudData;
   if (!localBackup) return cloudData;
+
+  const restoreItemData = (cloudItem: any, localItem: any) => {
+    if (!cloudItem || !localItem) return;
+    if (localItem.imageUrl?.startsWith('data:image/') && !cloudItem.imageUrl) {
+      cloudItem.imageUrl = localItem.imageUrl;
+    }
+    if (localItem.description && !cloudItem.description) {
+      cloudItem.description = localItem.description;
+    }
+    if (cloudItem.isChest && Array.isArray(cloudItem.chestInventory) && Array.isArray(localItem.chestInventory)) {
+      cloudItem.chestInventory.forEach((subItem: any, idx: number) => {
+        restoreItemData(subItem, localItem.chestInventory[idx]);
+      });
+    }
+  };
 
   const restored = { ...cloudData };
   for (const [id, item] of Object.entries(restored)) {
@@ -385,11 +377,16 @@ const restoreLocalData = (cloudData: any, localBackup: any) => {
         });
       }
 
-      // 4. Restore spell descriptions
+      // 4. Restore spell descriptions & material descriptions
       if (Array.isArray(cloudChar.spells) && Array.isArray(localChar.spells)) {
         cloudChar.spells.forEach((s: any) => {
           const match = localChar.spells.find((ls: any) => ls.id === s.id);
-          if (match && match.description) s.description = match.description;
+          if (match) {
+            if (match.description) s.description = match.description;
+            if (s.components && match.components && match.components.materialDescription) {
+              s.components.materialDescription = match.components.materialDescription;
+            }
+          }
         });
       }
 
@@ -409,17 +406,12 @@ const restoreLocalData = (cloudData: any, localBackup: any) => {
         });
       }
 
-      // 7. Restore inventory item descriptions & images
+      // 7. Restore inventory item descriptions & images (including chests)
       if (Array.isArray(cloudChar.inventory) && Array.isArray(localChar.inventory)) {
         cloudChar.inventory.forEach((invItem: any, idx: number) => {
           const localInvItem = localChar.inventory[idx];
           if (invItem && localInvItem && invItem.item && localInvItem.item) {
-            if (localInvItem.item.imageUrl?.startsWith('data:image/') && !invItem.item.imageUrl) {
-              invItem.item.imageUrl = localInvItem.item.imageUrl;
-            }
-            if (localInvItem.item.description && !invItem.item.description) {
-              invItem.item.description = localInvItem.item.description;
-            }
+            restoreItemData(invItem.item, localInvItem.item);
           }
         });
       }
@@ -428,8 +420,8 @@ const restoreLocalData = (cloudData: any, localBackup: any) => {
       if (Array.isArray(cloudChar.equippedItems) && Array.isArray(localChar.equippedItems)) {
         cloudChar.equippedItems.forEach((eqItem: any) => {
           const match = localChar.equippedItems.find((le: any) => le.id === eqItem.id);
-          if (match && match.description && !eqItem.description) {
-            eqItem.description = match.description;
+          if (match) {
+            restoreItemData(eqItem, match);
           }
         });
       }
