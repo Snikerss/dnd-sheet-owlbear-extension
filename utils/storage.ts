@@ -679,33 +679,12 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
 
   if (isOwlbear()) {
     try {
-      const mainKey = `${GRANULAR_KEY_PREFIX}${id}`;
-      const textsKey = `${GRANULAR_KEY_PREFIX}${id}/texts`;
-      const imagesKey = `${GRANULAR_KEY_PREFIX}${id}/images`;
+      const baseKey = `${GRANULAR_KEY_PREFIX}${id}`;
+      // Clean base64 data URLs recursively to protect room metadata and total storage limit (64KB)
+      const cloudCharData = stripBase64(minifiedCharData);
 
-      // Split into smaller chunks (main structure, descriptions/notes, and base64 images)
-      const chunks = splitCharacter(minifiedCharData);
-
-      const mainCompressed = await compressData(chunks.main);
-      const textsCompressed = await compressData(chunks.texts);
-      const imagesCompressed = await compressData(chunks.images);
-
-      if (OBR.isReady) {
-        // Write in separate metadata updates to keep each payload well under 16KB
-        await OBR.room.setMetadata({ [mainKey]: mainCompressed });
-        await OBR.room.setMetadata({ [textsKey]: textsCompressed });
-        await OBR.room.setMetadata({ [imagesKey]: imagesCompressed });
-        console.log(`[DND Sheet] Successfully saved compressed chunks for character ${id} to OBR.`);
-      } else {
-        await new Promise<void>((resolve) => {
-          OBR.onReady(async () => {
-            await OBR.room.setMetadata({ [mainKey]: mainCompressed });
-            await OBR.room.setMetadata({ [textsKey]: textsCompressed });
-            await OBR.room.setMetadata({ [imagesKey]: imagesCompressed });
-            resolve();
-          });
-        });
-      }
+      await saveChunkedMetadata(baseKey, cloudCharData);
+      console.log(`[DND Sheet] Successfully saved chunked character ${id} to OBR.`);
     } catch (error) {
       console.error(`Owlbear saveCharacter error for ${id}:`, error);
     }
@@ -724,24 +703,35 @@ export async function deleteCharacterApi(id: string): Promise<void> {
 
   if (isOwlbear()) {
     try {
-      const mainKey = `${GRANULAR_KEY_PREFIX}${id}`;
-      const textsKey = `${GRANULAR_KEY_PREFIX}${id}/texts`;
-      const imagesKey = `${GRANULAR_KEY_PREFIX}${id}/images`;
-
+      const baseKey = `${GRANULAR_KEY_PREFIX}${id}`;
+      
       if (OBR.isReady) {
-        await OBR.room.setMetadata({ 
-          [mainKey]: null,
-          [textsKey]: null,
-          [imagesKey]: null
-        });
+        const currentMetadata = await OBR.room.getMetadata();
+        const deleteObj: Record<string, any> = {
+          [`${baseKey}/info`]: null,
+          [baseKey]: null
+        };
+        // Find and delete all chunk keys
+        for (const key of Object.keys(currentMetadata)) {
+          if (key.startsWith(`${baseKey}/chunk_`)) {
+            deleteObj[key] = null;
+          }
+        }
+        await OBR.room.setMetadata(deleteObj);
       } else {
         await new Promise<void>((resolve) => {
           OBR.onReady(async () => {
-            await OBR.room.setMetadata({ 
-              [mainKey]: null,
-              [textsKey]: null,
-              [imagesKey]: null
-            });
+            const currentMetadata = await OBR.room.getMetadata();
+            const deleteObj: Record<string, any> = {
+              [`${baseKey}/info`]: null,
+              [baseKey]: null
+            };
+            for (const key of Object.keys(currentMetadata)) {
+              if (key.startsWith(`${baseKey}/chunk_`)) {
+                deleteObj[key] = null;
+              }
+            }
+            await OBR.room.setMetadata(deleteObj);
             resolve();
           });
         });
