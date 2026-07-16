@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import OBR from '@owlbear-rodeo/sdk';
 import { CharacterSelectionScreen } from './components/CharacterSelectionScreen';
 import { CharacterSheet } from './components/CharacterSheet';
 import { ConfirmationModal } from './components/ConfirmationModal';
@@ -9,6 +10,7 @@ import { defaultCharacterState } from './state/defaultCharacterState';
 import { NotificationProvider } from './context/NotificationContext';
 import { CharacterProvider } from './context/CharacterContext';
 import { generateUUID } from './utils/uuid';
+import { isOwlbear } from './utils/storage';
 
 const AppContent: React.FC = () => {
   const { characters, isLoading, addCharacter, deleteCharacter, updateCharacter, undo, redo } = useCharacterManager();
@@ -262,10 +264,55 @@ const AppContent: React.FC = () => {
   );
 }
 
+const ResizeHandle: React.FC = () => {
+  if (!isOwlbear()) return null;
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const initialX = e.clientX;
+    const initialY = e.clientY;
+    const initialWidth = window.innerWidth;
+    const initialHeight = window.innerHeight;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - initialX;
+      const deltaY = moveEvent.clientY - initialY;
+      const newWidth = Math.max(600, Math.min(1920, initialWidth + deltaX));
+      const newHeight = Math.max(400, Math.min(1080, initialHeight + deltaY));
+      
+      OBR.action.setWidth(newWidth);
+      OBR.action.setHeight(newHeight);
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  return (
+    <div
+      onMouseDown={handleMouseDown}
+      className="fixed bottom-0 right-0 z-[9999] w-6 h-6 cursor-se-resize flex items-end justify-end p-1 select-none hover:bg-white/10 active:bg-white/20 rounded-tl-lg transition-colors"
+      title="Изменить размер окна"
+      aria-label="Изменить размер окна"
+    >
+      <svg className="w-4 h-4 text-[var(--color-text-subtle)] hover:text-[var(--color-text-base)] pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+        <line x1="12" y1="20" x2="20" y2="12" />
+        <line x1="16" y1="20" x2="20" y2="16" />
+      </svg>
+    </div>
+  );
+};
+
 const App: React.FC = () => {
   return (
     <NotificationProvider>
       <AppContent />
+      <ResizeHandle />
     </NotificationProvider>
   );
 };
