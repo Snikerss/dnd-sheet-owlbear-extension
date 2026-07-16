@@ -601,7 +601,7 @@ export async function loadCharactersApi(): Promise<any> {
   }
 }
 
-const MAX_BROADCAST_CHUNK_SIZE = 45000;
+const MAX_BROADCAST_CHUNK_SIZE = 25000;
 
 // Global in-memory cache to track what has already been broadcasted to peers in the current session
 const lastSentImagesCache: Record<string, { portraitUrl: string, imageCacheKeys: Set<string> }> = {};
@@ -646,6 +646,10 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any):
     
     // 2. Create the lightweight sheet data (recursively stripping all base64 images)
     const strippedData = stripBase64(minifiedCharData);
+    if (strippedData.history) {
+      strippedData.history.past = [];
+      strippedData.history.future = [];
+    }
     
     // Broadcast the lightweight sheet (extremely small, usually <3KB, so it's 1 chunk)
     const jsonStr = JSON.stringify(strippedData);
