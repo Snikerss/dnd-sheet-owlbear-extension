@@ -393,14 +393,21 @@ export const useCharacterManager = (): CharacterManager => {
                 console.log(`[DND Sheet] Received fully assembled remote character sync via P2P for ${charId}. Merging...`);
                 
                 if (Array.isArray(incomingData.syncImageIds) && incomingData.syncImageIds.length > 0) {
-                  console.log(`[DND Sheet] Waiting for ${incomingData.syncImageIds.length} remote images for ${charId}...`);
-                  setSyncingCharacters(prev => ({
-                    ...prev,
-                    [charId]: {
-                      status: 'images',
-                      pendingImages: incomingData.syncImageIds
-                    }
-                  }));
+                  const neededImages = incomingData.syncImageIds.filter((imgId: string) => {
+                    const localImage = entry.imageCache?.get(imgId);
+                    return !localImage || !localImage.startsWith('data:');
+                  });
+
+                  if (neededImages.length > 0) {
+                    console.log(`[DND Sheet] Waiting for ${neededImages.length} remote images for ${charId}...`);
+                    setSyncingCharacters(prev => ({
+                      ...prev,
+                      [charId]: {
+                        status: 'images',
+                        pendingImages: neededImages
+                      }
+                    }));
+                  }
                 }
 
                 dispatch({
