@@ -6,7 +6,7 @@ import { isCharacter, migrateCharacterData } from './initialization';
 import { characterReducer } from './characterReducer';
 import { generateActionDescription } from '../utils/history';
 import { useNotifier } from '../context/NotificationContext';
-import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear } from '../utils/storage';
+import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter } from '../utils/storage';
 
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/character/';
 
@@ -29,7 +29,11 @@ const parseCharactersData = (data: any): CharactersState => {
       ? (item as any).history.present 
       : item;
 
-    const migratedData = migrateCharacterData(characterObject);
+    // Check if characterObject is in minified format (e.g., scores is flat array instead of STR/DEX/etc map)
+    const isMinified = characterObject && Array.isArray(characterObject.scores);
+    const fullCharacter = isMinified ? unminifyCharacter(characterObject) : characterObject;
+
+    const migratedData = migrateCharacterData(fullCharacter);
     if (isCharacter(migratedData)) {
       const past = Array.isArray(item.history?.past)
         ? item.history.past.map(migrateCharacterData).filter(isCharacter)
