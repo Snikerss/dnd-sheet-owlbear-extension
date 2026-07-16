@@ -15,6 +15,38 @@ export default defineConfig(() => {
       plugins: [
         react(),
         {
+          name: 'patch-manifest-for-gh-pages',
+          closeBundle() {
+            const distDir = path.resolve(__dirname, 'dist');
+            const manifestPath = path.resolve(distDir, 'manifest.json');
+            if (fs.existsSync(manifestPath)) {
+              try {
+                const content = fs.readFileSync(manifestPath, 'utf-8');
+                const manifest = JSON.parse(content);
+                
+                // Ensure paths are absolute and include the subdirectory for GitHub Pages
+                const subDir = '/dnd-sheet-owlbear-extension/';
+                if (manifest.icon && !manifest.icon.startsWith('http') && !manifest.icon.startsWith('/')) {
+                  manifest.icon = subDir + manifest.icon;
+                }
+                if (manifest.action) {
+                  if (manifest.action.icon && !manifest.action.icon.startsWith('http') && !manifest.action.icon.startsWith('/')) {
+                    manifest.action.icon = subDir + manifest.action.icon;
+                  }
+                  if (manifest.action.popover && !manifest.action.popover.startsWith('http') && !manifest.action.popover.startsWith('/')) {
+                    manifest.action.popover = subDir + manifest.action.popover;
+                  }
+                }
+                
+                fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+                console.log('[Vite Plugin] Successfully patched manifest.json with GitHub Pages subdirectory paths.');
+              } catch (e) {
+                console.error('[Vite Plugin] Failed to patch manifest.json:', e);
+              }
+            }
+          }
+        },
+        {
           name: 'local-character-api',
           configureServer(server) {
             server.middlewares.use((req, res, next) => {
