@@ -202,6 +202,7 @@ export interface Character {
   tabOrder?: string[];
   viewMode?: 'tabs' | 'scroll';
   collapsedTabs?: Record<string, boolean>;
+  ownerId?: string;
 }
 
 export interface RollResult {
@@ -220,7 +221,7 @@ export interface RollResult {
 
 // --- ACTION TYPES for characterReducer ---
 export type CharacterAction =
-  | { type: 'SET_FIELD'; payload: { field: 'name' | 'race' | 'characterClass' | 'experience' | 'portraitUrl' | 'speed' | 'temporaryHitPoints'; value: any } }
+  | { type: 'SET_FIELD'; payload: { field: 'name' | 'race' | 'characterClass' | 'experience' | 'portraitUrl' | 'speed' | 'temporaryHitPoints' | 'ownerId'; value: any } }
   | { type: 'SET_SCORE'; payload: { ability: Ability; score: number } }
   | { type: 'SET_PROFICIENCY'; payload: string }
   | { type: 'SET_SAVING_THROW_PROF'; payload: Ability }

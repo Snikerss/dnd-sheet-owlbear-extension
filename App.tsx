@@ -19,6 +19,16 @@ const AppContent: React.FC = () => {
   const [characterPendingDeletion, setCharacterPendingDeletion] = useState<{id: string, name: string} | null>(null);
   const [isHistoryLogOpen, setIsHistoryLogOpen] = useState(false);
 
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<'GM' | 'PLAYER' | null>(null);
+
+  useEffect(() => {
+    if (isOwlbear()) {
+      setUserId(OBR.player.id);
+      OBR.player.getRole().then(setUserRole).catch(console.error);
+    }
+  }, []);
+
   useEffect(() => {
     if (activeCharacterId && !characters[activeCharacterId]) {
       setActiveCharacterId(null);
@@ -140,10 +150,27 @@ const AppContent: React.FC = () => {
     };
   }, []);
 
+  const handleSelectCharacter = useCallback((id: string) => {
+    const character = characters[id]?.history.present;
+    if (character && isOwlbear() && !character.ownerId && OBR.player.id) {
+      console.log(`[DND Sheet] Assigning ownership of unclaimed character "${character.name}" to player:`, OBR.player.id);
+      updateCharacter(id, { 
+        type: 'SET_FIELD', 
+        payload: { field: 'ownerId', value: OBR.player.id } 
+      });
+    }
+    setActiveCharacterId(id);
+  }, [characters, updateCharacter]);
+
   const handleCreateCharacter = useCallback(() => {
     const newId = generateUUID();
     const newCharacter: Character = structuredClone(defaultCharacterState);
     newCharacter.name = 'Новый персонаж';
+    
+    if (isOwlbear() && OBR.player.id) {
+      newCharacter.ownerId = OBR.player.id;
+    }
+
     addCharacter(newId, newCharacter);
     setActiveCharacterId(newId);
   }, [addCharacter]);
@@ -163,9 +190,21 @@ const AppContent: React.FC = () => {
     const newCharacter: Character = structuredClone(characterToCopy);
     newCharacter.name = `${characterToCopy.name} (копия)`;
 
+    if (isOwlbear() && OBR.player.id) {
+      newCharacter.ownerId = OBR.player.id;
+    }
+
     addCharacter(newId, newCharacter);
     setActiveCharacterId(newId);
   }, [characters, addCharacter]);
+
+  const handleAddCharacter = useCallback((id: string, character: Character) => {
+    const charWithNewOwner = { ...character };
+    if (isOwlbear() && OBR.player.id) {
+      charWithNewOwner.ownerId = OBR.player.id;
+    }
+    addCharacter(id, charWithNewOwner);
+  }, [addCharacter]);
 
   const handleUpdateCharacter = useCallback((action: CharacterAction) => {
     if (activeCharacterId) {
@@ -187,10 +226,16 @@ const AppContent: React.FC = () => {
 
   // Преобразуем полное состояние персонажей в упрощенный Record<string, Character> для экрана выбора.
   const characterList = useMemo(() => {
-    return Object.fromEntries(
-      Object.entries(characters).map(([id, data]) => [id, data.history.present])
-    );
-  }, [characters]);
+    const rawList = Object.entries(characters).map(([id, data]) => [id, data.history.present] as [string, Character]);
+    
+    if (isOwlbear() && userId && userRole === 'PLAYER') {
+      // Filter: only show characters owned by the current user, or characters with no owner
+      const filtered = rawList.filter(([_, char]) => !char.ownerId || char.ownerId === userId);
+      return Object.fromEntries(filtered);
+    }
+
+    return Object.fromEntries(rawList);
+  }, [characters, userId, userRole]);
 
   if (isLoading) {
     return (
@@ -253,11 +298,11 @@ const AppContent: React.FC = () => {
       ) : (
         <CharacterSelectionScreen
           characters={characterList}
-          onSelectCharacter={setActiveCharacterId}
+          onSelectCharacter={handleSelectCharacter}
           onCreateCharacter={handleCreateCharacter}
           onDeleteCharacter={handleDeleteCharacter}
           onDuplicateCharacter={handleDuplicateCharacter}
-          onAddCharacter={addCharacter}
+          onAddCharacter={handleAddCharacter}
         />
       )}
     </>

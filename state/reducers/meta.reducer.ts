@@ -7,7 +7,7 @@ export const metaReducer = (state: Character, action: CharacterAction): Characte
   switch (action.type) {
     case 'SET_FIELD': {
       const { field, value } = action.payload;
-      const coreFields = ['name', 'race', 'characterClass', 'experience', 'portraitUrl', 'speed', 'temporaryHitPoints'];
+      const coreFields = ['name', 'race', 'characterClass', 'experience', 'portraitUrl', 'speed', 'temporaryHitPoints', 'ownerId'];
       if (coreFields.includes(field)) {
         return { ...state, [field]: value };
       }
