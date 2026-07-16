@@ -84,12 +84,36 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             rollDetails += ` + бонус: ${result.bonusDiceRoll}`;
           }
 
-          // Show native OBR notification at the top of the map
-          const mapMessageText = `${playerName} (${characterName}) бросил ${result.name}: 🎲 ${result.total} (${rollDetails} ${modSign})`;
-          console.log('[DND Sheet] Displaying OBR map notification for roll:', mapMessageText);
-          OBR.notification.show(mapMessageText);
+          // Open a beautiful custom roll popup window in the bottom-right corner of the VTT
+          const popoverUrl = window.location.origin + 
+            `/index.html?mode=roll-popup` +
+            `&playerName=${encodeURIComponent(playerName)}` +
+            `&characterName=${encodeURIComponent(characterName)}` +
+            `&rollName=${encodeURIComponent(result.name)}` +
+            `&total=${result.total}` +
+            `&rollDetails=${encodeURIComponent(`${rollDetails} ${modSign}`)}`;
 
-          // Also show React toast within the character sheet
+          const popupWidth = 240;
+          const popupHeight = 280;
+          
+          // Calculate bottom-right positioning dynamically based on current viewport
+          const leftPos = Math.max(10, window.innerWidth - popupWidth - 30);
+          const topPos = Math.max(10, window.innerHeight - popupHeight - 30);
+
+          console.log('[DND Sheet] Launching custom roll popup at:', { leftPos, topPos });
+          
+          OBR.popover.open({
+            id: 'com.antigravity.dnd-sheet/roll-popup',
+            url: popoverUrl,
+            width: popupWidth,
+            height: popupHeight,
+            anchorPosition: { left: leftPos, top: topPos },
+            disableClickAway: true,
+          }).catch((err) => {
+            console.error('[DND Sheet] Failed to open custom roll popup:', err);
+          });
+
+          // Also show React toast within the character sheet as a backup
           const toastMessageText = `${playerName} (${characterName}) совершил бросок:\n**${result.name}**\n🎲 **${result.total}** (${rollDetails} ${modSign})`;
           addNotification(toastMessageText, 'info');
         }
