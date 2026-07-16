@@ -1,6 +1,7 @@
 import OBR from '@owlbear-rodeo/sdk';
 import { Character, Ability, Skill, ProficiencyLevel, InventoryItem } from '../types';
 import { defaultCharacterState } from '../state/defaultCharacterState';
+import { compressBase64Image } from './imageCompress';
 
 /**
  * Checks if the application is running inside the Owlbear Rodeo iframe environment.
@@ -618,27 +619,33 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any):
       data: strippedData
     });
 
-    // 2. Broadcast portrait separately if it is a base64 image
+    // 2. Broadcast portrait separately if it is a base64 image (compressing it to be safe)
     if (minifiedCharData.character?.portraitUrl && minifiedCharData.character.portraitUrl.startsWith('data:')) {
-      await OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
-        type: 'PORTRAIT_SYNC',
-        id,
-        senderClientId: SESSION_CLIENT_ID,
-        portraitUrl: minifiedCharData.character.portraitUrl
-      });
+      const compressedPortrait = await compressBase64Image(minifiedCharData.character.portraitUrl, 128, 0.6);
+      if (compressedPortrait && compressedPortrait.length < 55000) {
+        await OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
+          type: 'PORTRAIT_SYNC',
+          id,
+          senderClientId: SESSION_CLIENT_ID,
+          portraitUrl: compressedPortrait
+        });
+      }
     }
 
-    // 3. Broadcast imageCache entries one by one
+    // 3. Broadcast imageCache entries one by one (compressing them to be safe)
     if (Array.isArray(minifiedCharData.imageCache)) {
       for (const [imgId, imgVal] of minifiedCharData.imageCache) {
         if (imgVal) {
-          await OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
-            type: 'IMAGE_SYNC',
-            id,
-            senderClientId: SESSION_CLIENT_ID,
-            imgId,
-            imgVal
-          });
+          const compressedVal = await compressBase64Image(imgVal, 96, 0.6);
+          if (compressedVal && compressedVal.length < 55000) {
+            await OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
+              type: 'IMAGE_SYNC',
+              id,
+              senderClientId: SESSION_CLIENT_ID,
+              imgId,
+              imgVal: compressedVal
+            });
+          }
         }
       }
     }
