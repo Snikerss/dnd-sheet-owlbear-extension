@@ -50,8 +50,20 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  const openTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (isOpen) {
+      openTimeRef.current = Date.now();
+    }
+  }, [isOpen]);
+
   // Click outside to close
   const handleOverlayClick = (e: React.MouseEvent) => {
+    // Ignore clicks on the overlay if they occur within 400ms of the modal opening (prevents touch bleed-through/ghost clicks)
+    if (Date.now() - openTimeRef.current < 400) {
+      return;
+    }
     if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
       onClose();
     }
