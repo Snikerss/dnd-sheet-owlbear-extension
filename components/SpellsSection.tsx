@@ -140,7 +140,7 @@ const SpellCard: React.FC<{
                  <button 
                     onClick={(e) => handleActionClick(e, onCast)}
                     disabled={isCastDisabled}
-                    className={`p-1.5 rounded-lg transition-all ${
+                    className={`roll-button p-1.5 rounded-lg transition-all ${
                         isCastDisabled 
                             ? 'bg-gray-700/20 text-gray-500 cursor-not-allowed opacity-50' 
                             : 'bg-[var(--color-accent-primary)]/10 text-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary)]/20 active:scale-95'

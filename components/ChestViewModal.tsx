@@ -57,7 +57,7 @@ export const ChestViewModal: React.FC<ChestViewModalProps> = ({
             </div>
             <button 
                 onClick={onClose}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-[var(--color-surface-raised)] text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised-hover)] hover:text-[var(--color-text-base)] transition-colors"
+                className="close-button w-8 h-8 flex items-center justify-center rounded-full bg-[var(--color-surface-raised)] text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised-hover)] hover:text-[var(--color-text-base)] transition-colors"
                 aria-label="Закрыть"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

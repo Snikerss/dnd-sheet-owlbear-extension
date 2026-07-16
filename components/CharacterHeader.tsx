@@ -172,7 +172,7 @@ export const CharacterHeader: React.FC<CharacterHeaderProps> = React.memo(({
                  )}
                  <button
                     onClick={onOpenCharacterManager}
-                    className="h-[50px] w-14 flex items-center justify-center bg-[var(--color-surface-raised)] text-[var(--color-text-medium)] rounded-lg hover:bg-[var(--color-surface-raised-hover)] hover:text-[var(--color-text-base)] transition-colors active:scale-95"
+                    className="close-button h-[50px] w-14 flex items-center justify-center bg-[var(--color-surface-raised)] text-[var(--color-text-medium)] rounded-lg hover:bg-[var(--color-surface-raised-hover)] hover:text-[var(--color-text-base)] transition-colors active:scale-95"
                     data-tooltip="Управление персонажами"
                     aria-label="Управление персонажами"
                 >

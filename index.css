@@ -19,9 +19,14 @@
 .is-readonly input,
 .is-readonly select,
 .is-readonly textarea,
-.is-readonly button:not(.tab-button):not(.close-button):not(.history-log-btn):not([data-tooltip*="Уровень"]) {
+.is-readonly button:not(.tab-button):not(.view-mode-btn):not(.close-button):not(.history-log-btn):not(.roll-button):not([data-tooltip*="Уровень"]) {
   pointer-events: none !important;
   cursor: not-allowed !important;
+}
+
+/* Re-enable pointer events for the dice roller modal even inside read-only containers */
+.is-readonly .dice-roller-modal * {
+  pointer-events: auto !important;
 }
 
 .is-readonly [data-tooltip="Загрузить портрет персонажа"],

@@ -807,42 +807,69 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                 hitDie={character.hitDie}
                 conModifier={abilityModifiers[Ability.CON]}
             />
-            {editingSlot && (
-                <ItemDetailModal
-                    character={character}
-                    isOpen={!!editingSlot}
-                    onClose={() => setEditingSlot(null)}
-                    item={itemToEdit}
-                    onSave={handleSaveItem}
-                    onDelete={handleDeleteItem}
-                    customIcons={customIcons}
-                    onAddCustomIcon={handleAddCustomIcon}
-                    onDeleteCustomIcon={handleDeleteCustomIcon}
-                />
-            )}
-             {isFeatureModalOpen && (
-                <FeatureDetailModal
-                    isOpen={isFeatureModalOpen}
-                    onClose={() => { setEditingFeature(null); setIsNewFeature(false); setTargetGroupId(null); }}
-                    feature={featureToEdit}
-                    onSave={handleSaveFeature}
-                    onDelete={handleDeleteFeature}
-                    groups={character.featureGroups || []}
-                    initialGroupId={featureToEdit ? (character.featureGroups || []).find(g => g.featureIds.includes(featureToEdit.id))?.id || 'default' : targetGroupId || (character.featureGroups && character.featureGroups[0]?.id) || 'default'}
-                />
-            )}
-            {isAttackModalOpen && (
-                <AttackDetailModal
-                    isOpen={isAttackModalOpen}
-                    onClose={() => { setEditingAttack(null); setIsNewAttack(false); }}
-                    attack={attackToEdit}
-                    onSave={handleSaveAttack}
-                    onDelete={handleDeleteAttack}
-                    customIcons={customIcons}
-                    onAddCustomIcon={handleAddCustomIcon}
-                    onDeleteCustomIcon={handleDeleteCustomIcon}
-                />
-            )}
+            <div className={isReadOnly ? 'is-readonly' : ''}>
+                {editingSlot && (
+                    <ItemDetailModal
+                        character={character}
+                        isOpen={!!editingSlot}
+                        onClose={() => setEditingSlot(null)}
+                        item={itemToEdit}
+                        onSave={handleSaveItem}
+                        onDelete={handleDeleteItem}
+                        customIcons={customIcons}
+                        onAddCustomIcon={handleAddCustomIcon}
+                        onDeleteCustomIcon={handleDeleteCustomIcon}
+                    />
+                )}
+                {isFeatureModalOpen && (
+                    <FeatureDetailModal
+                        isOpen={isFeatureModalOpen}
+                        onClose={() => { setEditingFeature(null); setIsNewFeature(false); setTargetGroupId(null); }}
+                        feature={featureToEdit}
+                        onSave={handleSaveFeature}
+                        onDelete={handleDeleteFeature}
+                        groups={character.featureGroups || []}
+                        initialGroupId={featureToEdit ? (character.featureGroups || []).find(g => g.featureIds.includes(featureToEdit.id))?.id || 'default' : targetGroupId || (character.featureGroups && character.featureGroups[0]?.id) || 'default'}
+                    />
+                )}
+                {isAttackModalOpen && (
+                    <AttackDetailModal
+                        isOpen={isAttackModalOpen}
+                        onClose={() => { setEditingAttack(null); setIsNewAttack(false); }}
+                        attack={attackToEdit}
+                        onSave={handleSaveAttack}
+                        onDelete={handleDeleteAttack}
+                        customIcons={customIcons}
+                        onAddCustomIcon={handleAddCustomIcon}
+                        onDeleteCustomIcon={handleDeleteCustomIcon}
+                    />
+                )}
+                {isSpellModalOpen && (
+                    <SpellDetailModal
+                        isOpen={isSpellModalOpen}
+                        onClose={() => { setEditingSpell(null); setIsNewSpell(false); }}
+                        spell={spellToEdit}
+                        onSave={handleSaveSpell}
+                        onDelete={handleDeleteSpell}
+                        customIcons={customIcons}
+                        onAddCustomIcon={handleAddCustomIcon}
+                        onDeleteCustomIcon={handleDeleteCustomIcon}
+                    />
+                )}
+                {viewingChestItem && (
+                    <ChestViewModal
+                        isOpen={!!viewingChestItem}
+                        onClose={() => setViewingChestId(null)}
+                        chestItem={viewingChestItem}
+                        onSlotClick={(index) => setEditingSlot({ container: 'chest', index, chestId: viewingChestItem.id })}
+                        draggedItemInfo={draggedItemInfo}
+                        onItemDragStart={(index) => setDraggedItemInfo({ container: 'chest', index, chestId: viewingChestItem.id })}
+                        onItemDrop={handleItemDrop}
+                        onItemDragEnd={handleDragEnd}
+                    />
+                )}
+            </div>
+
             {overAttunedItem && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-fade-in">
                     <div className="bg-[var(--color-surface-opaque)] rounded-xl shadow-2xl p-6 m-4 w-full max-w-md border border-[var(--color-border)] text-center">
@@ -868,31 +895,6 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                         </button>
                     </div>
                 </div>
-            )}
-            {isSpellModalOpen && (
-                <SpellDetailModal
-                    isOpen={isSpellModalOpen}
-                    onClose={() => { setEditingSpell(null); setIsNewSpell(false); }}
-                    spell={spellToEdit}
-                    onSave={handleSaveSpell}
-                    onDelete={handleDeleteSpell}
-                    customIcons={customIcons}
-                    onAddCustomIcon={handleAddCustomIcon}
-                    onDeleteCustomIcon={handleDeleteCustomIcon}
-                />
-            )}
-            
-            {viewingChestItem && (
-                <ChestViewModal
-                    isOpen={!!viewingChestItem}
-                    onClose={() => setViewingChestId(null)}
-                    chestItem={viewingChestItem}
-                    onSlotClick={(index) => setEditingSlot({ container: 'chest', index, chestId: viewingChestItem.id })}
-                    draggedItemInfo={draggedItemInfo}
-                    onItemDragStart={(index) => setDraggedItemInfo({ container: 'chest', index, chestId: viewingChestItem.id })}
-                    onItemDrop={handleItemDrop}
-                    onItemDragEnd={handleDragEnd}
-                />
             )}
 
             {/* Global Dice Roller FAB */}

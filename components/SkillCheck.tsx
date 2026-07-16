@@ -108,7 +108,7 @@ export const SkillCheck: React.FC<SkillCheckProps> = React.memo(({
         <button
             onClick={() => onRoll(rollName, totalBonus, RollType.Normal)}
             onContextMenu={(e) => onRequestRoll(e, rollName, totalBonus)}
-            className="bg-[var(--color-surface-raised)] text-[var(--color-text-base)] font-bold w-12 text-center py-1 rounded-lg hover:bg-[var(--color-surface-raised-hover)] transition-all duration-150 shadow hover:shadow-md active:scale-95 flex-shrink-0"
+            className="roll-button bg-[var(--color-surface-raised)] text-[var(--color-text-base)] font-bold w-12 text-center py-1 rounded-lg hover:bg-[var(--color-surface-raised-hover)] transition-all duration-150 shadow hover:shadow-md active:scale-95 flex-shrink-0"
             data-tooltip="ЛКМ: обычный бросок, ПКМ: опции"
             aria-label={`Бросок проверки навыка ${skill.name} с модификатором ${bonusString}`}
         >

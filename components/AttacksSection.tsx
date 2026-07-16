@@ -108,7 +108,7 @@ const AttackCard: React.FC<AttackCardProps> = ({
                 <button 
                     onClick={() => onRollHit(`Атака: ${attack.name}`, toHitBonus, RollType.Normal, globalAttackDiceBonusToHitDice)} 
                     onContextMenu={(e) => onRequestRollHit(e, `Атака: ${attack.name}`, toHitBonus, globalAttackDiceBonusToHitDice)}
-                    className="flex-1 bg-[var(--color-accent-primary-darker-translucent)] hover:bg-[var(--color-accent-primary-darker)] border border-[var(--color-accent-primary-darker)] text-[var(--color-accent-primary-light)] font-bold py-2 px-3 rounded-lg transition-all shadow-sm hover:shadow-md active:scale-95 text-center"
+                    className="roll-button flex-1 bg-[var(--color-accent-primary-darker-translucent)] hover:bg-[var(--color-accent-primary-darker)] border border-[var(--color-accent-primary-darker)] text-[var(--color-accent-primary-light)] font-bold py-2 px-3 rounded-lg transition-all shadow-sm hover:shadow-md active:scale-95 text-center"
                     data-tooltip="ЛКМ: обычный бросок, ПКМ: опции"
                     aria-label={`Бросок на попадание для атаки ${attack.name}`}
                 >
@@ -116,7 +116,7 @@ const AttackCard: React.FC<AttackCardProps> = ({
                 </button>
                 <button 
                     onClick={() => onRollDamage(attack.name, fullDamageString)} 
-                    className="flex-1 bg-[var(--color-accent-tertiary-dark)]/40 hover:bg-[var(--color-accent-tertiary-dark)]/60 border border-[var(--color-accent-tertiary-dark)] text-[#e57dab] font-bold py-2 px-3 rounded-lg transition-all shadow-sm hover:shadow-md active:scale-95 text-center"
+                    className="roll-button flex-1 bg-[var(--color-accent-tertiary-dark)]/40 hover:bg-[var(--color-accent-tertiary-dark)]/60 border border-[var(--color-accent-tertiary-dark)] text-[#e57dab] font-bold py-2 px-3 rounded-lg transition-all shadow-sm hover:shadow-md active:scale-95 text-center"
                     aria-label={`Бросок урона для атаки ${attack.name}`}
                 >
                     Урон: <span className="text-base">{fullDamageString}</span>
