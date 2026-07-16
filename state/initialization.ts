@@ -397,60 +397,77 @@ const isNote = (note: any): note is Note => {
  * @returns True if the object is a valid Character, false otherwise.
  */
 export const isCharacter = (data: any): data is Character => {
-    if (typeof data !== 'object' || data === null) return false;
+    if (typeof data !== 'object' || data === null) {
+        console.warn('[DND Sheet] isCharacter failed: data is null or not an object');
+        return false;
+    }
 
-    const hasCoreFields =
-        typeof data.name === 'string' &&
-        typeof data.race === 'string' &&
-        typeof data.characterClass === 'string' &&
-        typeof data.level === 'number' && data.level >= 1 && data.level <= 20 &&
-        typeof data.experience === 'number' &&
-        typeof data.portraitUrl === 'string' &&
-        typeof data.maxHitPoints === 'number' &&
-        typeof data.currentHitPoints === 'number' &&
-        typeof data.temporaryHitPoints === 'number' &&
-        typeof data.baseAC === 'number' &&
-        typeof data.acBonus === 'number' &&
-        typeof data.initiativeBonus === 'number' &&
-        typeof data.proficiencyBonusBonus === 'number' &&
-        typeof data.attunementSlots === 'number' &&
-        typeof data.inventoryRows === 'number' &&
-        typeof data.totalHitDice === 'number' &&
-        typeof data.currentHitDice === 'number' &&
-        typeof data.speed === 'number' &&
-        typeof data.speedBonus === 'number' &&
-        typeof data.longJumpBonus === 'number' &&
-        typeof data.highJumpBonus === 'number' &&
-        typeof data.size === 'number' && Object.values(CharacterSize).includes(data.size) &&
-        typeof data.passivePerceptionBonus === 'number' &&
-        typeof data.passiveInvestigationBonus === 'number' &&
-        typeof data.passiveInsightBonus === 'number' &&
-        typeof data.maxHpBonus === 'number' &&
-        typeof data.globalAttackDiceBonusToHitDice === 'string' &&
-        typeof data.globalAttackDiceBonusToDamageDice === 'string' &&
-        typeof data.spellcastingAbility === 'string' && Object.values(Ability).includes(data.spellcastingAbility) &&
-        typeof data.maxPreparedSpells === 'number' &&
-        typeof data.spellSaveDcBonus === 'number' &&
-        typeof data.spellAttackBonusBonus === 'number' &&
-        typeof data.currency === 'object' && data.currency !== null &&
-        (typeof data.activeNoteId === 'string' || data.activeNoteId === null);
+    // Individual core field checks for detailed console logging
+    const coreChecks: Record<string, boolean> = {
+        name: typeof data.name === 'string',
+        race: typeof data.race === 'string',
+        characterClass: typeof data.characterClass === 'string',
+        level: typeof data.level === 'number' && data.level >= 1 && data.level <= 20,
+        experience: typeof data.experience === 'number',
+        portraitUrl: typeof data.portraitUrl === 'string',
+        maxHitPoints: typeof data.maxHitPoints === 'number',
+        currentHitPoints: typeof data.currentHitPoints === 'number',
+        temporaryHitPoints: typeof data.temporaryHitPoints === 'number',
+        baseAC: typeof data.baseAC === 'number',
+        acBonus: typeof data.acBonus === 'number',
+        initiativeBonus: typeof data.initiativeBonus === 'number',
+        proficiencyBonusBonus: typeof data.proficiencyBonusBonus === 'number',
+        attunementSlots: typeof data.attunementSlots === 'number',
+        inventoryRows: typeof data.inventoryRows === 'number',
+        totalHitDice: typeof data.totalHitDice === 'number',
+        currentHitDice: typeof data.currentHitDice === 'number',
+        speed: typeof data.speed === 'number',
+        speedBonus: typeof data.speedBonus === 'number',
+        longJumpBonus: typeof data.longJumpBonus === 'number',
+        highJumpBonus: typeof data.highJumpBonus === 'number',
+        size: typeof data.size === 'number' && Object.values(CharacterSize).includes(data.size),
+        passivePerceptionBonus: typeof data.passivePerceptionBonus === 'number',
+        passiveInvestigationBonus: typeof data.passiveInvestigationBonus === 'number',
+        passiveInsightBonus: typeof data.passiveInsightBonus === 'number',
+        maxHpBonus: typeof data.maxHpBonus === 'number',
+        globalAttackDiceBonusToHitDice: typeof data.globalAttackDiceBonusToHitDice === 'string',
+        globalAttackDiceBonusToDamageDice: typeof data.globalAttackDiceBonusToDamageDice === 'string',
+        spellcastingAbility: typeof data.spellcastingAbility === 'string' && Object.values(Ability).includes(data.spellcastingAbility),
+        maxPreparedSpells: typeof data.maxPreparedSpells === 'number',
+        spellSaveDcBonus: typeof data.spellSaveDcBonus === 'number',
+        spellAttackBonusBonus: typeof data.spellAttackBonusBonus === 'number',
+        currency: typeof data.currency === 'object' && data.currency !== null,
+        activeNoteId: typeof data.activeNoteId === 'string' || data.activeNoteId === null
+    };
 
-    if (!hasCoreFields) return false;
+    const failedCore = Object.entries(coreChecks).filter(([_, passed]) => !passed).map(([name]) => name);
+    if (failedCore.length > 0) {
+        console.warn(`[DND Sheet] isCharacter failed core fields validation. Failed fields: ${failedCore.join(', ')}`, data);
+        return false;
+    }
 
-    const hasValidObjects =
-        typeof data.scores === 'object' && data.scores !== null &&
-        typeof data.skills === 'object' && data.skills !== null &&
-        typeof data.savingThrowProficiencies === 'object' && data.savingThrowProficiencies !== null &&
-        typeof data.abilityBonuses === 'object' && data.abilityBonuses !== null &&
-        typeof data.skillBonuses === 'object' && data.skillBonuses !== null &&
-        typeof data.savingThrowBonuses === 'object' && data.savingThrowBonuses !== null &&
-        typeof data.acAbilitySources === 'object' && data.acAbilitySources !== null &&
-        typeof data.spellSlots === 'object' && data.spellSlots !== null;
-        
-    if (!hasValidObjects) return false;
+    const objectChecks: Record<string, boolean> = {
+        scores: typeof data.scores === 'object' && data.scores !== null,
+        skills: typeof data.skills === 'object' && data.skills !== null,
+        savingThrowProficiencies: typeof data.savingThrowProficiencies === 'object' && data.savingThrowProficiencies !== null,
+        abilityBonuses: typeof data.abilityBonuses === 'object' && data.abilityBonuses !== null,
+        skillBonuses: typeof data.skillBonuses === 'object' && data.skillBonuses !== null,
+        savingThrowBonuses: typeof data.savingThrowBonuses === 'object' && data.savingThrowBonuses !== null,
+        acAbilitySources: typeof data.acAbilitySources === 'object' && data.acAbilitySources !== null,
+        spellSlots: typeof data.spellSlots === 'object' && data.spellSlots !== null
+    };
+
+    const failedObjects = Object.entries(objectChecks).filter(([_, passed]) => !passed).map(([name]) => name);
+    if (failedObjects.length > 0) {
+        console.warn(`[DND Sheet] isCharacter failed nested objects validation. Failed: ${failedObjects.join(', ')}`, data);
+        return false;
+    }
 
     const validHitDies = [6, 8, 10, 12];
-    if (!validHitDies.includes(data.hitDie)) return false;
+    if (!validHitDies.includes(data.hitDie)) {
+        console.warn(`[DND Sheet] isCharacter failed hitDie validation: ${data.hitDie}`, data);
+        return false;
+    }
     
     const abilities = Object.values(Ability);
     const scores = data.scores as Record<string, unknown>;
@@ -466,7 +483,12 @@ export const isCharacter = (data: any): data is Character => {
     const acSources = data.acAbilitySources as Record<string, unknown>;
     const hasAllAcSources = abilities.every(ability => typeof acSources[ability] === 'boolean');
 
-    if (!hasAllScores || !hasAllSavingThrowProfs || !hasAllAbilityBonuses || !hasAllSavingThrowBonuses || !hasAllCurrencies || !hasAllAcSources) return false;
+    if (!hasAllScores || !hasAllSavingThrowProfs || !hasAllAbilityBonuses || !hasAllSavingThrowBonuses || !hasAllCurrencies || !hasAllAcSources) {
+        console.warn('[DND Sheet] isCharacter failed map keys type checks.', {
+            hasAllScores, hasAllSavingThrowProfs, hasAllAbilityBonuses, hasAllSavingThrowBonuses, hasAllCurrencies, hasAllAcSources
+        }, data);
+        return false;
+    }
 
     const skillNames = Object.keys(SKILLS);
     const hasAllSkills = skillNames.every(skillName => {
@@ -478,10 +500,14 @@ export const isCharacter = (data: any): data is Character => {
     });
     const hasAllSkillBonuses = skillNames.every(skillName => typeof data.skillBonuses[skillName] === 'number');
 
-    if (!hasAllSkills || !hasAllSkillBonuses) return false;
+    if (!hasAllSkills || !hasAllSkillBonuses) {
+        console.warn('[DND Sheet] isCharacter failed skills or skillBonuses checks.', { hasAllSkills, hasAllSkillBonuses }, data);
+        return false;
+    }
 
     for (let i = 1; i <= 9; i++) {
         if (typeof data.spellSlots[i] !== 'object' || data.spellSlots[i] === null || typeof data.spellSlots[i].total !== 'number' || typeof data.spellSlots[i].used !== 'number') {
+            console.warn(`[DND Sheet] isCharacter failed spellSlots level ${i} checks.`, data.spellSlots[i]);
             return false;
         }
     }
@@ -494,7 +520,10 @@ export const isCharacter = (data: any): data is Character => {
         Array.isArray(data.spells) &&
         Array.isArray(data.notes);
 
-    if (!hasValidArrays) return false;
+    if (!hasValidArrays) {
+        console.warn('[DND Sheet] isCharacter failed array type validations.');
+        return false;
+    }
 
     const isInventoryValid = data.inventory.every((item: any) => item === null || isInventoryItem(item));
     const isAttunementValid = data.attunementItems.every((item: any) => item === null || isInventoryItem(item));
@@ -503,5 +532,12 @@ export const isCharacter = (data: any): data is Character => {
     const areSpellsValid = data.spells.every(isSpell);
     const areNotesValid = data.notes.every(isNote);
 
-    return isInventoryValid && isAttunementValid && areFeaturesValid && areAttacksValid && areSpellsValid && areNotesValid;
+    if (!isInventoryValid || !isAttunementValid || !areFeaturesValid || !areAttacksValid || !areSpellsValid || !areNotesValid) {
+        console.warn('[DND Sheet] isCharacter failed arrays content validations.', {
+            isInventoryValid, isAttunementValid, areFeaturesValid, areAttacksValid, areSpellsValid, areNotesValid
+        });
+        return false;
+    }
+
+    return true;
 };

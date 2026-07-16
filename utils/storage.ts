@@ -300,8 +300,55 @@ export function stripBase64(obj: any): any {
   return cleaned;
 }
 
-// Merges local base64 images from LocalStorage back into loaded cloud data
-const restoreImagesFromLocal = (cloudData: any, localBackup: any) => {
+// Strips heavy description text fields from minified character data to stay below OBR's 16KB metadata limit
+export function stripLargeTexts(minifiedChar: any): any {
+  if (!minifiedChar || !minifiedChar.character) return minifiedChar;
+  
+  const char = minifiedChar.character;
+
+  // 1. Strip note contents
+  if (Array.isArray(char.notes)) {
+    char.notes = char.notes.map((n: any) => ({ ...n, content: '' }));
+  }
+
+  // 2. Strip spell descriptions
+  if (Array.isArray(char.spells)) {
+    char.spells = char.spells.map((s: any) => ({ ...s, description: '' }));
+  }
+
+  // 3. Strip feature descriptions
+  if (Array.isArray(char.features)) {
+    char.features = char.features.map((f: any) => ({ ...f, description: '' }));
+  }
+
+  // 4. Strip inventory item descriptions
+  if (Array.isArray(char.inv)) {
+    char.inv = char.inv.map((entry: any) => {
+      if (entry && entry.item) {
+        return {
+          ...entry,
+          item: { ...entry.item, description: '' }
+        };
+      }
+      return entry;
+    });
+  }
+
+  // 5. Strip equipped item descriptions
+  if (Array.isArray(char.equippedItems)) {
+    char.equippedItems = char.equippedItems.map((item: any) => ({ ...item, description: '' }));
+  }
+
+  // 6. Strip attack notes
+  if (Array.isArray(char.attacks)) {
+    char.attacks = char.attacks.map((a: any) => ({ ...a, notes: '' }));
+  }
+
+  return minifiedChar;
+}
+
+// Merges local base64 images and stripped description texts from LocalStorage back into loaded cloud data
+const restoreLocalData = (cloudData: any, localBackup: any) => {
   if (!cloudData) return cloudData;
   if (!localBackup) return cloudData;
 
@@ -309,7 +356,10 @@ const restoreImagesFromLocal = (cloudData: any, localBackup: any) => {
   for (const [id, item] of Object.entries(restored)) {
     const cloudEntry = item as any;
     const localEntry = localBackup[id];
-    if (cloudEntry && localEntry) {
+    if (cloudEntry && localEntry && cloudEntry.character && localEntry.character) {
+      const cloudChar = cloudEntry.character;
+      const localChar = localEntry.character;
+
       // 1. Restore imageCache
       const cloudCache = cloudEntry.imageCache || [];
       const localCache = localEntry.imageCache || [];
@@ -322,21 +372,64 @@ const restoreImagesFromLocal = (cloudData: any, localBackup: any) => {
       }
       cloudEntry.imageCache = mergedCache;
 
-      // 2. Restore portraitUrl if it was stripped (is empty in cloud but present as base64 in local)
-      if (localEntry.character && localEntry.character.portraitUrl?.startsWith('data:image/')) {
-        if (!cloudEntry.character.portraitUrl || cloudEntry.character.portraitUrl === '') {
-          cloudEntry.character.portraitUrl = localEntry.character.portraitUrl;
-        }
+      // 2. Restore portraitUrl if it was stripped
+      if (localChar.portraitUrl?.startsWith('data:image/') && !cloudChar.portraitUrl) {
+        cloudChar.portraitUrl = localChar.portraitUrl;
       }
 
-      // 3. Restore inventory item images if they were stripped
-      if (Array.isArray(cloudEntry.character.inventory) && Array.isArray(localEntry.character.inventory)) {
-        cloudEntry.character.inventory.forEach((invItem: any, idx: number) => {
-          const localInvItem = localEntry.character.inventory[idx];
+      // 3. Restore note contents
+      if (Array.isArray(cloudChar.notes) && Array.isArray(localChar.notes)) {
+        cloudChar.notes.forEach((n: any) => {
+          const match = localChar.notes.find((ln: any) => ln.id === n.id);
+          if (match && match.content) n.content = match.content;
+        });
+      }
+
+      // 4. Restore spell descriptions
+      if (Array.isArray(cloudChar.spells) && Array.isArray(localChar.spells)) {
+        cloudChar.spells.forEach((s: any) => {
+          const match = localChar.spells.find((ls: any) => ls.id === s.id);
+          if (match && match.description) s.description = match.description;
+        });
+      }
+
+      // 5. Restore feature descriptions
+      if (Array.isArray(cloudChar.features) && Array.isArray(localChar.features)) {
+        cloudChar.features.forEach((f: any) => {
+          const match = localChar.features.find((lf: any) => lf.id === f.id);
+          if (match && match.description) f.description = match.description;
+        });
+      }
+
+      // 6. Restore attack notes
+      if (Array.isArray(cloudChar.attacks) && Array.isArray(localChar.attacks)) {
+        cloudChar.attacks.forEach((a: any) => {
+          const match = localChar.attacks.find((la: any) => la.id === a.id);
+          if (match && match.notes) a.notes = match.notes;
+        });
+      }
+
+      // 7. Restore inventory item descriptions & images
+      if (Array.isArray(cloudChar.inventory) && Array.isArray(localChar.inventory)) {
+        cloudChar.inventory.forEach((invItem: any, idx: number) => {
+          const localInvItem = localChar.inventory[idx];
           if (invItem && localInvItem && invItem.item && localInvItem.item) {
             if (localInvItem.item.imageUrl?.startsWith('data:image/') && !invItem.item.imageUrl) {
               invItem.item.imageUrl = localInvItem.item.imageUrl;
             }
+            if (localInvItem.item.description && !invItem.item.description) {
+              invItem.item.description = localInvItem.item.description;
+            }
+          }
+        });
+      }
+
+      // 8. Restore equipped item descriptions
+      if (Array.isArray(cloudChar.equippedItems) && Array.isArray(localChar.equippedItems)) {
+        cloudChar.equippedItems.forEach((eqItem: any) => {
+          const match = localChar.equippedItems.find((le: any) => le.id === eqItem.id);
+          if (match && match.description && !eqItem.description) {
+            eqItem.description = match.description;
           }
         });
       }
@@ -396,7 +489,7 @@ export async function loadCharactersApi(): Promise<any> {
 
         if (hasGranular || legacyData) {
           const parsedCloud = restoreGranularData(charactersData);
-          return restoreImagesFromLocal(parsedCloud, localBackup);
+          return restoreLocalData(parsedCloud, localBackup);
         }
         return null;
       };
@@ -447,13 +540,13 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
     try {
       const key = `${GRANULAR_KEY_PREFIX}${id}`;
       
-      // For OBR cloud VTT metadata, strip base64 to protect room limits
-      const cloudCharData = stripBase64(minifiedCharData);
+      // For OBR cloud VTT metadata, strip base64 and large text fields to protect room and update size limits (16KB)
+      const cloudCharData = stripLargeTexts(stripBase64(minifiedCharData));
       cloudCharData.imageCache = []; // Clear image cache array in VTT cloud
 
       if (OBR.isReady) {
         await OBR.room.setMetadata({ [key]: cloudCharData });
-        console.log(`[DND Sheet] Successfully saved minified & stripped character ${id} to OBR.`);
+        console.log(`[DND Sheet] Successfully saved minified, stripped & optimized character ${id} to OBR.`);
       } else {
         await new Promise<void>((resolve) => {
           OBR.onReady(async () => {

@@ -6,7 +6,7 @@ import { isCharacter, migrateCharacterData } from './initialization';
 import { characterReducer } from './characterReducer';
 import { generateActionDescription } from '../utils/history';
 import { useNotifier } from '../context/NotificationContext';
-import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter, loadFromLocalStorage, saveToLocalStorage } from '../utils/storage';
+import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter, loadFromLocalStorage, saveToLocalStorage, stripLargeTexts } from '../utils/storage';
 
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/character/';
 
@@ -188,12 +188,12 @@ export const useCharacterManager = (): CharacterManager => {
           imageCache: rawChar.imageCache
         };
 
-        // Minify and strip base64 to match exactly what is saved to the OBR cloud metadata
+        // Minify, strip base64, and strip large texts to match exactly what is saved to the OBR cloud metadata (staying below 16KB)
         const minifiedChar = {
           ...obrCharData,
           character: minifyCharacter(obrCharData.character)
         };
-        const strippedObrChar = stripBase64(minifiedChar);
+        const strippedObrChar = stripLargeTexts(stripBase64(minifiedChar));
         strippedObrChar.imageCache = []; // Clear image cache to match cloud payload
         const serialized = JSON.stringify(strippedObrChar);
         
