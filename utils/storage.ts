@@ -621,7 +621,16 @@ export async function loadCharactersApi(): Promise<any> {
       };
 
       if (OBR.isReady) {
+        // Cleanup legacy bloated keys on startup to lift database lockout
         const metadata = await OBR.room.getMetadata();
+        for (const k of Object.keys(metadata)) {
+          if (k.includes('/chunk_') || k.includes('/images') || k.includes('/texts') || k.includes('/info')) {
+            try {
+              await OBR.room.setMetadata({ [k]: undefined });
+              console.log(`[DND Sheet] Cleanup: Deleted legacy key ${k}`);
+            } catch (ignore) {}
+          }
+        }
         const data = await getCharactersFromMetadata(metadata);
         return data || restoreGranularData(localBackup);
       } else {
@@ -629,6 +638,15 @@ export async function loadCharactersApi(): Promise<any> {
           OBR.onReady(async () => {
             try {
               const metadata = await OBR.room.getMetadata();
+              // Cleanup legacy bloated keys on startup to lift database lockout
+              for (const k of Object.keys(metadata)) {
+                if (k.includes('/chunk_') || k.includes('/images') || k.includes('/texts') || k.includes('/info')) {
+                  try {
+                    await OBR.room.setMetadata({ [k]: undefined });
+                    console.log(`[DND Sheet] Cleanup: Deleted legacy key ${k}`);
+                  } catch (ignore) {}
+                }
+              }
               const data = await getCharactersFromMetadata(metadata);
               resolve(data || restoreGranularData(localBackup));
             } catch (err) {
@@ -667,6 +685,7 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
       const key = `${GRANULAR_KEY_PREFIX}${id}`;
       // Clean base64 data URLs recursively to protect room metadata and stay under the 16KB total room limit
       const cloudCharData = stripBase64(minifiedCharData);
+      cloudCharData.imageCache = []; // Make absolutely sure imageCache is completely cleared to prevent size leaks!
       const compressed = await compressData(cloudCharData);
 
       if (OBR.isReady) {
