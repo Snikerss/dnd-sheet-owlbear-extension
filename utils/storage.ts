@@ -591,108 +591,9 @@ export async function loadCharactersApi(): Promise<any> {
   const localBackup = loadFromLocalStorage();
 
   if (isOwlbear()) {
-    try {
-      const getCharactersFromMetadata = async (metadata: any) => {
-        const charactersData: Record<string, any> = {};
-        let hasGranular = false;
-        
-        // 1. Read granular characters (keys that don't have slashes, i.e., clean main keys)
-        for (const [key, value] of Object.entries(metadata)) {
-          if (key.startsWith(GRANULAR_KEY_PREFIX) && value !== null && value !== undefined) {
-            const path = key.replace(GRANULAR_KEY_PREFIX, '');
-            if (path.includes('/')) {
-              continue; // Skip chunked parts of legacy saves
-            }
-            
-            const charId = path;
-            const decompressed = await decompressData(value);
-            if (decompressed) {
-              charactersData[charId] = decompressed;
-              hasGranular = true;
-            }
-          }
-        }
-
-        // 2. Read and migrate legacy bulk key if no granular keys exist
-        const legacyData = metadata[LEGACY_METADATA_KEY];
-        if (!hasGranular && legacyData) {
-          console.log('[DND Sheet] Migrating legacy characters to granular metadata keys...');
-          const updateObj: Record<string, any> = {};
-          for (const [charId, charData] of Object.entries(legacyData)) {
-            const entry = charData as any;
-            if (entry) {
-              const rawChar = entry.character || entry.history?.present || entry;
-              const minified = {
-                ...entry,
-                character: minifyCharacter(rawChar)
-              };
-              // Clean base64 data URLs to stay within 16KB limit
-              const cloudCharData = stripBase64(minified);
-              const compressed = await compressData(cloudCharData);
-
-              updateObj[`${GRANULAR_KEY_PREFIX}${charId}`] = compressed;
-              charactersData[charId] = cloudCharData;
-            }
-          }
-          updateObj[LEGACY_METADATA_KEY] = undefined; // Deletes the legacy key compliant with OBR
-          try {
-            await OBR.room.setMetadata(updateObj);
-            console.log('[DND Sheet] Legacy migration metadata updated successfully.');
-          } catch (err) {
-            console.error('[DND Sheet] Failed to write migrated characters to metadata:', err);
-            try {
-              await OBR.room.setMetadata({ [LEGACY_METADATA_KEY]: undefined });
-            } catch (ignore) {}
-          }
-        }
-
-        if (hasGranular || legacyData) {
-          const parsedCloud = restoreGranularData(charactersData);
-          return restoreLocalData(parsedCloud, localBackup);
-        }
-        return null;
-      };
-
-      if (OBR.isReady) {
-        // Cleanup legacy bloated keys on startup to lift database lockout
-        const metadata = await OBR.room.getMetadata();
-        for (const k of Object.keys(metadata)) {
-          if (k.includes('/chunk_') || k.includes('/images') || k.includes('/texts') || k.includes('/info')) {
-            try {
-              await OBR.room.setMetadata({ [k]: undefined });
-              console.log(`[DND Sheet] Cleanup: Deleted legacy key ${k}`);
-            } catch (ignore) {}
-          }
-        }
-        const data = await getCharactersFromMetadata(metadata);
-        return data || restoreGranularData(localBackup);
-      } else {
-        return new Promise((resolve) => {
-          OBR.onReady(async () => {
-            try {
-              const metadata = await OBR.room.getMetadata();
-              // Cleanup legacy bloated keys on startup to lift database lockout
-              for (const k of Object.keys(metadata)) {
-                if (k.includes('/chunk_') || k.includes('/images') || k.includes('/texts') || k.includes('/info')) {
-                  try {
-                    await OBR.room.setMetadata({ [k]: undefined });
-                    console.log(`[DND Sheet] Cleanup: Deleted legacy key ${k}`);
-                  } catch (ignore) {}
-                }
-              }
-              const data = await getCharactersFromMetadata(metadata);
-              resolve(data || restoreGranularData(localBackup));
-            } catch (err) {
-              console.error('Error fetching OBR metadata:', err);
-              resolve(restoreGranularData(localBackup));
-            }
-          });
-        });
-      }
-    } catch (error) {
-      console.error('Owlbear loadCharacters error, falling back to LocalStorage:', error);
-      return restoreGranularData(localBackup);
-    }
+    // Simply load from local storage backup immediately.
+    // Sync with other online players is handled via broadcast REQUEST_FULL_CHARACTERS in useCharacterManager.
+    return restoreGranularData(localBackup);
   } else {
     const rawDev = await loadFromLocalDevApi();
     return restoreGranularData(rawDev);
@@ -700,7 +601,7 @@ export async function loadCharactersApi(): Promise<any> {
 }
 
 /**
- * Saves a single character's data to OBR room metadata and local storage backup.
+ * Saves a single character's data to local storage backup and broadcasts it to other players in the room.
  */
 export async function saveCharacterApi(id: string, characterData: any): Promise<void> {
   const minifiedCharData = {
@@ -715,63 +616,15 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
 
   if (isOwlbear()) {
     try {
-      // Broadcast the 100% complete character sheet (with all notes, descriptions, and base64 images) over the broadcast WebSocket!
+      // Broadcast the 100% complete character sheet (with all notes, descriptions, and base64 images) over the WebSocket broadcast!
       OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
         type: 'FULL_CHARACTER_SYNC',
         id,
         senderClientId: SESSION_CLIENT_ID,
         data: minifiedCharData // Send 100% complete data including base64 images!
       }).catch(err => console.warn('[DND Sheet] Broadcast sync failed:', err));
-
-      const key = `${GRANULAR_KEY_PREFIX}${id}`;
-      // Clean base64 data URLs recursively to protect room metadata and stay under the 16KB total room limit
-      const cloudCharData = stripLargeTexts(minifiedCharData);
-      cloudCharData.imageCache = []; // Make absolutely sure imageCache is completely cleared to prevent size leaks!
-      const compressed = await compressData(cloudCharData);
-      console.log(`[DND Sheet] cloudCharData raw size: ${JSON.stringify(cloudCharData).length} bytes, compressed size: ${JSON.stringify(compressed).length} bytes`);
-
-      if (OBR.isReady) {
-        // Clean up legacy chunking keys by setting them to undefined (OBR delete method)
-        const metadataUpdate: Record<string, any> = {
-          [key]: compressed,
-          [`${key}/info`]: undefined,
-          [`${key}/texts`]: undefined,
-          [`${key}/images`]: undefined
-        };
-
-        const currentMetadata = await OBR.room.getMetadata();
-        for (const k of Object.keys(currentMetadata)) {
-          if (k.startsWith(`${key}/chunk_`)) {
-            metadataUpdate[k] = undefined;
-          }
-        }
-
-        await OBR.room.setMetadata(metadataUpdate);
-        console.log(`[DND Sheet] Successfully saved compressed character ${id} to OBR.`);
-      } else {
-        await new Promise<void>((resolve) => {
-          OBR.onReady(async () => {
-            const metadataUpdate: Record<string, any> = {
-              [key]: compressed,
-              [`${key}/info`]: undefined,
-              [`${key}/texts`]: undefined,
-              [`${key}/images`]: undefined
-            };
-
-            const currentMetadata = await OBR.room.getMetadata();
-            for (const k of Object.keys(currentMetadata)) {
-              if (k.startsWith(`${key}/chunk_`)) {
-                metadataUpdate[k] = undefined;
-              }
-            }
-
-            await OBR.room.setMetadata(metadataUpdate);
-            resolve();
-          });
-        });
-      }
     } catch (error) {
-      console.error(`Owlbear saveCharacter error for ${id}:`, error);
+      console.error(`Owlbear saveCharacter broadcast error for ${id}:`, error);
     }
   } else {
     await saveToLocalDevApi(localData);
@@ -779,55 +632,14 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
 }
 
 /**
- * Deletes a single character's data from OBR room metadata and local storage.
+ * Deletes a single character's data from local storage.
  */
 export async function deleteCharacterApi(id: string): Promise<void> {
   const localData = loadFromLocalStorage();
   delete localData[id];
   saveToLocalStorage(localData);
 
-  if (isOwlbear()) {
-    try {
-      const key = `${GRANULAR_KEY_PREFIX}${id}`;
-      
-      if (OBR.isReady) {
-        const currentMetadata = await OBR.room.getMetadata();
-        const deleteObj: Record<string, any> = {
-          [key]: undefined,
-          [`${key}/info`]: undefined,
-          [`${key}/texts`]: undefined,
-          [`${key}/images`]: undefined
-        };
-        for (const k of Object.keys(currentMetadata)) {
-          if (k.startsWith(`${key}/chunk_`)) {
-            deleteObj[k] = undefined;
-          }
-        }
-        await OBR.room.setMetadata(deleteObj);
-      } else {
-        await new Promise<void>((resolve) => {
-          OBR.onReady(async () => {
-            const currentMetadata = await OBR.room.getMetadata();
-            const deleteObj: Record<string, any> = {
-              [key]: undefined,
-              [`${key}/info`]: undefined,
-              [`${key}/texts`]: undefined,
-              [`${key}/images`]: undefined
-            };
-            for (const k of Object.keys(currentMetadata)) {
-              if (k.startsWith(`${key}/chunk_`)) {
-                deleteObj[k] = undefined;
-              }
-            }
-            await OBR.room.setMetadata(deleteObj);
-            resolve();
-          });
-        });
-      }
-    } catch (error) {
-      console.error(`Owlbear deleteCharacter error for ${id}:`, error);
-    }
-  } else {
+  if (!isOwlbear()) {
     await saveToLocalDevApi(localData);
   }
 }

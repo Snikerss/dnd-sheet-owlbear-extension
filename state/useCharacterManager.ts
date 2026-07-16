@@ -59,9 +59,7 @@ const serializeForCache = (charData: any): string => {
     ...charData,
     character: minifyCharacter(charData.character)
   };
-  const stripped = stripLargeTexts(stripBase64(minified));
-  stripped.imageCache = [];
-  return JSON.stringify(stripped);
+  return JSON.stringify(minified);
 };
 
 interface CharacterManager {
@@ -201,6 +199,14 @@ export const useCharacterManager = (): CharacterManager => {
           }
           lastSerializedRef.current = cache;
           dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
+
+          // Initialize owned character IDs if not present
+          try {
+            const owned = localStorage.getItem('dnd-owned-ids');
+            if (!owned) {
+              localStorage.setItem('dnd-owned-ids', JSON.stringify(Object.keys(parsedState)));
+            }
+          } catch (e) {}
         }
         setIsLoading(false);
       })
@@ -211,74 +217,7 @@ export const useCharacterManager = (): CharacterManager => {
       });
   }, [addNotification]);
 
-  // 2. Real-time subscription to room metadata changes (granular key updates)
-  useEffect(() => {
-    if (isOwlbear()) {
-      console.log('[DND Sheet] Subscribing to OBR room metadata changes.');
-      
-      const unsubscribe = OBR.room.onMetadataChange(async (metadata) => {
-        let hasChanges = false;
-        const currentCache = { ...lastSerializedRef.current };
-        const rawData: Record<string, any> = {};
-        
-        // A. Read all granular character keys from metadata
-        for (const [key, value] of Object.entries(metadata)) {
-          if (key.startsWith(GRANULAR_KEY_PREFIX)) {
-            const path = key.replace(GRANULAR_KEY_PREFIX, '');
-            if (path.includes('/')) {
-              continue; // Skip chunked parts of legacy saves
-            }
-            
-            const id = path;
-            if (value !== null && value !== undefined) {
-              const decompressed = await decompressData(value);
-              if (decompressed) {
-                rawData[id] = decompressed;
-                const serialized = serializeForCache(decompressed);
-                if (currentCache[id] !== serialized) {
-                  currentCache[id] = serialized;
-                  hasChanges = true;
-                }
-              }
-            }
-          }
-        }
 
-        // B. Handle deleted keys (present in local cache but removed/undefined in metadata)
-        for (const id of Object.keys(currentCache)) {
-          const metadataKey = `${GRANULAR_KEY_PREFIX}${id}`;
-          if (metadata[metadataKey] === null || metadata[metadataKey] === undefined) {
-            delete currentCache[id];
-            hasChanges = true;
-
-            // Remove from local storage backup immediately to prevent it from resurrecting on reload
-            try {
-              const localData = loadFromLocalStorage();
-              if (localData[id]) {
-                console.log(`[DND Sheet] Deletion sync: Removing character ${id} from local storage backup.`);
-                delete localData[id];
-                saveToLocalStorage(localData);
-              }
-            } catch (err) {
-              console.error('Failed to sync deletion to LocalStorage:', err);
-            }
-          }
-        }
-
-        if (hasChanges) {
-          console.log('[DND Sheet] Remote granular changes detected. Syncing local state...');
-          lastSerializedRef.current = currentCache;
-          const localBackup = loadFromLocalStorage();
-          const restoredCloud = restoreLocalData(rawData, localBackup);
-          const parsedState = parseCharactersData(restoredCloud);
-          const restoredMemory = restoreFromMemory(parsedState, charactersStateRef.current);
-          dispatch({ type: 'SET_CHARACTERS', payload: restoredMemory });
-        }
-      });
-
-      return unsubscribe;
-    }
-  }, []);
 
   // 2.5. Real-time peer-to-peer synchronization via broadcast channels
   useEffect(() => {
@@ -295,10 +234,13 @@ export const useCharacterManager = (): CharacterManager => {
         if (!payload) return;
         
         if (payload.type === 'REQUEST_FULL_CHARACTERS') {
-          // Someone requested full sheets (e.g. GM joined). Broadcast all our local sheets!
+          // Someone requested full sheets (e.g. GM joined). Broadcast all our owned sheets!
           try {
+            const owned = localStorage.getItem('dnd-owned-ids');
+            const ownedList = owned ? JSON.parse(owned) : [];
             const localData = loadFromLocalStorage();
-            for (const [id, charData] of Object.entries(localData)) {
+            for (const id of ownedList) {
+              const charData = localData[id];
               if (charData) {
                 // Send 100% full data (including all notes, descriptions, and base64 images) over the broadcast WebSocket!
                 await OBR.broadcast.sendMessage(SYNC_CHANNEL, {
@@ -337,6 +279,14 @@ export const useCharacterManager = (): CharacterManager => {
                 entry
               }
             });
+            // Cache to our local LocalStorage
+            try {
+              const currentLocal = loadFromLocalStorage();
+              currentLocal[charId] = incomingData;
+              saveToLocalStorage(currentLocal);
+            } catch (err) {
+              console.error('Failed to cache remote character to LocalStorage:', err);
+            }
             // Also update serialization cache to match so we don't trigger save
             const obrCharData = {
               character: entry.history.present,
@@ -401,6 +351,13 @@ export const useCharacterManager = (): CharacterManager => {
 
       // A. Save or update characters that have changes
       for (const [id, rawChar] of Object.entries(rawCharacters)) {
+        // Only save/broadcast if we own this character!
+        const owned = localStorage.getItem('dnd-owned-ids');
+        const ownedList = owned ? JSON.parse(owned) : [];
+        if (!ownedList.includes(id)) {
+          continue; 
+        }
+
         const obrCharData = {
           character: rawChar.character,
           log: rawChar.log.slice(0, 10), // Limit log to last 10 items to save space in VTT metadata
@@ -434,6 +391,14 @@ export const useCharacterManager = (): CharacterManager => {
 
   const addCharacter = useCallback((id: string, character: Character) => {
     dispatch({ type: 'ADD_CHARACTER', payload: { id, character } });
+    try {
+      const owned = localStorage.getItem('dnd-owned-ids');
+      const ownedList = owned ? JSON.parse(owned) : [];
+      if (!ownedList.includes(id)) {
+        ownedList.push(id);
+        localStorage.setItem('dnd-owned-ids', JSON.stringify(ownedList));
+      }
+    } catch (e) {}
   }, []);
 
   const deleteCharacter = useCallback((id: string) => {
@@ -454,6 +419,14 @@ export const useCharacterManager = (): CharacterManager => {
       delete newCache[id];
       lastSerializedRef.current = newCache;
     }
+
+    try {
+      const owned = localStorage.getItem('dnd-owned-ids');
+      if (owned) {
+        const ownedList = JSON.parse(owned).filter((x: string) => x !== id);
+        localStorage.setItem('dnd-owned-ids', JSON.stringify(ownedList));
+      }
+    } catch (e) {}
   }, []);
 
   const updateCharacter = useCallback((id: string, action: CharacterAction) => {
