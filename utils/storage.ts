@@ -10,7 +10,7 @@ export const isOwlbear = (): boolean => {
 };
 
 const LEGACY_METADATA_KEY = 'com.antigravity.dnd-sheet/characters';
-const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/character/';
+const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/v2/character/';
 
 export const SESSION_CLIENT_ID = typeof window !== 'undefined'
   ? ((window as any).__dndSessionId || ((window as any).__dndSessionId = Math.random().toString(36).substring(2)))
@@ -20,6 +20,12 @@ export const SESSION_CLIENT_ID = typeof window !== 'undefined'
  * Minifies a full Character sheet to a lightweight format to save space in VTT metadata (under 1KB).
  */
 export function minifyCharacter(char: Character): any {
+  if (!char) return char;
+  // If it's already minified (e.g. missing STR in scores or missing savingThrowProficiencies), return it as is
+  if (!char.savingThrowProficiencies || !char.scores || typeof char.scores.STR === 'undefined') {
+    return char;
+  }
+
   const min: any = {};
 
   const basicFields = [

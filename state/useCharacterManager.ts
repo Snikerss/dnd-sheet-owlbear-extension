@@ -8,7 +8,7 @@ import { generateActionDescription } from '../utils/history';
 import { useNotifier } from '../context/NotificationContext';
 import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter, loadFromLocalStorage, saveToLocalStorage, stripLargeTexts, decompressData, restoreLocalData, mergeCharacter, SESSION_CLIENT_ID } from '../utils/storage';
 
-const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/character/';
+const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/v2/character/';
 
 // Helper to safely parse character data structure from raw metadata
 const parseCharactersData = (data: any): CharactersState => {
