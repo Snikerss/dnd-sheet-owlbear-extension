@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Лист персонажа D&D</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+      /* --- THEME AND STYLE DEFINITIONS --- */
+      :root {
+        /* 1. FONT DEFINITIONS */
+        --font-body: 'Inter', sans-serif;
+        --font-heading: 'Inter', sans-serif;
+
+        /* 2. DARK THEME "Midnight Grimoire" */
+        --color-background: #1a202c;
+        --color-surface-translucent: rgba(45, 55, 72, 0.6);
+        --color-surface-opaque: #2d3748;
+        --color-surface-raised: #4a5568;
+        --color-surface-raised-hover: #5a6578;
+        --color-surface-well: rgba(10, 15, 25, 0.8);
+        --color-surface-inset: rgba(10, 15, 25, 0.7);
+
+        --color-border: #4a5568;
+        --color-border-subtle: #4a5568;
+        --color-border-hover: #718096;
+
+        --color-text-base: #e2e8f0;
+        --color-text-medium: #a0aec0;
+        --color-text-muted: #8998ae;
+        --color-text-subtle: #8290a3;
+        
+        /* Accents */
+        --color-accent-primary: #4fd1c5;
+        --color-accent-primary-light: #81e6d9;
+        --color-accent-primary-hover: #38b2ac;
+        --color-accent-primary-active: #319795;
+        --color-accent-primary-dark: #2c7a7b;
+        --color-accent-primary-darker: #285e61;
+        --color-accent-primary-darker-translucent: rgba(40, 94, 97, 0.5);
+        
+        --color-accent-secondary: #f6ad55;
+        --color-accent-secondary-border: #dd6b20;
+        
+        --color-accent-tertiary: #ed64a6;
+        --color-accent-tertiary-dark: #d53f8c;
+
+        /* Semantic & UI Colors */
+        --color-health: #e53e3e;
+        --color-temp-hp: #4299e1;
+        --color-xp: var(--color-accent-primary);
+        --color-success: #48bb78;
+        --color-success-dark: #38a169;
+        --color-success-darker: #2f855a;
+        --color-info: #4299e1;
+        --color-info-dark: #3182ce;
+        --color-critical-success: #68d391;
+        --color-critical-failure: #fc8181;
+        
+        --color-focus-ring: var(--color-accent-primary-hover);
+        --color-selection-bg: rgba(79, 209, 197, 0.3);
+
+        --select-arrow-url: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23718096' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+      }
+
+      /* 4. GLOBAL STYLES & ANIMATIONS */
+      body {
+        font-family: var(--font-body);
+        background-color: var(--color-background);
+        color: var(--color-text-base);
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+
+      ::selection {
+        background-color: var(--color-selection-bg);
+      }
+
+      h1, h2, h3, h4, h5, h6 {
+        font-family: var(--font-heading);
+      }
+
+      /* Custom Select */
+      select {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        background-image: var(--select-arrow-url);
+        background-position: right 0.5rem center;
+        background-repeat: no-repeat;
+        background-size: 1.5em 1.5em;
+        padding-right: 2.5rem;
+      }
+
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 12px;
+      }
+      ::-webkit-scrollbar-track {
+        background: var(--color-surface-inset);
+      }
+      ::-webkit-scrollbar-thumb {
+        background-color: var(--color-surface-raised);
+        border-radius: 6px;
+        border: 3px solid var(--color-surface-inset);
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background-color: var(--color-surface-raised-hover);
+      }
+      
+      @keyframes roll-toast-animation {
+        0% { bottom: -100px; opacity: 0; }
+        15% { bottom: 40px; opacity: 1; }
+        85% { bottom: 40px; opacity: 1; }
+        100% { bottom: -100px; opacity: 0; }
+      }
+      .roll-toast {
+        animation: roll-toast-animation 3.5s ease-in-out forwards;
+      }
+
+      @keyframes fade-in {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      .animate-fade-in {
+        animation: fade-in 0.2s ease-out forwards;
+      }
+
+      @keyframes pulse-danger {
+        0%, 100% {
+          box-shadow: inset 0 0 25px rgba(220, 38, 38, 0.4);
+          opacity: 0.8;
+        }
+        50% {
+          box-shadow: inset 0 0 55px rgba(220, 38, 38, 0.7);
+          opacity: 1;
+        }
+      }
+      .animate-pulse-danger {
+        animation: pulse-danger 2.5s infinite ease-in-out;
+      }
+
+      @keyframes spin-dice {
+        0% {
+          transform: rotate(0deg) scale(0.85);
+        }
+        50% {
+          transform: rotate(180deg) scale(1.1);
+        }
+        100% {
+          transform: rotate(360deg) scale(0.95);
+        }
+      }
+      @keyframes spin-slow {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      .animate-spin-slow {
+        animation: spin-slow 8s linear infinite;
+      }
+      
+      /* Fix Drag and Drop flickering by disabling pointer events on children during drag operations */
+      .drag-active * {
+        pointer-events: none !important;
+      }
+      /* Hide tooltips during drag operations to prevent drag image shifting */
+      .dragging .item-tooltip {
+        display: none !important;
+      }
+      
+      /* --- PREMIUM TOOLTIP DESIGN SYSTEM --- */
+      .global-tooltip {
+        position: absolute;
+        z-index: 99999;
+        background: rgba(10, 15, 25, 0.95);
+        color: var(--color-text-base);
+        border: 1px solid rgba(79, 209, 197, 0.45);
+        backdrop-filter: blur(8px);
+        font-size: 11px;
+        font-family: var(--font-body);
+        font-weight: 500;
+        padding: 6px 10px;
+        border-radius: 8px;
+        white-space: pre-wrap;
+        width: max-content;
+        max-width: 250px;
+        text-align: center;
+        box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.15s ease, transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+        line-height: 1.45;
+      }
+
+      .global-tooltip.visible {
+        opacity: 1;
+      }
+
+      .global-tooltip::after {
+        content: '';
+        position: absolute;
+        border-width: 5px;
+        border-style: solid;
+        border-color: transparent;
+      }
+
+      /* Tooltip Position Modifiers */
+      .global-tooltip-top {
+        transform: translate(-50%, -100%) translateY(-8px) scale(0.95);
+      }
+      .global-tooltip-top.visible {
+        transform: translate(-50%, -100%) translateY(-8px) scale(1);
+      }
+      .global-tooltip-top::after {
+        bottom: -10px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-color: rgba(79, 209, 197, 0.45) transparent transparent transparent;
+      }
+
+      .global-tooltip-bottom {
+        transform: translate(-50%, 0) translateY(8px) scale(0.95);
+      }
+      .global-tooltip-bottom.visible {
+        transform: translate(-50%, 0) translateY(8px) scale(1);
+      }
+      .global-tooltip-bottom::after {
+        top: -10px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-color: transparent transparent rgba(79, 209, 197, 0.45) transparent;
+      }
+
+      .global-tooltip-left {
+        transform: translate(-100%, -50%) translateX(-8px) scale(0.95);
+      }
+      .global-tooltip-left.visible {
+        transform: translate(-100%, -50%) translateX(-8px) scale(1);
+      }
+      .global-tooltip-left::after {
+        right: -10px;
+        top: 50%;
+        transform: translateY(-50%);
+        border-color: transparent transparent transparent rgba(79, 209, 197, 0.45);
+      }
+
+      .global-tooltip-right {
+        transform: translate(0, -50%) translateX(8px) scale(0.95);
+      }
+      .global-tooltip-right.visible {
+        transform: translate(0, -50%) translateX(8px) scale(1);
+      }
+      .global-tooltip-right::after {
+        left: -10px;
+        top: 50%;
+        transform: translateY(-50%);
+        border-color: transparent rgba(79, 209, 197, 0.45) transparent transparent;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

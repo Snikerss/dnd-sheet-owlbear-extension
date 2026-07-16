@@ -1,0 +1,13 @@
+{
+  "name": "D&D 5e Character Sheet",
+  "version": "1.0.0",
+  "manifest_version": 1,
+  "icon": "/icon.png",
+  "action": {
+    "title": "Character Sheet",
+    "icon": "/action-icon.svg",
+    "popover": "/index.html",
+    "width": 1000,
+    "height": 800
+  }
+}
