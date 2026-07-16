@@ -923,7 +923,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                         setIsDiceRollerOpen(true);
                     }
                 }}
-                className="dice-fab fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-r from-teal-500 to-emerald-600 text-white flex items-center justify-center shadow-[0_0_15px_rgba(20,184,166,0.5)] hover:shadow-[0_0_25px_rgba(20,184,166,0.8)] hover:scale-110 active:scale-95 transition-all duration-150 border border-teal-400/30 group cursor-pointer"
+                className="dice-fab fixed bottom-24 right-6 md:bottom-6 md:right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-r from-teal-500 to-emerald-600 text-white flex items-center justify-center shadow-[0_0_15px_rgba(20,184,166,0.5)] hover:shadow-[0_0_25px_rgba(20,184,166,0.8)] hover:scale-110 active:scale-95 transition-transform duration-150 border border-teal-400/30 group cursor-pointer"
                 data-tooltip="Открыть универсальный бросок кубиков"
             >
                 <svg
