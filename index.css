@@ -19,7 +19,7 @@
 .is-readonly input,
 .is-readonly select,
 .is-readonly textarea,
-.is-readonly button:not(.tab-button):not(.view-mode-btn):not(.close-button):not(.history-log-btn):not(.roll-button):not([data-tooltip*="Уровень"]) {
+.is-readonly button:not(.tab-button):not(.view-mode-btn):not(.close-button):not(.history-log-btn):not(.roll-button):not([data-tooltip*="Уровень"]):not(.dice-fab) {
   pointer-events: none !important;
   cursor: not-allowed !important;
 }
