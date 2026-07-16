@@ -707,9 +707,10 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
     try {
       const key = `${GRANULAR_KEY_PREFIX}${id}`;
       // Clean base64 data URLs recursively to protect room metadata and stay under the 16KB total room limit
-      const cloudCharData = stripBase64(minifiedCharData);
+      const cloudCharData = stripLargeTexts(minifiedCharData);
       cloudCharData.imageCache = []; // Make absolutely sure imageCache is completely cleared to prevent size leaks!
       const compressed = await compressData(cloudCharData);
+      console.log(`[DND Sheet] cloudCharData raw size: ${JSON.stringify(cloudCharData).length} bytes, compressed size: ${JSON.stringify(compressed).length} bytes`);
 
       if (OBR.isReady) {
         // Clean up legacy chunking keys by setting them to undefined (OBR delete method)
