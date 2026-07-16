@@ -424,10 +424,33 @@ export function mergeCharacter(main: any, texts: any, images: any): any {
   return main;
 }
 
+// Helper to recursively strip any large text fields by key
+function stripKeysRecursively(obj: any): any {
+  if (typeof obj !== 'object' || obj === null) {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(stripKeysRecursively);
+  }
+  const cleaned: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (
+      key === 'description' || 
+      key === 'content' || 
+      key === 'materialDescription' ||
+      (key === 'notes' && typeof value === 'string')
+    ) {
+      cleaned[key] = ''; // Strip description/text fields completely to protect the 16KB room limit
+    } else {
+      cleaned[key] = stripKeysRecursively(value);
+    }
+  }
+  return cleaned;
+}
+
 // Strips heavy properties from minified character data recursively to stay below OBR's 16KB metadata limit
 export function stripLargeTexts(minifiedChar: any): any {
-  // Strips base64 only, long text descriptions are split into a separate key
-  return stripBase64(minifiedChar);
+  return stripKeysRecursively(stripBase64(minifiedChar));
 }
 
 // Merges local base64 images and stripped description texts from LocalStorage back into loaded cloud data
