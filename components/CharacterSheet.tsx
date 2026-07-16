@@ -694,7 +694,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
             <div className="flex items-center bg-[var(--color-surface-well)] border border-slate-700/50 rounded-lg p-0.5">
                 <button
                     onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'tabs' })}
-                    className={`p-1 rounded transition-all duration-150 ${
+                    className={`view-mode-btn p-1 rounded transition-all duration-150 ${
                         currentViewMode === 'tabs'
                             ? 'bg-[var(--color-accent-primary)]/20 text-[var(--color-accent-primary-light)]'
                             : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-medium)]'
@@ -707,7 +707,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                 </button>
                 <button
                     onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'scroll' })}
-                    className={`p-1 rounded transition-all duration-150 ${
+                    className={`view-mode-btn p-1 rounded transition-all duration-150 ${
                         currentViewMode === 'scroll'
                             ? 'bg-[var(--color-accent-primary)]/20 text-[var(--color-accent-primary-light)]'
                             : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-medium)]'
@@ -1330,7 +1330,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                                                         tabId === 'features' ? "Раздел: Умения и Способности" :
                                                         tabId === 'notes' ? "Раздел: Заметки" : undefined
                                                     }
-                                                    className={`px-3 py-1.5 text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
+                                                    className={`tab-button px-3 py-1.5 text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
                                                         isEditingTabs 
                                                             ? 'text-[var(--color-text-base)] cursor-default' 
                                                             : activeTab === tabId

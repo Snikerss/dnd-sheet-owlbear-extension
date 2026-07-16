@@ -634,7 +634,7 @@ export async function broadcastLargeString(id: string, imgId: string, isPortrait
  * Broadcasts character data. Sends the sheet data (without base64 images) on every edit,
  * but ONLY sends portrait or item images if they have actually changed or are new.
  */
-export async function broadcastCharacterSync(id: string, minifiedCharData: any): Promise<void> {
+export async function broadcastCharacterSync(id: string, minifiedCharData: any, forceSyncImages: boolean = false): Promise<void> {
   if (!isOwlbear()) return;
   try {
     // 1. Initialize our sent tracker for this character if not present
@@ -678,18 +678,18 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any):
       });
     }
     
-    // 3. Broadcast portrait ONLY if it has changed (under key 'img:ref:portrait')
+    // 3. Broadcast portrait ONLY if it has changed or forceSyncImages is true (under key 'img:ref:portrait')
     const newPortrait = minifiedCharData.character?.portraitUrl || '';
-    if (newPortrait.startsWith('data:') && newPortrait !== lastSentImagesCache[id].portraitUrl) {
+    if (newPortrait.startsWith('data:') && (forceSyncImages || newPortrait !== lastSentImagesCache[id].portraitUrl)) {
       lastSentImagesCache[id].portraitUrl = newPortrait;
       await broadcastLargeString(id, 'img:ref:portrait', false, newPortrait);
     }
     
-    // 4. Broadcast imageCache entries ONLY if they are new or changed
+    // 4. Broadcast imageCache entries ONLY if they are new or changed or forceSyncImages is true
     if (Array.isArray(minifiedCharData.imageCache)) {
       for (const [imgId, imgVal] of minifiedCharData.imageCache) {
         if (imgId === 'img:ref:portrait') continue;
-        if (imgVal && imgVal.startsWith('data:') && !lastSentImagesCache[id].imageCacheKeys.has(imgId)) {
+        if (imgVal && imgVal.startsWith('data:') && (forceSyncImages || !lastSentImagesCache[id].imageCacheKeys.has(imgId))) {
           lastSentImagesCache[id].imageCacheKeys.add(imgId);
           await broadcastLargeString(id, imgId, false, imgVal);
         }

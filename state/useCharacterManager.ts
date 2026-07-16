@@ -244,7 +244,7 @@ export const useCharacterManager = (): CharacterManager => {
               const charData = localData[id];
               if (charData) {
                 // Send in separate chunks to avoid exceeding broadcast limits
-                await broadcastCharacterSync(id, charData);
+                await broadcastCharacterSync(id, charData, true);
               }
             }
           } catch (err) {
