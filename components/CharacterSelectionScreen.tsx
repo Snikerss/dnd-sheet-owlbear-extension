@@ -9,6 +9,7 @@ import { compressCharacterImages } from '../utils/imageCompress';
 interface CharacterSelectionScreenProps {
   characters: Record<string, Character>;
   syncingCharacters?: Record<string, { status: 'images', pendingImages: string[] }>;
+  currentUserId?: string | null;
   onSelectCharacter: (id: string) => void;
   onCreateCharacter: () => void;
   onDeleteCharacter: (id: string) => void;
@@ -19,6 +20,7 @@ interface CharacterSelectionScreenProps {
 export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> = ({
   characters,
   syncingCharacters,
+  currentUserId,
   onSelectCharacter,
   onCreateCharacter,
   onDeleteCharacter,
@@ -131,6 +133,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
                   onExport={() => handleExportCharacter(id)}
                   isSyncing={!!syncState}
                   pendingImagesCount={syncState?.pendingImages.length || 0}
+                  currentUserId={currentUserId}
                 />
               );
             })}

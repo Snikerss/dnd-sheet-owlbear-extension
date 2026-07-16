@@ -189,9 +189,12 @@ const AppContent: React.FC = () => {
   const handleDeleteCharacter = useCallback((id: string) => {
     const characterToDelete = characters[id]?.history.present;
     if (characterToDelete) {
+      if (isOwlbear() && characterToDelete.ownerId && userId && characterToDelete.ownerId !== userId) {
+        return;
+      }
       setCharacterPendingDeletion({ id, name: characterToDelete.name });
     }
-  }, [characters]);
+  }, [characters, userId]);
 
   const handleDuplicateCharacter = useCallback((id: string) => {
     const characterToCopy = characters[id]?.history.present;
@@ -225,21 +228,36 @@ const AppContent: React.FC = () => {
 
   const handleUpdateCharacter = useCallback((action: CharacterAction) => {
     if (activeCharacterId) {
+      const activeCharacterState = characters[activeCharacterId];
+      const activeChar = activeCharacterState?.history.present;
+      const isReadOnly = activeChar && isOwlbear() && activeChar.ownerId && userId && activeChar.ownerId !== userId;
+      if (isReadOnly) {
+        console.warn('[DND Sheet] Blocked update for read-only character:', activeCharacterId);
+        return;
+      }
       updateCharacter(activeCharacterId, action);
     }
-  }, [activeCharacterId, updateCharacter]);
+  }, [activeCharacterId, updateCharacter, characters, userId]);
 
   const handleUndo = useCallback(() => {
     if (activeCharacterId) {
+      const activeCharacterState = characters[activeCharacterId];
+      const activeChar = activeCharacterState?.history.present;
+      const isReadOnly = activeChar && isOwlbear() && activeChar.ownerId && userId && activeChar.ownerId !== userId;
+      if (isReadOnly) return;
       undo(activeCharacterId);
     }
-  }, [activeCharacterId, undo]);
+  }, [activeCharacterId, undo, characters, userId]);
 
   const handleRedo = useCallback(() => {
     if (activeCharacterId) {
+      const activeCharacterState = characters[activeCharacterId];
+      const activeChar = activeCharacterState?.history.present;
+      const isReadOnly = activeChar && isOwlbear() && activeChar.ownerId && userId && activeChar.ownerId !== userId;
+      if (isReadOnly) return;
       redo(activeCharacterId);
     }
-  }, [activeCharacterId, redo]);
+  }, [activeCharacterId, redo, characters, userId]);
 
   // Преобразуем полное состояние персонажей в упрощенный Record<string, Character> для экрана выбора.
   const characterList = useMemo(() => {
@@ -318,6 +336,7 @@ const AppContent: React.FC = () => {
         <CharacterSelectionScreen
           characters={characterList}
           syncingCharacters={syncingCharacters}
+          currentUserId={userId}
           onSelectCharacter={handleSelectCharacter}
           onCreateCharacter={handleCreateCharacter}
           onDeleteCharacter={handleDeleteCharacter}
