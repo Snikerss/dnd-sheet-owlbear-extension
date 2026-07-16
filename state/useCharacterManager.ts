@@ -74,6 +74,108 @@ interface CharacterManager {
   redo: (id: string) => void;
 }
 
+const restoreFromMemory = (cloudData: any, memoryBackup: CharactersState) => {
+  if (!cloudData || !memoryBackup) return cloudData;
+
+  const restoreItemImages = (cloudItem: any, memoryItem: any) => {
+    if (!cloudItem || !memoryItem) return;
+    if (memoryItem.imageUrl && !cloudItem.imageUrl) {
+      cloudItem.imageUrl = memoryItem.imageUrl;
+    }
+    if (memoryItem.description && !cloudItem.description) {
+      cloudItem.description = memoryItem.description;
+    }
+    if (cloudItem.isChest && Array.isArray(cloudItem.chestInventory) && Array.isArray(memoryItem.chestInventory)) {
+      cloudItem.chestInventory.forEach((subItem: any, idx: number) => {
+        restoreItemImages(subItem, memoryItem.chestInventory[idx]);
+      });
+    }
+  };
+
+  const restored = { ...cloudData };
+  for (const [id, item] of Object.entries(restored)) {
+    const cloudEntry = item as any;
+    const memoryEntry = memoryBackup[id];
+    if (cloudEntry && memoryEntry && cloudEntry.character && memoryEntry.history?.present) {
+      const cloudChar = cloudEntry.character;
+      const memoryChar = memoryEntry.history.present;
+
+      // 1. Restore imageCache
+      const cloudCache = cloudEntry.imageCache || [];
+      const memoryCache = memoryEntry.imageCache || new Map();
+      const mergedCache = [...cloudCache];
+      for (const [imgId, imgVal] of memoryCache.entries()) {
+        const exists = mergedCache.some(c => c[0] === imgId);
+        if (!exists) {
+          mergedCache.push([imgId, imgVal]);
+        }
+      }
+      cloudEntry.imageCache = mergedCache;
+
+      // 2. Restore portraitUrl if it was stripped in cloud but present in memory
+      if (memoryChar.portraitUrl && !cloudChar.portraitUrl) {
+        cloudChar.portraitUrl = memoryChar.portraitUrl;
+      }
+
+      // 3. Restore note contents
+      if (Array.isArray(cloudChar.notes) && Array.isArray(memoryChar.notes)) {
+        cloudChar.notes.forEach((n: any) => {
+          const match = memoryChar.notes.find((ln: any) => ln.id === n.id);
+          if (match && match.content && !n.content) n.content = match.content;
+        });
+      }
+
+      // 4. Restore spell descriptions
+      if (Array.isArray(cloudChar.spells) && Array.isArray(memoryChar.spells)) {
+        cloudChar.spells.forEach((s: any) => {
+          const match = memoryChar.spells.find((ls: any) => ls.id === s.id);
+          if (match && match.description && !s.description) s.description = match.description;
+          if (s.components && match && match.components && match.components.materialDescription && !s.components.materialDescription) {
+            s.components.materialDescription = match.components.materialDescription;
+          }
+        });
+      }
+
+      // 5. Restore feature descriptions
+      if (Array.isArray(cloudChar.features) && Array.isArray(memoryChar.features)) {
+        cloudChar.features.forEach((f: any) => {
+          const match = memoryChar.features.find((lf: any) => lf.id === f.id);
+          if (match && match.description && !f.description) f.description = match.description;
+        });
+      }
+
+      // 6. Restore attack notes
+      if (Array.isArray(cloudChar.attacks) && Array.isArray(memoryChar.attacks)) {
+        cloudChar.attacks.forEach((a: any) => {
+          const match = memoryChar.attacks.find((la: any) => la.id === a.id);
+          if (match && match.notes && !a.notes) a.notes = match.notes;
+        });
+      }
+
+      // 7. Restore inventory item images & descriptions
+      if (Array.isArray(cloudChar.inventory) && Array.isArray(memoryChar.inventory)) {
+        cloudChar.inventory.forEach((invItem: any, idx: number) => {
+          const memoryInvItem = memoryChar.inventory[idx];
+          if (invItem && memoryInvItem && invItem.item && memoryInvItem.item) {
+            restoreItemImages(invItem.item, memoryInvItem.item);
+          }
+        });
+      }
+
+      // 8. Restore equipped item images & descriptions
+      if (Array.isArray(cloudChar.equippedItems) && Array.isArray(memoryChar.equippedItems)) {
+        cloudChar.equippedItems.forEach((eqItem: any) => {
+          const match = memoryChar.equippedItems.find((le: any) => le.id === eqItem.id);
+          if (match) {
+            restoreItemImages(eqItem, match);
+          }
+        });
+      }
+    }
+  }
+  return restored;
+};
+
 export const useCharacterManager = (): CharacterManager => {
   const [characters, dispatch] = useReducer(charactersReducer, {});
   const [isLoading, setIsLoading] = useState(true);
@@ -81,6 +183,11 @@ export const useCharacterManager = (): CharacterManager => {
 
   // Track the serialized state of each character individually (indexed by character ID)
   const lastSerializedRef = useRef<Record<string, string>>({});
+  const charactersStateRef = useRef<CharactersState>(characters);
+
+  useEffect(() => {
+    charactersStateRef.current = characters;
+  }, [characters]);
 
   // 1. Initial Load of character data
   useEffect(() => {
@@ -163,7 +270,8 @@ export const useCharacterManager = (): CharacterManager => {
           lastSerializedRef.current = currentCache;
           const localBackup = loadFromLocalStorage();
           const restoredCloud = restoreLocalData(rawData, localBackup);
-          const parsedState = parseCharactersData(restoredCloud);
+          const restoredMemory = restoreFromMemory(restoredCloud, charactersStateRef.current);
+          const parsedState = parseCharactersData(restoredMemory);
           dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
         }
       });
