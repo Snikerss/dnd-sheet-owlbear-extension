@@ -1,8 +1,6 @@
 import React, { useRef, useCallback } from 'react';
-import OBR from '@owlbear-rodeo/sdk';
 import { useNotifier } from '../context/NotificationContext';
 import { useCharacter } from '../context/CharacterContext';
-import { isOwlbear } from '../utils/storage';
 
 interface CharacterHeaderProps {
   onLevelChange: (newLevel: number) => void;
@@ -184,28 +182,6 @@ export const CharacterHeader: React.FC<CharacterHeaderProps> = React.memo(({
                         <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
                 </button>
-                {isOwlbear() && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('mode') !== 'floating' && (
-                    <button
-                        onClick={async () => {
-                            await OBR.popover.open({
-                                id: 'com.antigravity.dnd-sheet/popover',
-                                url: window.location.origin + '/index.html?mode=floating',
-                                width: 1000,
-                                height: 800,
-                                anchorPosition: { left: 100, top: 100 },
-                                disableClickAway: true,
-                            });
-                            await OBR.action.close();
-                        }}
-                        className="h-[50px] w-14 flex items-center justify-center bg-[var(--color-surface-raised)] text-[var(--color-text-medium)] rounded-lg hover:bg-[var(--color-surface-raised-hover)] hover:text-[var(--color-text-base)] transition-colors active:scale-95"
-                        data-tooltip="Открыть в плавающем окне"
-                        aria-label="Открыть в плавающем окне"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                    </button>
-                )}
             </div>
         </div>
         <div className="flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0">
