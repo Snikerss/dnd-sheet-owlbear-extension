@@ -22,7 +22,25 @@ const renderApp = () => {
 
 if (isOwlbear()) {
   OBR.onReady(() => {
-    renderApp();
+    const isModal = new URLSearchParams(window.location.search).get('mode') === 'modal';
+    if (!isModal) {
+      console.log("Popover detected. Launching modal and closing popover...");
+      OBR.modal.open({
+        id: 'com.antigravity.dnd-sheet/modal',
+        url: '/index.html?mode=modal',
+        width: 1000,
+        height: 800,
+        hideBackdrop: true,
+      }).then(() => {
+        OBR.action.close();
+      }).catch((err) => {
+        console.error("Failed to launch modal from popover:", err);
+        // Fallback to rendering in popover if modal fails
+        renderApp();
+      });
+    } else {
+      renderApp();
+    }
   });
 } else {
   renderApp();
