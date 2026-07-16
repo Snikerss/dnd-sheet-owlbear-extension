@@ -13,7 +13,7 @@ import { generateUUID } from './utils/uuid';
 import { isOwlbear } from './utils/storage';
 
 const AppContent: React.FC = () => {
-  const { characters, isLoading, addCharacter, deleteCharacter, updateCharacter, undo, redo } = useCharacterManager();
+  const { characters, isLoading, syncingCharacters, addCharacter, deleteCharacter, updateCharacter, undo, redo } = useCharacterManager();
   
   const [activeCharacterId, setActiveCharacterId] = useState<string | null>(null);
   const [characterPendingDeletion, setCharacterPendingDeletion] = useState<{id: string, name: string} | null>(null);

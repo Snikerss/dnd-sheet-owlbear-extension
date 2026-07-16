@@ -149,6 +149,9 @@ export function minifyCharacter(char: Character): any {
  */
 export function unminifyCharacter(min: any): Character {
   if (!min) return structuredClone(defaultCharacterState);
+  if (min.scores && typeof min.scores === 'object' && !Array.isArray(min.scores) && 'STR' in min.scores) {
+    return structuredClone(min);
+  }
   
   const char: Character = structuredClone(defaultCharacterState);
 
