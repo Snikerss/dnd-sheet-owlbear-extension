@@ -264,7 +264,11 @@ const AppContent: React.FC = () => {
   );
 }
 
-const ResizeHandle: React.FC = () => {
+interface ResizeHandleProps {
+  position: 'tl' | 'tr' | 'bl' | 'br';
+}
+
+const ResizeHandle: React.FC<ResizeHandleProps> = ({ position }) => {
   if (!isOwlbear()) return null;
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -277,8 +281,26 @@ const ResizeHandle: React.FC = () => {
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const deltaX = moveEvent.clientX - initialX;
       const deltaY = moveEvent.clientY - initialY;
-      const newWidth = Math.max(600, Math.min(1920, initialWidth + deltaX));
-      const newHeight = Math.max(400, Math.min(1080, initialHeight + deltaY));
+      
+      let newWidth = initialWidth;
+      let newHeight = initialHeight;
+
+      if (position === 'br') {
+        newWidth = initialWidth + deltaX;
+        newHeight = initialHeight + deltaY;
+      } else if (position === 'bl') {
+        newWidth = initialWidth - deltaX;
+        newHeight = initialHeight + deltaY;
+      } else if (position === 'tr') {
+        newWidth = initialWidth + deltaX;
+        newHeight = initialHeight - deltaY;
+      } else if (position === 'tl') {
+        newWidth = initialWidth - deltaX;
+        newHeight = initialHeight - deltaY;
+      }
+
+      newWidth = Math.max(600, Math.min(1920, newWidth));
+      newHeight = Math.max(400, Math.min(1080, newHeight));
       
       OBR.action.setWidth(newWidth);
       OBR.action.setHeight(newHeight);
@@ -293,18 +315,20 @@ const ResizeHandle: React.FC = () => {
     document.addEventListener('mouseup', handleMouseUp);
   };
 
+  const positionClasses = {
+    tl: 'top-0 left-0 cursor-nwse-resize rounded-br border-t-2 border-l-2',
+    tr: 'top-0 right-0 cursor-nesw-resize rounded-bl border-t-2 border-r-2',
+    bl: 'bottom-0 left-0 cursor-nesw-resize rounded-tr border-b-2 border-l-2',
+    br: 'bottom-0 right-0 cursor-nwse-resize rounded-tl border-b-2 border-r-2',
+  };
+
   return (
     <div
       onMouseDown={handleMouseDown}
-      className="fixed bottom-0 right-0 z-[9999] w-6 h-6 cursor-se-resize flex items-end justify-end p-1 select-none hover:bg-white/10 active:bg-white/20 rounded-tl-lg transition-colors"
-      title="Изменить размер окна"
-      aria-label="Изменить размер окна"
-    >
-      <svg className="w-4 h-4 text-[var(--color-text-subtle)] hover:text-[var(--color-text-base)] pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-        <line x1="12" y1="20" x2="20" y2="12" />
-        <line x1="16" y1="20" x2="20" y2="16" />
-      </svg>
-    </div>
+      className={`fixed z-[9999] w-4 h-4 border-transparent hover:border-white/30 active:border-white/50 bg-transparent hover:bg-white/5 transition-colors select-none ${positionClasses[position]}`}
+      title="Изменить размер"
+      aria-label={`Изменить размер (${position.toUpperCase()})`}
+    />
   );
 };
 
@@ -312,7 +336,10 @@ const App: React.FC = () => {
   return (
     <NotificationProvider>
       <AppContent />
-      <ResizeHandle />
+      <ResizeHandle position="tl" />
+      <ResizeHandle position="tr" />
+      <ResizeHandle position="bl" />
+      <ResizeHandle position="br" />
     </NotificationProvider>
   );
 };
