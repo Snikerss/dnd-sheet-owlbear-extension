@@ -351,37 +351,224 @@ export function stripBase64(obj: any): any {
   return cleaned;
 }
 
-// Helper to recursively strip any large text fields by key if they exceed 200 characters
-function stripKeysRecursively(obj: any): any {
-  if (typeof obj !== 'object' || obj === null) {
-    return obj;
+// Split character into Main, Texts, and Images chunks to bypass OBR 16KB size limit per key/update
+export function splitCharacter(characterData: any): { main: any; texts: any; images: any } {
+  const char = structuredClone(characterData);
+  
+  const texts: any = {
+    notes: {},
+    spells: {},
+    features: {},
+    attacks: {},
+    inventory: {},
+    equippedItems: {}
+  };
+
+  const images: any = {
+    portraitUrl: '',
+    inventory: {},
+    equippedItems: {},
+    imageCache: char.imageCache || []
+  };
+
+  // 1. Portrait Image
+  if (char.character.portraitUrl?.startsWith('data:')) {
+    images.portraitUrl = char.character.portraitUrl;
+    char.character.portraitUrl = '';
   }
-  if (Array.isArray(obj)) {
-    return obj.map(stripKeysRecursively);
+
+  // 2. Notes
+  if (Array.isArray(char.character.notes)) {
+    char.character.notes.forEach((n: any) => {
+      texts.notes[n.id] = n.content;
+      n.content = '';
+    });
   }
-  const cleaned: any = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (
-      key === 'description' || 
-      key === 'content' || 
-      key === 'materialDescription' ||
-      (key === 'notes' && typeof value === 'string')
-    ) {
-      if (typeof value === 'string' && value.length > 200) {
-        cleaned[key] = ''; // Strip from cloud if too long to prevent 16KB limit issues
-      } else {
-        cleaned[key] = value; // Keep short texts so the GM can see them!
+
+  // 3. Spells
+  if (Array.isArray(char.character.spells)) {
+    char.character.spells.forEach((s: any) => {
+      texts.spells[s.id] = {
+        description: s.description || '',
+        materialDescription: s.components?.materialDescription || ''
+      };
+      s.description = '';
+      if (s.components) s.components.materialDescription = '';
+    });
+  }
+
+  // 4. Features
+  if (Array.isArray(char.character.features)) {
+    char.character.features.forEach((f: any) => {
+      texts.features[f.id] = f.description || '';
+      f.description = '';
+    });
+  }
+
+  // 5. Attacks
+  if (Array.isArray(char.character.attacks)) {
+    char.character.attacks.forEach((a: any) => {
+      texts.attacks[a.id] = a.notes || '';
+      a.notes = '';
+    });
+  }
+
+  // Helper to extract item texts & images (including chests recursively)
+  const extractItemData = (item: any, path: string) => {
+    if (!item) return;
+    if (item.description) {
+      texts.inventory[`${path}.description`] = item.description;
+      item.description = '';
+    }
+    if (item.imageUrl?.startsWith('data:')) {
+      images.inventory[`${path}.imageUrl`] = item.imageUrl;
+      item.imageUrl = '';
+    }
+    if (item.isChest && Array.isArray(item.chestInventory)) {
+      item.chestInventory.forEach((subItem: any, idx: number) => {
+        extractItemData(subItem, `${path}.chestInventory.${idx}`);
+      });
+    }
+  };
+
+  // 6. Inventory Items
+  if (Array.isArray(char.character.inventory)) {
+    char.character.inventory.forEach((invItem: any, idx: number) => {
+      if (invItem && invItem.item) {
+        extractItemData(invItem.item, `idx.${idx}`);
       }
-    } else {
-      cleaned[key] = stripKeysRecursively(value);
+    });
+  }
+
+  // 7. Equipped Items
+  if (Array.isArray(char.character.equippedItems)) {
+    char.character.equippedItems.forEach((eqItem: any) => {
+      if (eqItem) {
+        if (eqItem.description) {
+          texts.equippedItems[`id.${eqItem.id}.description`] = eqItem.description;
+          eqItem.description = '';
+        }
+        if (eqItem.imageUrl?.startsWith('data:')) {
+          images.equippedItems[`id.${eqItem.id}.imageUrl`] = eqItem.imageUrl;
+          eqItem.imageUrl = '';
+        }
+      }
+    });
+  }
+
+  char.imageCache = []; // Clear from main chunk to save space
+
+  return {
+    main: char,
+    texts,
+    images
+  };
+}
+
+// Merge Main, Texts, and Images chunks back into the complete character structure
+export function mergeCharacter(main: any, texts: any, images: any): any {
+  if (!main) return null;
+  const char = structuredClone(main);
+
+  if (!char.character) return char;
+
+  const setNestedProperty = (obj: any, path: string, val: any) => {
+    const parts = path.split('.');
+    let curr = obj;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      const nextPart = parts[i + 1];
+      const isNextNumber = !isNaN(Number(nextPart));
+      if (curr[part] === undefined) {
+        curr[part] = isNextNumber ? [] : {};
+      }
+      curr = curr[part];
+    }
+    curr[parts[parts.length - 1]] = val;
+  };
+
+  const t = texts || {};
+  const img = images || {};
+
+  // 1. Restore portrait Url
+  if (img.portraitUrl) {
+    char.character.portraitUrl = img.portraitUrl;
+  }
+
+  // 2. Restore Notes
+  if (Array.isArray(char.character.notes) && t.notes) {
+    char.character.notes.forEach((n: any) => {
+      if (t.notes[n.id] !== undefined) n.content = t.notes[n.id];
+    });
+  }
+
+  // 3. Restore Spells
+  if (Array.isArray(char.character.spells) && t.spells) {
+    char.character.spells.forEach((s: any) => {
+      const spellText = t.spells[s.id];
+      if (spellText) {
+        if (spellText.description !== undefined) s.description = spellText.description;
+        if (s.components && spellText.materialDescription !== undefined) {
+          s.components.materialDescription = spellText.materialDescription;
+        }
+      }
+    });
+  }
+
+  // 4. Restore Features
+  if (Array.isArray(char.character.features) && t.features) {
+    char.character.features.forEach((f: any) => {
+      if (t.features[f.id] !== undefined) f.description = t.features[f.id];
+    });
+  }
+
+  // 5. Restore Attacks
+  if (Array.isArray(char.character.attacks) && t.attacks) {
+    char.character.attacks.forEach((a: any) => {
+      if (t.attacks[a.id] !== undefined) a.notes = t.attacks[a.id];
+    });
+  }
+
+  // 6. Restore Inventory texts & images
+  if (Array.isArray(char.character.inventory)) {
+    if (t.inventory) {
+      for (const [path, val] of Object.entries(t.inventory)) {
+        setNestedProperty(char.character.inventory, path, val);
+      }
+    }
+    if (img.inventory) {
+      for (const [path, val] of Object.entries(img.inventory)) {
+        setNestedProperty(char.character.inventory, path, val);
+      }
     }
   }
-  return cleaned;
+
+  // 7. Restore Equipped items texts & images
+  if (Array.isArray(char.character.equippedItems)) {
+    char.character.equippedItems.forEach((eqItem: any) => {
+      if (eqItem) {
+        if (t.equippedItems && t.equippedItems[`id.${eqItem.id}.description`] !== undefined) {
+          eqItem.description = t.equippedItems[`id.${eqItem.id}.description`];
+        }
+        if (img.equippedItems && img.equippedItems[`id.${eqItem.id}.imageUrl`] !== undefined) {
+          eqItem.imageUrl = img.equippedItems[`id.${eqItem.id}.imageUrl`];
+        }
+      }
+    });
+  }
+
+  // 8. Restore imageCache
+  if (img.imageCache) {
+    char.imageCache = img.imageCache;
+  }
+
+  return char;
 }
 
 // Strips heavy properties from minified character data recursively to stay below OBR's 16KB metadata limit
 export function stripLargeTexts(minifiedChar: any): any {
-  return stripKeysRecursively(minifiedChar);
+  // Strips base64 only, long text descriptions are split into a separate key
+  return stripBase64(minifiedChar);
 }
 
 // Merges local base64 images and stripped description texts from LocalStorage back into loaded cloud data
@@ -514,15 +701,32 @@ export async function loadCharactersApi(): Promise<any> {
   if (isOwlbear()) {
     try {
       const getCharactersFromMetadata = async (metadata: any) => {
-        const charactersData: Record<string, any> = {};
+        const tempChunks: Record<string, { main?: any; texts?: any; images?: any }> = {};
         let hasGranular = false;
         
-        // 1. Read granular characters
+        // 1. Read granular character keys (can end with /texts or /images)
         for (const [key, value] of Object.entries(metadata)) {
           if (key.startsWith(GRANULAR_KEY_PREFIX) && value !== null) {
-            const charId = key.replace(GRANULAR_KEY_PREFIX, '');
-            charactersData[charId] = value;
             hasGranular = true;
+            const path = key.replace(GRANULAR_KEY_PREFIX, '');
+            const parts = path.split('/');
+            const charId = parts[0];
+            const type = parts[1] || 'main'; // 'main', 'texts', 'images'
+
+            const decompressed = await decompressData(value);
+            if (decompressed) {
+              if (!tempChunks[charId]) tempChunks[charId] = {};
+              tempChunks[charId][type as 'main' | 'texts' | 'images'] = decompressed;
+            }
+          }
+        }
+
+        const charactersData: Record<string, any> = {};
+        for (const [charId, chunks] of Object.entries(tempChunks)) {
+          if (chunks && chunks.main) {
+            // Merge chunks
+            const merged = mergeCharacter(chunks.main, chunks.texts, chunks.images);
+            charactersData[charId] = merged;
           }
         }
 
@@ -539,12 +743,17 @@ export async function loadCharactersApi(): Promise<any> {
                 ...entry,
                 character: minifyCharacter(rawChar)
               };
-              const optimized = stripLargeTexts(stripBase64(minified));
-              optimized.imageCache = [];
               
-              const compressed = await compressData(optimized);
-              updateObj[`${GRANULAR_KEY_PREFIX}${charId}`] = compressed;
-              charactersData[charId] = optimized;
+              const chunks = splitCharacter(minified);
+              const mainCompressed = await compressData(chunks.main);
+              const textsCompressed = await compressData(chunks.texts);
+              const imagesCompressed = await compressData(chunks.images);
+
+              updateObj[`${GRANULAR_KEY_PREFIX}${charId}`] = mainCompressed;
+              updateObj[`${GRANULAR_KEY_PREFIX}${charId}/texts`] = textsCompressed;
+              updateObj[`${GRANULAR_KEY_PREFIX}${charId}/images`] = imagesCompressed;
+
+              charactersData[charId] = minified;
             }
           }
           updateObj[LEGACY_METADATA_KEY] = null;
@@ -611,21 +820,29 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
 
   if (isOwlbear()) {
     try {
-      const key = `${GRANULAR_KEY_PREFIX}${id}`;
-      
-      // For OBR cloud VTT metadata, strip base64 and large text fields to protect room and update size limits (16KB)
-      const cloudCharData = stripLargeTexts(stripBase64(minifiedCharData));
-      cloudCharData.imageCache = []; // Clear image cache array in VTT cloud
+      const mainKey = `${GRANULAR_KEY_PREFIX}${id}`;
+      const textsKey = `${GRANULAR_KEY_PREFIX}${id}/texts`;
+      const imagesKey = `${GRANULAR_KEY_PREFIX}${id}/images`;
 
-      const finalData = await compressData(cloudCharData);
+      // Split into smaller chunks (main structure, descriptions/notes, and base64 images)
+      const chunks = splitCharacter(minifiedCharData);
+
+      const mainCompressed = await compressData(chunks.main);
+      const textsCompressed = await compressData(chunks.texts);
+      const imagesCompressed = await compressData(chunks.images);
 
       if (OBR.isReady) {
-        await OBR.room.setMetadata({ [key]: finalData });
-        console.log(`[DND Sheet] Successfully saved compressed character ${id} to OBR.`);
+        // Write in separate metadata updates to keep each payload well under 16KB
+        await OBR.room.setMetadata({ [mainKey]: mainCompressed });
+        await OBR.room.setMetadata({ [textsKey]: textsCompressed });
+        await OBR.room.setMetadata({ [imagesKey]: imagesCompressed });
+        console.log(`[DND Sheet] Successfully saved compressed chunks for character ${id} to OBR.`);
       } else {
         await new Promise<void>((resolve) => {
           OBR.onReady(async () => {
-            await OBR.room.setMetadata({ [key]: finalData });
+            await OBR.room.setMetadata({ [mainKey]: mainCompressed });
+            await OBR.room.setMetadata({ [textsKey]: textsCompressed });
+            await OBR.room.setMetadata({ [imagesKey]: imagesCompressed });
             resolve();
           });
         });
@@ -648,13 +865,24 @@ export async function deleteCharacterApi(id: string): Promise<void> {
 
   if (isOwlbear()) {
     try {
-      const key = `${GRANULAR_KEY_PREFIX}${id}`;
+      const mainKey = `${GRANULAR_KEY_PREFIX}${id}`;
+      const textsKey = `${GRANULAR_KEY_PREFIX}${id}/texts`;
+      const imagesKey = `${GRANULAR_KEY_PREFIX}${id}/images`;
+
       if (OBR.isReady) {
-        await OBR.room.setMetadata({ [key]: null });
+        await OBR.room.setMetadata({ 
+          [mainKey]: null,
+          [textsKey]: null,
+          [imagesKey]: null
+        });
       } else {
         await new Promise<void>((resolve) => {
           OBR.onReady(async () => {
-            await OBR.room.setMetadata({ [key]: null });
+            await OBR.room.setMetadata({ 
+              [mainKey]: null,
+              [textsKey]: null,
+              [imagesKey]: null
+            });
             resolve();
           });
         });

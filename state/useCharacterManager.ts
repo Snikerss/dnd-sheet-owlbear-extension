@@ -6,7 +6,7 @@ import { isCharacter, migrateCharacterData } from './initialization';
 import { characterReducer } from './characterReducer';
 import { generateActionDescription } from '../utils/history';
 import { useNotifier } from '../context/NotificationContext';
-import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter, loadFromLocalStorage, saveToLocalStorage, stripLargeTexts, decompressData, restoreLocalData } from '../utils/storage';
+import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter, loadFromLocalStorage, saveToLocalStorage, stripLargeTexts, decompressData, restoreLocalData, mergeCharacter } from '../utils/storage';
 
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/character/';
 
@@ -18,30 +18,26 @@ const parseCharactersData = (data: any): CharactersState => {
   
   return Object.entries(data).reduce((acc, [id, charData]) => {
     const item = charData as {
-      character?: any;
+      character: any;
       log?: LogEntry[];
-      history?: { past?: any[]; future?: any[] };
+      history?: {
+        past?: any[];
+        future?: any[];
+      };
       imageCache?: [string, string][];
     };
-    const characterObject = item.character 
-      ? item.character 
-      : (item as any).history 
-      ? (item as any).history.present 
-      : item;
-
-    // Check if characterObject is in minified format (e.g., scores is flat array instead of STR/DEX/etc map)
-    const isMinified = characterObject && Array.isArray(characterObject.scores);
+    
+    if (!item || !item.character) return acc;
+    
+    const characterObject = item.character;
+    const isMinified = characterObject && !('scores' in characterObject && 'STR' in characterObject.scores);
     const fullCharacter = isMinified ? unminifyCharacter(characterObject) : characterObject;
 
     const migratedData = migrateCharacterData(fullCharacter);
     if (isCharacter(migratedData)) {
-      const past = Array.isArray(item.history?.past)
-        ? item.history.past.map(migrateCharacterData).filter(isCharacter)
-        : [];
-      const future = Array.isArray(item.history?.future)
-        ? item.history.future.map(migrateCharacterData).filter(isCharacter)
-        : [];
-
+      const past = Array.isArray(item.history?.past) ? item.history!.past : [];
+      const future = Array.isArray(item.history?.future) ? item.history!.future : [];
+      
       acc[id] = {
         history: {
           past,
@@ -54,6 +50,18 @@ const parseCharactersData = (data: any): CharactersState => {
     }
     return acc;
   }, {} as CharactersState);
+};
+
+// Consistent serialization cache builder
+const serializeForCache = (charData: any): string => {
+  if (!charData) return '';
+  const minified = {
+    ...charData,
+    character: minifyCharacter(charData.character)
+  };
+  const stripped = stripLargeTexts(stripBase64(minified));
+  stripped.imageCache = [];
+  return JSON.stringify(stripped);
 };
 
 interface CharacterManager {
@@ -82,7 +90,7 @@ export const useCharacterManager = (): CharacterManager => {
           const parsedState = parseCharactersData(data);
           const cache: Record<string, string> = {};
           for (const [id, charData] of Object.entries(data)) {
-            cache[id] = JSON.stringify(charData);
+            cache[id] = serializeForCache(charData);
           }
           lastSerializedRef.current = cache;
           dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
@@ -104,22 +112,40 @@ export const useCharacterManager = (): CharacterManager => {
       const unsubscribe = OBR.room.onMetadataChange(async (metadata) => {
         let hasChanges = false;
         const currentCache = { ...lastSerializedRef.current };
-        const rawData: Record<string, any> = {};
+        const tempChunks: Record<string, { main?: any; texts?: any; images?: any }> = {};
         
-        // A. Read all granular character keys from metadata
+        // A. Read all granular character keys from metadata and group by character ID
         for (const [key, value] of Object.entries(metadata)) {
           if (key.startsWith(GRANULAR_KEY_PREFIX)) {
-            const id = key.replace(GRANULAR_KEY_PREFIX, '');
+            const path = key.replace(GRANULAR_KEY_PREFIX, '');
+            const parts = path.split('/');
+            const charId = parts[0];
+            const type = parts[1] || 'main'; // 'main', 'texts', 'images'
+
             if (value !== null && value !== undefined) {
               const decompressed = await decompressData(value);
               if (decompressed) {
-                rawData[id] = decompressed;
-                const serialized = JSON.stringify(decompressed);
-                if (currentCache[id] !== serialized) {
-                  currentCache[id] = serialized;
-                  hasChanges = true;
-                }
+                if (!tempChunks[charId]) tempChunks[charId] = {};
+                tempChunks[charId][type as 'main' | 'texts' | 'images'] = decompressed;
               }
+            } else if (value === null && type === 'main') {
+              // Mark for deletion
+              tempChunks[charId] = null as any;
+            }
+          }
+        }
+
+        // Reconstruct full character states from chunks
+        const rawData: Record<string, any> = {};
+        for (const [charId, chunks] of Object.entries(tempChunks)) {
+          if (chunks && chunks.main) {
+            const merged = mergeCharacter(chunks.main, chunks.texts, chunks.images);
+            rawData[charId] = merged;
+
+            const serialized = serializeForCache(merged);
+            if (currentCache[charId] !== serialized) {
+              currentCache[charId] = serialized;
+              hasChanges = true;
             }
           }
         }
@@ -193,14 +219,7 @@ export const useCharacterManager = (): CharacterManager => {
           imageCache: rawChar.imageCache
         };
 
-        // Minify, strip base64, and strip large texts to match exactly what is saved to the OBR cloud metadata (staying below 16KB)
-        const minifiedChar = {
-          ...obrCharData,
-          character: minifyCharacter(obrCharData.character)
-        };
-        const strippedObrChar = stripLargeTexts(stripBase64(minifiedChar));
-        strippedObrChar.imageCache = []; // Clear image cache to match cloud payload
-        const serialized = JSON.stringify(strippedObrChar);
+        const serialized = serializeForCache(obrCharData);
         
         if (currentCache[id] !== serialized) {
           console.log(`[DND Sheet] Local change detected for character ${id}. Saving granularly...`);
