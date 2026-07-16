@@ -6,9 +6,9 @@ import { isCharacter, migrateCharacterData } from './initialization';
 import { characterReducer } from './characterReducer';
 import { generateActionDescription } from '../utils/history';
 import { useNotifier } from '../context/NotificationContext';
-import { loadCharactersApi, saveCharactersApi, isOwlbear } from '../utils/storage';
+import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear } from '../utils/storage';
 
-const METADATA_KEY = 'com.antigravity.dnd-sheet/characters';
+const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/character/';
 
 // Helper to safely parse character data structure from raw metadata
 const parseCharactersData = (data: any): CharactersState => {
@@ -67,8 +67,8 @@ export const useCharacterManager = (): CharacterManager => {
   const [isLoading, setIsLoading] = useState(true);
   const { addNotification } = useNotifier();
 
-  // Track the last serialized metadata string to prevent sync loops and overwrites
-  const lastSerializedRef = useRef<string>('');
+  // Track the serialized state of each character individually (indexed by character ID)
+  const lastSerializedRef = useRef<Record<string, string>>({});
 
   // 1. Initial Load of character data
   useEffect(() => {
@@ -76,7 +76,11 @@ export const useCharacterManager = (): CharacterManager => {
       .then(data => {
         if (data) {
           const parsedState = parseCharactersData(data);
-          lastSerializedRef.current = JSON.stringify(data);
+          const cache: Record<string, string> = {};
+          for (const [id, charData] of Object.entries(data)) {
+            cache[id] = JSON.stringify(charData);
+          }
+          lastSerializedRef.current = cache;
           dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
         }
         setIsLoading(false);
@@ -88,20 +92,43 @@ export const useCharacterManager = (): CharacterManager => {
       });
   }, [addNotification]);
 
-  // 2. Real-time subscription to room metadata changes (OBR players/GMs sync)
+  // 2. Real-time subscription to room metadata changes (granular key updates)
   useEffect(() => {
     if (isOwlbear()) {
       console.log('[DND Sheet] Subscribing to OBR room metadata changes.');
       
       const unsubscribe = OBR.room.onMetadataChange((metadata) => {
-        const rawData = metadata[METADATA_KEY];
-        if (!rawData) return;
+        let hasChanges = false;
+        const currentCache = { ...lastSerializedRef.current };
+        const rawData: Record<string, any> = {};
+        
+        // A. Read all granular character keys from metadata
+        for (const [key, value] of Object.entries(metadata)) {
+          if (key.startsWith(GRANULAR_KEY_PREFIX)) {
+            const id = key.replace(GRANULAR_KEY_PREFIX, '');
+            if (value !== null && value !== undefined) {
+              rawData[id] = value;
+              const serialized = JSON.stringify(value);
+              if (currentCache[id] !== serialized) {
+                currentCache[id] = serialized;
+                hasChanges = true;
+              }
+            }
+          }
+        }
 
-        const serialized = JSON.stringify(rawData);
-        // Only update local state if the incoming metadata differs from what we have
-        if (serialized !== lastSerializedRef.current) {
-          console.log('[DND Sheet] Detected remote metadata changes. Syncing local state...');
-          lastSerializedRef.current = serialized;
+        // B. Handle deleted keys (present in local cache but removed/nullified in metadata)
+        for (const id of Object.keys(currentCache)) {
+          const metadataKey = `${GRANULAR_KEY_PREFIX}${id}`;
+          if (metadata[metadataKey] === null || metadata[metadataKey] === undefined) {
+            delete currentCache[id];
+            hasChanges = true;
+          }
+        }
+
+        if (hasChanges) {
+          console.log('[DND Sheet] Remote granular changes detected. Syncing local state...');
+          lastSerializedRef.current = currentCache;
           const parsedState = parseCharactersData(rawData);
           dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
         }
@@ -111,13 +138,16 @@ export const useCharacterManager = (): CharacterManager => {
     }
   }, []);
 
-  // 3. Save local modifications to the storage/metadata
+  // 3. Save local modifications to the storage/metadata granularly
   useEffect(() => {
     if (isLoading) return; // Do not save during initial loading phase
 
     try {
-      // Serialize the local characters state back to raw storage format
-      const rawToSave = Object.entries(characters).reduce((acc, [id, data]) => {
+      const currentCache = { ...lastSerializedRef.current };
+      let cacheUpdated = false;
+
+      // Construct raw character structures from React state
+      const rawCharacters = Object.entries(characters).reduce((acc, [id, data]) => {
         acc[id] = {
           character: data.history.present,
           log: data.log || [],
@@ -130,16 +160,29 @@ export const useCharacterManager = (): CharacterManager => {
         return acc;
       }, {} as Record<string, any>);
 
-      const serialized = JSON.stringify(rawToSave);
-      
-      // Only call save if our local state actually changed compared to the last sync point
-      if (serialized !== lastSerializedRef.current) {
-        console.log('[DND Sheet] Local changes detected. Saving to storage...');
-        lastSerializedRef.current = serialized;
-        saveCharactersApi(rawToSave).catch(error => {
-          console.error("Failed to save characters:", error);
-          addNotification("Ошибка: не удалось сохранить данные персонажа.", 'error');
-        });
+      // A. Save or update characters that have changes
+      for (const [id, rawChar] of Object.entries(rawCharacters)) {
+        const serialized = JSON.stringify(rawChar);
+        if (currentCache[id] !== serialized) {
+          console.log(`[DND Sheet] Local change detected for character ${id}. Saving granularly...`);
+          currentCache[id] = serialized;
+          cacheUpdated = true;
+          saveCharacterApi(id, rawChar);
+        }
+      }
+
+      // B. Delete characters that were removed locally
+      for (const id of Object.keys(currentCache)) {
+        if (!rawCharacters[id]) {
+          console.log(`[DND Sheet] Local deletion detected for character ${id}. Deleting granularly...`);
+          delete currentCache[id];
+          cacheUpdated = true;
+          deleteCharacterApi(id);
+        }
+      }
+
+      if (cacheUpdated) {
+        lastSerializedRef.current = currentCache;
       }
     } catch (error) {
       console.error("Critical serialization error:", error);
