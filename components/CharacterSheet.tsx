@@ -915,7 +915,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
             {/* Global Dice Roller FAB */}
             <button
                 onClick={() => setIsDiceRollerOpen(true)}
-                className="dice-fab fixed bottom-24 right-6 md:bottom-6 md:right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-r from-teal-500 to-emerald-600 text-white flex items-center justify-center shadow-[0_0_15px_rgba(20,184,166,0.5)] hover:shadow-[0_0_25px_rgba(20,184,166,0.8)] hover:scale-110 active:scale-95 transition-transform duration-150 border border-teal-400/30 group"
+                className="dice-fab fixed bottom-24 right-6 md:bottom-6 md:right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-r from-teal-500 to-emerald-600 text-white flex items-center justify-center shadow-[0_0_15px_rgba(20,184,166,0.5)] hover:shadow-[0_0_25px_rgba(20,184,166,0.8)] md:hover:scale-110 active:scale-95 transition-transform duration-150 border border-teal-400/30 group"
                 data-tooltip="Открыть универсальный бросок кубиков"
             >
                 <svg

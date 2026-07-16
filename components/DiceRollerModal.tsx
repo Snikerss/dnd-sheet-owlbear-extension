@@ -361,14 +361,14 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
 
   return (
     <div
-      className="dice-roller-modal fixed inset-0 bg-[var(--color-surface-translucent)] backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="dice-roller-modal fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-0 sm:p-4"
       onClick={handleOverlayClick}
       role="dialog"
       aria-modal="true"
     >
       <div
         ref={modalRef}
-        className="bg-[var(--color-surface-opaque)] rounded-xl shadow-2xl p-6 w-full max-w-4xl border border-[var(--color-border)] animate-fade-in flex flex-col max-h-[90vh]"
+        className="bg-[var(--color-surface-opaque)] rounded-none sm:rounded-xl shadow-2xl p-4 sm:p-6 w-full h-full sm:h-auto sm:max-h-[90vh] max-w-4xl border-0 sm:border border-[var(--color-border)] animate-fade-in flex flex-col"
       >
         {/* Header */}
         <div className="flex justify-between items-center border-b border-[var(--color-border-subtle)] pb-4 mb-4 flex-shrink-0">

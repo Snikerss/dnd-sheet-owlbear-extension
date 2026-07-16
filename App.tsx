@@ -45,6 +45,10 @@ const AppContent: React.FC = () => {
     let activeEl: HTMLElement | null = null;
 
     const handleMouseOver = (e: MouseEvent) => {
+      // Disable mouse-over tooltips on touch screens to prevent phantom tooltips and layout shifts
+      if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+        return;
+      }
       const target = e.target as HTMLElement;
       const tooltipTarget = target.closest('[data-tooltip]') as HTMLElement | null;
 
