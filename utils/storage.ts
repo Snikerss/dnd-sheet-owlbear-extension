@@ -649,7 +649,19 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
     // Since minifiedCharData.character is minified, we must unminify it first so extractImages can run,
     // and then minify it back for optimal VTT storage/network footprint.
     const fullChar = unminifyCharacter(minifiedCharData.character);
-    const { light } = extractImages(fullChar);
+    const { light, images: newExtractedImages } = extractImages(fullChar);
+    
+    // Merge new extracted images with the existing imageCache list
+    const combinedImageCacheMap = new Map<string, string>();
+    if (Array.isArray(minifiedCharData.imageCache)) {
+      for (const [imgId, imgVal] of minifiedCharData.imageCache) {
+        combinedImageCacheMap.set(imgId, imgVal);
+      }
+    }
+    for (const [imgId, imgVal] of newExtractedImages.entries()) {
+      combinedImageCacheMap.set(imgId, imgVal);
+    }
+
     const minifiedLight = minifyCharacter(light);
     const strippedData = {
       ...minifiedCharData,
@@ -678,19 +690,20 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
       });
     }
     
-    // 3. Broadcast portrait ONLY if it has changed or forceSyncImages is true (under key 'img:ref:portrait')
-    const newPortrait = minifiedCharData.character?.portraitUrl || '';
-    if (newPortrait.startsWith('data:') && (forceSyncImages || newPortrait !== lastSentImagesCache[id].portraitUrl)) {
-      lastSentImagesCache[id].portraitUrl = newPortrait;
-      await broadcastLargeString(id, 'img:ref:portrait', false, newPortrait);
-    }
-    
-    // 4. Broadcast imageCache entries ONLY if they are new or changed or forceSyncImages is true
-    if (Array.isArray(minifiedCharData.imageCache)) {
-      for (const [imgId, imgVal] of minifiedCharData.imageCache) {
-        if (imgId === 'img:ref:portrait') continue;
-        if (imgVal && imgVal.startsWith('data:') && (forceSyncImages || !lastSentImagesCache[id].imageCacheKeys.has(imgId))) {
-          lastSentImagesCache[id].imageCacheKeys.add(imgId);
+    // 3. Broadcast portrait and all other imageCache entries if they are new, changed, or forceSyncImages is true
+    for (const [imgId, imgVal] of combinedImageCacheMap.entries()) {
+      if (imgVal && imgVal.startsWith('data:')) {
+        const isPortrait = imgId === 'img:ref:portrait';
+        const hasChanged = isPortrait 
+          ? imgVal !== lastSentImagesCache[id].portraitUrl 
+          : !lastSentImagesCache[id].imageCacheKeys.has(imgId);
+          
+        if (forceSyncImages || hasChanged) {
+          if (isPortrait) {
+            lastSentImagesCache[id].portraitUrl = imgVal;
+          } else {
+            lastSentImagesCache[id].imageCacheKeys.add(imgId);
+          }
           await broadcastLargeString(id, imgId, false, imgVal);
         }
       }

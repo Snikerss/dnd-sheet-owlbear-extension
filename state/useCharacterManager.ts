@@ -1,6 +1,7 @@
 import { useReducer, useEffect, useCallback, useState, useRef } from 'react';
 import OBR from '@owlbear-rodeo/sdk';
 import { Character, CharacterAction, HistoryState, LogEntry } from '../types';
+import { applyImages } from '../utils/imageStore';
 import { charactersReducer, CharactersState } from './appReducer';
 import { isCharacter, migrateCharacterData } from './initialization';
 import { characterReducer } from './characterReducer';
@@ -37,15 +38,17 @@ const parseCharactersData = (data: any): CharactersState => {
     if (isCharacter(migratedData)) {
       const past = Array.isArray(item.history?.past) ? item.history!.past : [];
       const future = Array.isArray(item.history?.future) ? item.history!.future : [];
+      const imageCache = item.imageCache ? new Map(item.imageCache) : new Map();
+      const presentWithImages = applyImages(migratedData as Character, imageCache);
       
       acc[id] = {
         history: {
           past,
-          present: migratedData as Character,
+          present: presentWithImages,
           future,
         },
         log: item.log || [],
-        imageCache: item.imageCache ? new Map(item.imageCache) : new Map(),
+        imageCache,
       };
     }
     return acc;
