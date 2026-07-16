@@ -56,8 +56,14 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
         const text = e.target?.result;
         if (typeof text !== 'string') throw new Error("Не удалось прочитать файл.");
         
-        const importedCharacter = JSON.parse(text);
-        const migratedCharacter = migrateCharacterData(importedCharacter);
+        const imported = JSON.parse(text);
+        
+        // Extract the character object if it's wrapped in a { character: ... } structure (standard desktop app DB format)
+        const characterData = (imported && typeof imported === 'object' && imported.character)
+          ? imported.character
+          : imported;
+
+        const migratedCharacter = migrateCharacterData(characterData);
 
         if (isCharacter(migratedCharacter)) {
           const newId = generateUUID();
