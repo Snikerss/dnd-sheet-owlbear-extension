@@ -507,7 +507,26 @@ function loadFromLocalStorage(): any {
 
 function saveToLocalStorage(characters: any) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem('dnd-characters', JSON.stringify(characters));
+  try {
+    localStorage.setItem('dnd-characters', JSON.stringify(characters));
+  } catch (e) {
+    if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+      console.warn('[DND Sheet] LocalStorage quota exceeded. Stripping base64 from all local backups to free space...');
+      // Strip base64 from all characters in the object to shrink them down
+      const cleaned: any = {};
+      for (const [key, val] of Object.entries(characters)) {
+        cleaned[key] = stripBase64(val);
+      }
+      try {
+        localStorage.setItem('dnd-characters', JSON.stringify(cleaned));
+        console.log('[DND Sheet] LocalStorage successfully cleared of giant images and saved.');
+      } catch (innerErr) {
+        console.error('[DND Sheet] Failed to save even after stripping base64:', innerErr);
+      }
+    } else {
+      console.error('[DND Sheet] LocalStorage save failed with unexpected error:', e);
+    }
+  }
 }
 
 async function loadFromLocalDevApi(): Promise<any> {
