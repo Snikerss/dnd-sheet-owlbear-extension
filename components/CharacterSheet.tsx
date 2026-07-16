@@ -739,7 +739,22 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
     );
 
     return (
-        <main className={`min-h-screen p-4 md:p-8${isReadOnly ? ' is-readonly' : ''}`}>
+        <>
+            {/* Universal Dice Roller Modal */}
+            <DiceRollerModal
+                isOpen={isDiceRollerOpen}
+                onClose={() => setIsDiceRollerOpen(false)}
+                character={character}
+                onRoll={(result) => {
+                    if (rollToastTimerRef.current) clearTimeout(rollToastTimerRef.current);
+                    setRollToastData(result);
+                    broadcastRoll(character.name, result);
+                    rollToastTimerRef.current = window.setTimeout(() => setRollToastData(null), 3400);
+                }}
+                onRollingStatusChange={setIsRollingDice}
+            />
+
+            <main className={`min-h-screen p-4 md:p-8${isReadOnly ? ' is-readonly' : ''}`}>
             {/* Low HP Danger Pulsing Vignette */}
             {character.currentHitPoints / character.maxHitPoints <= 0.2 && character.currentHitPoints > 0 && (
                 <div className="fixed inset-0 pointer-events-none z-50 animate-pulse-danger ring-[12px] ring-red-600/30 md:ring-[20px]"></div>
@@ -932,19 +947,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                 </svg>
             </div>
 
-            {/* Universal Dice Roller Modal */}
-            <DiceRollerModal
-                isOpen={isDiceRollerOpen}
-                onClose={() => setIsDiceRollerOpen(false)}
-                character={character}
-                onRoll={(result) => {
-                    if (rollToastTimerRef.current) clearTimeout(rollToastTimerRef.current);
-                    setRollToastData(result);
-                    broadcastRoll(character.name, result);
-                    rollToastTimerRef.current = window.setTimeout(() => setRollToastData(null), 3400);
-                }}
-                onRollingStatusChange={setIsRollingDice}
-            />
+
 
             <div className="max-w-[1600px] mx-auto space-y-6 px-2 md:px-4">
                 
@@ -1503,5 +1506,6 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                     </div>
             </div>
         </main>
+        </>
     );
 };
