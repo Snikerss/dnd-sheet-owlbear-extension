@@ -65,6 +65,14 @@ const serializeForCache = (charData: any): string => {
   return JSON.stringify(minified);
 };
 
+const getChecksum = (str: string): string => {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 33) ^ str.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(16);
+};
+
 interface CharacterManager {
   characters: CharactersState;
   isLoading: boolean;
@@ -245,9 +253,21 @@ export const useCharacterManager = (): CharacterManager => {
             const owned = localStorage.getItem('dnd-owned-ids');
             const ownedList = owned ? JSON.parse(owned) : [];
             const localData = loadFromLocalStorage();
+            const cachedVersions = (payload as any).cachedVersions || {};
+            
             for (const id of ownedList) {
               const charData = localData[id];
               if (charData) {
+                const serialized = serializeForCache(charData);
+                const currentChecksum = getChecksum(serialized);
+                
+                // Skip syncing if requester already has this exact checksum
+                if (cachedVersions[id] === currentChecksum) {
+                  console.log(`[DND Sheet] Requester already has up-to-date character ${id} (checksum: ${currentChecksum}). Skipping sync.`);
+                  continue;
+                }
+                
+                console.log(`[DND Sheet] Requester has outdated or missing version of ${id}. Syncing...`);
                 // Send in separate chunks to avoid exceeding broadcast limits
                 await broadcastCharacterSync(id, charData, true);
               }
@@ -433,8 +453,18 @@ export const useCharacterManager = (): CharacterManager => {
       const unsubscribe = OBR.broadcast.onMessage(SYNC_CHANNEL, handleMessage);
       
       // Request full sheets on startup to sync with already online players
-      OBR.broadcast.sendMessage(SYNC_CHANNEL, { type: 'REQUEST_FULL_CHARACTERS' })
-        .catch(err => console.warn('[DND Sheet] Initial request broadcast failed:', err));
+      const localData = loadFromLocalStorage();
+      const cachedVersions: Record<string, string> = {};
+      for (const [id, entry] of Object.entries(localData)) {
+        if (entry) {
+          cachedVersions[id] = getChecksum(serializeForCache(entry));
+        }
+      }
+
+      OBR.broadcast.sendMessage(SYNC_CHANNEL, { 
+        type: 'REQUEST_FULL_CHARACTERS',
+        cachedVersions
+      }).catch(err => console.warn('[DND Sheet] Initial request broadcast failed:', err));
 
       return unsubscribe;
     }
