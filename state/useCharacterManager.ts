@@ -1,7 +1,7 @@
 import { useReducer, useEffect, useCallback, useState, useRef } from 'react';
 import OBR from '@owlbear-rodeo/sdk';
 import { Character, CharacterAction, HistoryState, LogEntry } from '../types';
-import { applyImages } from '../utils/imageStore';
+import { applyImages, extractImages } from '../utils/imageStore';
 import { charactersReducer, CharactersState } from './appReducer';
 import { isCharacter, migrateCharacterData } from './initialization';
 import { characterReducer } from './characterReducer';
@@ -60,12 +60,27 @@ const serializeForCache = (charData: any): string => {
   if (!charData) return '';
   
   const fullChar = unminifyCharacter(charData.character);
-  const minifiedChar = minifyCharacter(fullChar);
   
-  const imageCacheList = Array.isArray(charData.imageCache) 
-    ? [...charData.imageCache] 
+  // Extract images to tokenize all raw base64 URLs (like portraitUrl)
+  const { light, images: extractedImages } = extractImages(fullChar);
+  
+  const minifiedChar = minifyCharacter(light);
+  
+  // Combine stored imageCache and newly extracted images
+  const combinedImages = new Map<string, string>();
+  
+  const storedList = Array.isArray(charData.imageCache) 
+    ? charData.imageCache 
     : (charData.imageCache instanceof Map ? Array.from(charData.imageCache.entries()) : []);
     
+  for (const [id, val] of storedList) {
+    combinedImages.set(id, val);
+  }
+  for (const [id, val] of extractedImages.entries()) {
+    combinedImages.set(id, val);
+  }
+  
+  const imageCacheList = Array.from(combinedImages.entries());
   // Sort image cache by key to ensure order independence
   imageCacheList.sort((a, b) => a[0].localeCompare(b[0]));
   
@@ -280,7 +295,7 @@ export const useCharacterManager = (): CharacterManager => {
                   continue;
                 }
                 
-                console.log(`[DND Sheet] Requester has outdated or missing version of ${id}. Syncing...`);
+                console.log(`[DND Sheet] Checksum mismatch for character ${id}: Requester checksum: "${cachedVersions[id]}", Current checksum: "${currentChecksum}". Syncing...`);
                 // Send in separate chunks to avoid exceeding broadcast limits
                 await broadcastCharacterSync(id, charData, true);
               }
