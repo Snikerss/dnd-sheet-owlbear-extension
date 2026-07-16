@@ -1,5 +1,6 @@
 import { Character, Ability, InventoryItem, ProficiencyLevel, Rarity, Currency, CharacterSize, Feature, RecoveryType, Attack, AttackType, DamageType, Spell, MagicSchool, Note } from '../types';
 import { SKILLS } from '../constants';
+import { defaultCharacterState } from './defaultCharacterState';
 
 /**
  * Migrates a single item object to include new fields if they are missing.
@@ -57,7 +58,19 @@ const migrateItem = (item: any): any => {
 export const migrateCharacterData = (characterData: any): any => {
     if (typeof characterData !== 'object' || characterData === null) return characterData;
 
-    const migrated = { ...characterData };
+    // Shallow merge characterData with defaultCharacterState, and deep merge core nested maps
+    const migrated = {
+        ...defaultCharacterState,
+        ...characterData,
+        scores: { ...defaultCharacterState.scores, ...characterData.scores },
+        skills: { ...defaultCharacterState.skills, ...characterData.skills },
+        savingThrowProficiencies: { ...defaultCharacterState.savingThrowProficiencies, ...characterData.savingThrowProficiencies },
+        abilityBonuses: { ...defaultCharacterState.abilityBonuses, ...characterData.abilityBonuses },
+        skillBonuses: { ...defaultCharacterState.skillBonuses, ...characterData.skillBonuses },
+        savingThrowBonuses: { ...defaultCharacterState.savingThrowBonuses, ...characterData.savingThrowBonuses },
+        acAbilitySources: { ...defaultCharacterState.acAbilitySources, ...characterData.acAbilitySources },
+        currency: { ...defaultCharacterState.currency, ...characterData.currency },
+    };
 
     if (Array.isArray(migrated.inventory)) {
         migrated.inventory = migrated.inventory.map(migrateItem);
