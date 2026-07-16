@@ -602,7 +602,7 @@ export async function loadCharactersApi(): Promise<any> {
   }
 }
 
-const MAX_BROADCAST_CHUNK_SIZE = 25000;
+const MAX_BROADCAST_CHUNK_SIZE = 40000;
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Global in-memory cache to track what has already been broadcasted to peers in the current session
@@ -629,7 +629,7 @@ export async function broadcastLargeString(id: string, imgId: string, isPortrait
       chunkData: chunkStr
     });
     // Add a small delay between chunks to avoid RateLimitHit (Too many requests)
-    await delay(50);
+    await delay(80);
   }
 }
 
@@ -703,15 +703,19 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
           : !lastSentImagesCache[id].imageCacheKeys.has(imgId);
           
         if (forceSyncImages || hasChanged) {
-          if (isPortrait) {
-            lastSentImagesCache[id].portraitUrl = imgVal;
-          } else {
-            lastSentImagesCache[id].imageCacheKeys.add(imgId);
-          }
           console.log(`[DND Sheet] Broadcasting image: ${imgId} (isPortrait: ${isPortrait}, force: ${forceSyncImages}, hasChanged: ${hasChanged}, size: ${imgVal.length})`);
-          await broadcastLargeString(id, imgId, isPortrait, imgVal);
+          try {
+            await broadcastLargeString(id, imgId, isPortrait, imgVal);
+            if (isPortrait) {
+              lastSentImagesCache[id].portraitUrl = imgVal;
+            } else {
+              lastSentImagesCache[id].imageCacheKeys.add(imgId);
+            }
+          } catch (err) {
+            console.error(`[DND Sheet] Failed to broadcast image ${imgId}:`, err);
+          }
           // Add a delay between sending different images to prevent RateLimitHit
-          await delay(100);
+          await delay(150);
         }
       }
     }
