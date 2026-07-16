@@ -2,6 +2,7 @@ import OBR from '@owlbear-rodeo/sdk';
 import { Character, Ability, Skill, ProficiencyLevel, InventoryItem } from '../types';
 import { defaultCharacterState } from '../state/defaultCharacterState';
 import { compressBase64Image } from './imageCompress';
+import { extractImages } from './imageStore';
 
 /**
  * Checks if the application is running inside the Owlbear Rodeo iframe environment.
@@ -644,8 +645,12 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any):
       };
     }
     
-    // 2. Create the lightweight sheet data (recursively stripping all base64 images)
-    const strippedData = stripBase64(minifiedCharData);
+    // 2. Create the lightweight sheet data by extracting images into tokens
+    const { light } = extractImages(minifiedCharData.character);
+    const strippedData = {
+      ...minifiedCharData,
+      character: light
+    };
     if (strippedData.history) {
       strippedData.history.past = [];
       strippedData.history.future = [];
@@ -668,16 +673,17 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any):
       });
     }
     
-    // 3. Broadcast portrait ONLY if it has changed
+    // 3. Broadcast portrait ONLY if it has changed (under key 'img:ref:portrait')
     const newPortrait = minifiedCharData.character?.portraitUrl || '';
     if (newPortrait.startsWith('data:') && newPortrait !== lastSentImagesCache[id].portraitUrl) {
       lastSentImagesCache[id].portraitUrl = newPortrait;
-      await broadcastLargeString(id, 'portrait', true, newPortrait);
+      await broadcastLargeString(id, 'img:ref:portrait', false, newPortrait);
     }
     
     // 4. Broadcast imageCache entries ONLY if they are new or changed
     if (Array.isArray(minifiedCharData.imageCache)) {
       for (const [imgId, imgVal] of minifiedCharData.imageCache) {
+        if (imgId === 'img:ref:portrait') continue;
         if (imgVal && imgVal.startsWith('data:') && !lastSentImagesCache[id].imageCacheKeys.has(imgId)) {
           lastSentImagesCache[id].imageCacheKeys.add(imgId);
           await broadcastLargeString(id, imgId, false, imgVal);
