@@ -21,11 +21,13 @@ const AppContent: React.FC = () => {
 
   const [userId, setUserId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<'GM' | 'PLAYER' | null>(null);
+  const [playerName, setPlayerName] = useState<string>('');
 
   useEffect(() => {
     if (isOwlbear()) {
       setUserId(OBR.player.id);
       OBR.player.getRole().then(setUserRole).catch(console.error);
+      OBR.player.getName().then(setPlayerName).catch(console.error);
     }
   }, []);
 
@@ -158,9 +160,15 @@ const AppContent: React.FC = () => {
         type: 'SET_FIELD', 
         payload: { field: 'ownerId', value: OBR.player.id } 
       });
+      if (playerName) {
+        updateCharacter(id, {
+          type: 'SET_FIELD',
+          payload: { field: 'ownerName', value: playerName }
+        });
+      }
     }
     setActiveCharacterId(id);
-  }, [characters, updateCharacter]);
+  }, [characters, updateCharacter, playerName]);
 
   const handleCreateCharacter = useCallback(() => {
     const newId = generateUUID();
@@ -169,11 +177,14 @@ const AppContent: React.FC = () => {
     
     if (isOwlbear() && OBR.player.id) {
       newCharacter.ownerId = OBR.player.id;
+      if (playerName) {
+        newCharacter.ownerName = playerName;
+      }
     }
 
     addCharacter(newId, newCharacter);
     setActiveCharacterId(newId);
-  }, [addCharacter]);
+  }, [addCharacter, playerName]);
 
   const handleDeleteCharacter = useCallback((id: string) => {
     const characterToDelete = characters[id]?.history.present;
@@ -192,19 +203,25 @@ const AppContent: React.FC = () => {
 
     if (isOwlbear() && OBR.player.id) {
       newCharacter.ownerId = OBR.player.id;
+      if (playerName) {
+        newCharacter.ownerName = playerName;
+      }
     }
 
     addCharacter(newId, newCharacter);
     setActiveCharacterId(newId);
-  }, [characters, addCharacter]);
+  }, [characters, addCharacter, playerName]);
 
   const handleAddCharacter = useCallback((id: string, character: Character) => {
     const charWithNewOwner = { ...character };
     if (isOwlbear() && OBR.player.id) {
       charWithNewOwner.ownerId = OBR.player.id;
+      if (playerName) {
+        charWithNewOwner.ownerName = playerName;
+      }
     }
     addCharacter(id, charWithNewOwner);
-  }, [addCharacter]);
+  }, [addCharacter, playerName]);
 
   const handleUpdateCharacter = useCallback((action: CharacterAction) => {
     if (activeCharacterId) {
@@ -261,9 +278,10 @@ const AppContent: React.FC = () => {
 
   const activeCharacterState = activeCharacterId ? characters[activeCharacterId] : null;
   const activeCharacter = activeCharacterState?.history.present;
+  const isReadOnly = activeCharacter && isOwlbear() && activeCharacter.ownerId && userId && activeCharacter.ownerId !== userId;
   const activeLog: LogEntry[] = activeCharacterState?.log || [];
-  const canUndo = (activeCharacterState?.history.past.length ?? 0) > 0;
-  const canRedo = (activeCharacterState?.history.future.length ?? 0) > 0;
+  const canUndo = !isReadOnly && (activeCharacterState?.history.past.length ?? 0) > 0;
+  const canRedo = !isReadOnly && (activeCharacterState?.history.future.length ?? 0) > 0;
   
   return (
     <>
@@ -293,6 +311,7 @@ const AppContent: React.FC = () => {
               canUndo={canUndo}
               canRedo={canRedo}
               onOpenHistoryLog={() => setIsHistoryLogOpen(true)}
+              isReadOnly={!!isReadOnly}
             />
         </CharacterProvider>
       ) : (

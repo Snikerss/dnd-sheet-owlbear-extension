@@ -40,7 +40,7 @@ export function minifyCharacter(char: Character): any {
     'maxHpBonus', 'carryCapacityBonus',
     'globalAttackDiceBonusToHitDice', 'globalAttackDiceBonusToDamageDice',
     'spellcastingAbility', 'maxPreparedSpells', 'spellSaveDcBonus',
-    'spellAttackBonusBonus', 'activeNoteId', 'attunementMaxBonus', 'ownerId', 'viewMode'
+    'spellAttackBonusBonus', 'activeNoteId', 'attunementMaxBonus', 'ownerId', 'ownerName', 'viewMode'
   ];
 
   for (const field of basicFields) {
@@ -162,7 +162,7 @@ export function unminifyCharacter(min: any): Character {
     'maxHpBonus', 'carryCapacityBonus',
     'globalAttackDiceBonusToHitDice', 'globalAttackDiceBonusToDamageDice',
     'spellcastingAbility', 'maxPreparedSpells', 'spellSaveDcBonus',
-    'spellAttackBonusBonus', 'activeNoteId', 'attunementMaxBonus', 'ownerId', 'viewMode'
+    'spellAttackBonusBonus', 'activeNoteId', 'attunementMaxBonus', 'ownerId', 'ownerName', 'viewMode'
   ];
 
   for (const field of basicFields) {
@@ -649,7 +649,8 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any):
     const { light } = extractImages(minifiedCharData.character);
     const strippedData = {
       ...minifiedCharData,
-      character: light
+      character: light,
+      imageCache: []
     };
     if (strippedData.history) {
       strippedData.history.past = [];

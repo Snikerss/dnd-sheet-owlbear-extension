@@ -203,6 +203,7 @@ export interface Character {
   viewMode?: 'tabs' | 'scroll';
   collapsedTabs?: Record<string, boolean>;
   ownerId?: string;
+  ownerName?: string;
 }
 
 export interface RollResult {

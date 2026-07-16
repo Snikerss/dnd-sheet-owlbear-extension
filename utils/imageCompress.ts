@@ -67,10 +67,7 @@ export async function compressCharacterImages(character: any): Promise<any> {
 
   const cloned = structuredClone(character);
 
-  // 1. Compress portraitUrl
-  if (cloned.portraitUrl && cloned.portraitUrl.startsWith('data:image/')) {
-    cloned.portraitUrl = await compressBase64Image(cloned.portraitUrl, 256, 0.8);
-  }
+  // 1. PortraitUrl is kept in its original quality (no compression)
 
   // 2. Compress inventory item images
   if (Array.isArray(cloned.inventory)) {

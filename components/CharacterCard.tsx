@@ -22,6 +22,13 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
             </svg>
           )}
         </div>
+        {character.ownerName && (
+          <div className="absolute top-2 right-2">
+            <span className="bg-black/60 text-white/90 text-xs px-2 py-1 rounded-md backdrop-blur-sm border border-white/10 font-medium">
+              👤 {character.ownerName}
+            </span>
+          </div>
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent"></div>
         <div className="absolute bottom-0 left-0 p-4">
           <h3 className="text-xl font-bold text-white drop-shadow-lg">{character.name}</h3>

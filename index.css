@@ -14,3 +14,30 @@
     animation: roll-settle 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 }
+
+/* Read-only styles for characters owned by other players */
+.is-readonly input,
+.is-readonly select,
+.is-readonly textarea,
+.is-readonly button:not(.tab-button):not(.close-button):not(.history-log-btn):not([data-tooltip*="Уровень"]) {
+  pointer-events: none !important;
+  cursor: not-allowed !important;
+}
+
+.is-readonly [data-tooltip="Загрузить портрет персонажа"],
+.is-readonly [data-tooltip="Удалить портрет"],
+.is-readonly [data-tooltip="Добавить предмет"],
+.is-readonly [data-tooltip="Добавить атаку"],
+.is-readonly [data-tooltip="Добавить заклинание"],
+.is-readonly [data-tooltip="Добавить способность"],
+.is-readonly [data-tooltip="Забыть все заклинания"],
+.is-readonly [data-tooltip="Короткий отдых"],
+.is-readonly [data-tooltip="Длинный отдых"],
+.is-readonly [data-tooltip="Бросить кубики HP"],
+.is-readonly [data-tooltip="Повысить уровень"],
+.is-readonly button[aria-label="Загрузить портрет персонажа"],
+.is-readonly button[aria-label="Удалить портрет"] {
+  pointer-events: none !important;
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}

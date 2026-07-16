@@ -32,6 +32,8 @@ import { parseAndRoll } from '../utils/dice';
 import { useCharacter } from '../context/CharacterContext';
 import { generateUUID } from '../utils/uuid';
 import { getEquippedItemBonuses } from '../utils/inventory';
+import { isOwlbear } from '../utils/storage';
+import OBR from '@owlbear-rodeo/sdk';
 
 interface CharacterSheetProps {
     onOpenCharacterManager: () => void;
@@ -40,6 +42,7 @@ interface CharacterSheetProps {
     canUndo: boolean;
     canRedo: boolean;
     onOpenHistoryLog: () => void;
+    isReadOnly?: boolean;
 }
 
 export const CharacterSheet: React.FC<CharacterSheetProps> = ({
@@ -49,6 +52,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
     canUndo,
     canRedo,
     onOpenHistoryLog,
+    isReadOnly = false,
 }) => {
     // --- CONTEXT HOOKS ---
     const { character, dispatch } = useCharacter();
@@ -735,7 +739,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
     );
 
     return (
-        <main className="min-h-screen p-4 md:p-8">
+        <main className={`min-h-screen p-4 md:p-8${isReadOnly ? ' is-readonly' : ''}`}>
             {/* Low HP Danger Pulsing Vignette */}
             {character.currentHitPoints / character.maxHitPoints <= 0.2 && character.currentHitPoints > 0 && (
                 <div className="fixed inset-0 pointer-events-none z-50 animate-pulse-danger ring-[12px] ring-red-600/30 md:ring-[20px]"></div>
