@@ -2,7 +2,8 @@
   "name": "D&D 5e Character Sheet",
   "version": "1.0.0",
   "manifest_version": 1,
-  "icon": "/icon.png",
+  "icon": "/action-icon.svg",
+  "background": "/background.html",
   "action": {
     "title": "Character Sheet",
     "icon": "/action-icon.svg",

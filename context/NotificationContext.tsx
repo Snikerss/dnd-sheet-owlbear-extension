@@ -37,6 +37,26 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (isOwlbear()) {
       try {
         const playerName = await OBR.player.getName();
+        
+        // Formulate roll details text
+        const modSign = result.modifier >= 0 ? `+${result.modifier}` : `${result.modifier}`;
+        let rollDetails = '';
+        if ((result.rollType === RollType.Advantage || result.rollType === RollType.Disadvantage) && result.roll2 !== undefined) {
+          const typeStr = result.rollType === RollType.Advantage ? 'Преимущество' : 'Помеха';
+          rollDetails = `${typeStr}: [${result.roll1}, ${result.roll2}] -> выбор ${result.chosenRoll}`;
+        } else {
+          rollDetails = `кубик: ${result.chosenRoll}`;
+        }
+
+        if (result.bonusDiceRoll) {
+          rollDetails += ` + бонус: ${result.bonusDiceRoll}`;
+        }
+
+        // Show local notification at the top of the map
+        const localMessageText = `Вы (${characterName}) бросили ${result.name}: 🎲 ${result.total} (${rollDetails} ${modSign})`;
+        OBR.notification.show(localMessageText);
+
+        // Send to others in the room
         OBR.broadcast.sendMessage(ROLL_CHANNEL, {
           playerName,
           characterName,

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Outer D20 Border (Hexagonal shape) -->
+  <polygon points="50,2 95,26 95,74 50,98 5,74 5,26" fill="#1a202c" stroke="#4fd1c5" stroke-width="4" />
+  
+  <!-- Outer faces filling -->
+  <polygon points="50,2 95,26 95,74 50,98 5,74 5,26" fill="#2d3748" />
+
+  <!-- Inner central triangle (Face of the D20) -->
+  <polygon points="50,32 88,54 12,54" fill="#4a5568" stroke="#4fd1c5" stroke-width="2" />
+  
+  <!-- Lines connecting central face to outer vertices -->
+  <line x1="50" y1="2" x2="50" y2="32" stroke="#4fd1c5" stroke-width="2" />
+  <line x1="95" y1="26" x2="88" y2="54" stroke="#4fd1c5" stroke-width="2" />
+  <line x1="5" y1="26" x2="12" y2="54" stroke="#4fd1c5" stroke-width="2" />
+  <line x1="95" y1="74" x2="88" y2="54" stroke="#4fd1c5" stroke-width="2" />
+  <line x1="5" y1="74" x2="12" y2="54" stroke="#4fd1c5" stroke-width="2" />
+  <line x1="50" y1="98" x2="50" y2="76" stroke="#4fd1c5" stroke-width="2" />
+  
+  <!-- Lower inner faces lines -->
+  <line x1="12" y1="54" x2="50" y2="76" stroke="#4fd1c5" stroke-width="2" />
+  <line x1="88" y1="54" x2="50" y2="76" stroke="#4fd1c5" stroke-width="2" />
+  
+  <!-- Upper inner faces lines -->
+  <line x1="50" y1="32" x2="5" y2="26" stroke="#4fd1c5" stroke-width="2" />
+  <line x1="50" y1="32" x2="95" y2="26" stroke="#4fd1c5" stroke-width="2" />
+  <line x1="12" y1="54" x2="5" y2="74" stroke="#4fd1c5" stroke-width="2" />
+  <line x1="88" y1="54" x2="95" y2="74" stroke="#4fd1c5" stroke-width="2" />
+  <line x1="50" y1="76" x2="5" y2="74" stroke="#4fd1c5" stroke-width="2" />
+  <line x1="50" y1="76" x2="95" y2="74" stroke="#4fd1c5" stroke-width="2" />
+
+  <!-- D20 Text (The number 20) -->
+  <text x="50" y="50" font-family="'Inter', sans-serif" font-size="18" font-weight="900" text-anchor="middle" fill="#4fd1c5">20</text>
+</svg>
