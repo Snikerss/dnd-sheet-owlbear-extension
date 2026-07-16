@@ -691,6 +691,7 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
     }
     
     // 3. Broadcast portrait and all other imageCache entries if they are new, changed, or forceSyncImages is true
+    console.log(`[DND Sheet] broadcastCharacterSync: combinedImageCacheMap size is ${combinedImageCacheMap.size}`);
     for (const [imgId, imgVal] of combinedImageCacheMap.entries()) {
       if (imgVal && imgVal.startsWith('data:')) {
         const isPortrait = imgId === 'img:ref:portrait';
@@ -704,7 +705,8 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
           } else {
             lastSentImagesCache[id].imageCacheKeys.add(imgId);
           }
-          await broadcastLargeString(id, imgId, false, imgVal);
+          console.log(`[DND Sheet] Broadcasting image: ${imgId} (isPortrait: ${isPortrait}, force: ${forceSyncImages}, hasChanged: ${hasChanged}, size: ${imgVal.length})`);
+          await broadcastLargeString(id, imgId, isPortrait, imgVal);
         }
       }
     }

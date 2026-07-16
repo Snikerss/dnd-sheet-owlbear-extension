@@ -322,6 +322,7 @@ export const useCharacterManager = (): CharacterManager => {
           }
           
           const key = `img-${charId}/${imgId}`;
+          console.log(`[DND Sheet] Received chunk ${chunkIndex + 1}/${totalChunks} for image ${imgId} of character ${charId}.`);
           if (!incomingChunksRef.current[key]) {
             incomingChunksRef.current[key] = {
               chunks: Array(totalChunks).fill(''),
