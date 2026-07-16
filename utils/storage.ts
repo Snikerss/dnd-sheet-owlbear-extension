@@ -280,6 +280,71 @@ export function unminifyCharacter(min: any): Character {
   return char;
 }
 
+// Helper to clean base64 data URLs recursively from any object
+function stripBase64(obj: any): any {
+  if (typeof obj !== 'object' || obj === null) {
+    if (typeof obj === 'string' && obj.startsWith('data:image/')) {
+      return ''; // Strip base64 data URL
+    }
+    return obj;
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(stripBase64);
+  }
+  
+  const cleaned: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    cleaned[key] = stripBase64(value);
+  }
+  return cleaned;
+}
+
+// Merges local base64 images from LocalStorage back into loaded cloud data
+const restoreImagesFromLocal = (cloudData: any, localBackup: any) => {
+  if (!cloudData) return cloudData;
+  if (!localBackup) return cloudData;
+
+  const restored = { ...cloudData };
+  for (const [id, item] of Object.entries(restored)) {
+    const cloudEntry = item as any;
+    const localEntry = localBackup[id];
+    if (cloudEntry && localEntry) {
+      // 1. Restore imageCache
+      const cloudCache = cloudEntry.imageCache || [];
+      const localCache = localEntry.imageCache || [];
+      const mergedCache = [...cloudCache];
+      for (const localImg of localCache) {
+        const exists = mergedCache.some(c => c[0] === localImg[0]);
+        if (!exists) {
+          mergedCache.push(localImg);
+        }
+      }
+      cloudEntry.imageCache = mergedCache;
+
+      // 2. Restore portraitUrl if it was stripped (is empty in cloud but present as base64 in local)
+      if (localEntry.character && localEntry.character.portraitUrl?.startsWith('data:image/')) {
+        if (!cloudEntry.character.portraitUrl || cloudEntry.character.portraitUrl === '') {
+          cloudEntry.character.portraitUrl = localEntry.character.portraitUrl;
+        }
+      }
+
+      // 3. Restore inventory item images if they were stripped
+      if (Array.isArray(cloudEntry.character.inventory) && Array.isArray(localEntry.character.inventory)) {
+        cloudEntry.character.inventory.forEach((invItem: any, idx: number) => {
+          const localInvItem = localEntry.character.inventory[idx];
+          if (invItem && localInvItem && invItem.item && localInvItem.item) {
+            if (localInvItem.item.imageUrl?.startsWith('data:image/') && !invItem.item.imageUrl) {
+              invItem.item.imageUrl = localInvItem.item.imageUrl;
+            }
+          }
+        });
+      }
+    }
+  }
+  return restored;
+};
+
 /**
  * Loads character data from OBR room metadata (filtering by granular keys) or local storage / Vite dev server fallback.
  */
@@ -298,6 +363,8 @@ export async function loadCharactersApi(): Promise<any> {
     }
     return restored;
   };
+
+  const localBackup = loadFromLocalStorage();
 
   if (isOwlbear()) {
     try {
@@ -327,30 +394,34 @@ export async function loadCharactersApi(): Promise<any> {
           await OBR.room.setMetadata(updateObj);
         }
 
-        return hasGranular || legacyData ? restoreGranularData(charactersData) : null;
+        if (hasGranular || legacyData) {
+          const parsedCloud = restoreGranularData(charactersData);
+          return restoreImagesFromLocal(parsedCloud, localBackup);
+        }
+        return null;
       };
 
       if (OBR.isReady) {
         const metadata = await OBR.room.getMetadata();
         const data = await getCharactersFromMetadata(metadata);
-        return data || restoreGranularData(loadFromLocalStorage());
+        return data || restoreGranularData(localBackup);
       } else {
         return new Promise((resolve) => {
           OBR.onReady(async () => {
             try {
               const metadata = await OBR.room.getMetadata();
               const data = await getCharactersFromMetadata(metadata);
-              resolve(data || restoreGranularData(loadFromLocalStorage()));
+              resolve(data || restoreGranularData(localBackup));
             } catch (err) {
               console.error('Error fetching OBR metadata:', err);
-              resolve(restoreGranularData(loadFromLocalStorage()));
+              resolve(restoreGranularData(localBackup));
             }
           });
         });
       }
     } catch (error) {
       console.error('Owlbear loadCharacters error, falling back to LocalStorage:', error);
-      return restoreGranularData(loadFromLocalStorage());
+      return restoreGranularData(localBackup);
     }
   } else {
     const rawDev = await loadFromLocalDevApi();
@@ -367,7 +438,7 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
     character: minifyCharacter(characterData.character)
   };
 
-  // Always write to local storage backup
+  // Always write the full representation (including base64 images) to local storage backup
   const localData = loadFromLocalStorage();
   localData[id] = minifiedCharData;
   saveToLocalStorage(localData);
@@ -375,13 +446,18 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
   if (isOwlbear()) {
     try {
       const key = `${GRANULAR_KEY_PREFIX}${id}`;
+      
+      // For OBR cloud VTT metadata, strip base64 to protect room limits
+      const cloudCharData = stripBase64(minifiedCharData);
+      cloudCharData.imageCache = []; // Clear image cache array in VTT cloud
+
       if (OBR.isReady) {
-        await OBR.room.setMetadata({ [key]: minifiedCharData });
-        console.log(`[DND Sheet] Successfully saved minified character ${id} to OBR.`);
+        await OBR.room.setMetadata({ [key]: cloudCharData });
+        console.log(`[DND Sheet] Successfully saved minified & stripped character ${id} to OBR.`);
       } else {
         await new Promise<void>((resolve) => {
           OBR.onReady(async () => {
-            await OBR.room.setMetadata({ [key]: minifiedCharData });
+            await OBR.room.setMetadata({ [key]: cloudCharData });
             resolve();
           });
         });
