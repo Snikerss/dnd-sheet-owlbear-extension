@@ -603,6 +603,7 @@ export async function loadCharactersApi(): Promise<any> {
 }
 
 const MAX_BROADCAST_CHUNK_SIZE = 25000;
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Global in-memory cache to track what has already been broadcasted to peers in the current session
 const lastSentImagesCache: Record<string, { portraitUrl: string, imageCacheKeys: Set<string> }> = {};
@@ -627,6 +628,8 @@ export async function broadcastLargeString(id: string, imgId: string, isPortrait
       totalChunks: chunkCount,
       chunkData: chunkStr
     });
+    // Add a small delay between chunks to avoid RateLimitHit (Too many requests)
+    await delay(50);
   }
 }
 
@@ -707,6 +710,8 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
           }
           console.log(`[DND Sheet] Broadcasting image: ${imgId} (isPortrait: ${isPortrait}, force: ${forceSyncImages}, hasChanged: ${hasChanged}, size: ${imgVal.length})`);
           await broadcastLargeString(id, imgId, isPortrait, imgVal);
+          // Add a delay between sending different images to prevent RateLimitHit
+          await delay(100);
         }
       }
     }
