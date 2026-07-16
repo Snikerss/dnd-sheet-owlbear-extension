@@ -162,12 +162,22 @@ export const useCharacterManager = (): CharacterManager => {
 
       // A. Save or update characters that have changes
       for (const [id, rawChar] of Object.entries(rawCharacters)) {
-        const serialized = JSON.stringify(rawChar);
+        const obrCharData = {
+          character: rawChar.character,
+          log: rawChar.log.slice(0, 10), // Limit log to last 10 items to save space in VTT metadata
+          history: {
+            past: [],
+            future: []
+          },
+          imageCache: rawChar.imageCache
+        };
+
+        const serialized = JSON.stringify(obrCharData);
         if (currentCache[id] !== serialized) {
           console.log(`[DND Sheet] Local change detected for character ${id}. Saving granularly...`);
           currentCache[id] = serialized;
           cacheUpdated = true;
-          saveCharacterApi(id, rawChar);
+          saveCharacterApi(id, obrCharData);
         }
       }
 
