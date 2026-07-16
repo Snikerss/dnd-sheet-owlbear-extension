@@ -480,11 +480,31 @@ export async function loadCharactersApi(): Promise<any> {
           console.log('[DND Sheet] Migrating legacy characters to granular metadata keys...');
           const updateObj: Record<string, any> = {};
           for (const [charId, charData] of Object.entries(legacyData)) {
-            updateObj[`${GRANULAR_KEY_PREFIX}${charId}`] = charData;
-            charactersData[charId] = charData;
+            const entry = charData as any;
+            if (entry) {
+              const rawChar = entry.character || entry.history?.present || entry;
+              const minified = {
+                ...entry,
+                character: minifyCharacter(rawChar)
+              };
+              const optimized = stripLargeTexts(stripBase64(minified));
+              optimized.imageCache = [];
+              
+              updateObj[`${GRANULAR_KEY_PREFIX}${charId}`] = optimized;
+              charactersData[charId] = optimized;
+            }
           }
           updateObj[LEGACY_METADATA_KEY] = null;
-          await OBR.room.setMetadata(updateObj);
+          try {
+            await OBR.room.setMetadata(updateObj);
+            console.log('[DND Sheet] Legacy migration metadata updated successfully.');
+          } catch (err) {
+            console.error('[DND Sheet] Failed to write migrated characters to metadata:', err);
+            // If the bulk write fails, try deleting the legacy key anyway to unblock the app
+            try {
+              await OBR.room.setMetadata({ [LEGACY_METADATA_KEY]: null });
+            } catch (ignore) {}
+          }
         }
 
         if (hasGranular || legacyData) {
