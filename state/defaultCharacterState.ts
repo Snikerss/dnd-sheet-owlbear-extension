@@ -44,7 +44,7 @@ export const defaultCharacterState: Character = {
   baseAC: 10,
   acAbilitySources: {
     [Ability.STR]: false,
-    [Ability.DEX]: true,
+    [Ability.DEX]: false,
     [Ability.CON]: false,
     [Ability.INT]: false,
     [Ability.WIS]: false,
