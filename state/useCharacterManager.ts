@@ -112,45 +112,32 @@ export const useCharacterManager = (): CharacterManager => {
       const unsubscribe = OBR.room.onMetadataChange(async (metadata) => {
         let hasChanges = false;
         const currentCache = { ...lastSerializedRef.current };
-        const tempChunks: Record<string, { main?: any; texts?: any; images?: any }> = {};
+        const rawData: Record<string, any> = {};
         
-        // A. Read all granular character keys from metadata and group by character ID
+        // A. Read all granular character keys from metadata
         for (const [key, value] of Object.entries(metadata)) {
           if (key.startsWith(GRANULAR_KEY_PREFIX)) {
             const path = key.replace(GRANULAR_KEY_PREFIX, '');
-            const parts = path.split('/');
-            const charId = parts[0];
-            const type = parts[1] || 'main'; // 'main', 'texts', 'images'
-
+            if (path.includes('/')) {
+              continue; // Skip chunked parts of legacy saves
+            }
+            
+            const id = path;
             if (value !== null && value !== undefined) {
               const decompressed = await decompressData(value);
               if (decompressed) {
-                if (!tempChunks[charId]) tempChunks[charId] = {};
-                tempChunks[charId][type as 'main' | 'texts' | 'images'] = decompressed;
+                rawData[id] = decompressed;
+                const serialized = serializeForCache(decompressed);
+                if (currentCache[id] !== serialized) {
+                  currentCache[id] = serialized;
+                  hasChanges = true;
+                }
               }
-            } else if (value === null && type === 'main') {
-              // Mark for deletion
-              tempChunks[charId] = null as any;
             }
           }
         }
 
-        // Reconstruct full character states from chunks
-        const rawData: Record<string, any> = {};
-        for (const [charId, chunks] of Object.entries(tempChunks)) {
-          if (chunks && chunks.main) {
-            const merged = mergeCharacter(chunks.main, chunks.texts, chunks.images);
-            rawData[charId] = merged;
-
-            const serialized = serializeForCache(merged);
-            if (currentCache[charId] !== serialized) {
-              currentCache[charId] = serialized;
-              hasChanges = true;
-            }
-          }
-        }
-
-        // B. Handle deleted keys (present in local cache but removed/nullified in metadata)
+        // B. Handle deleted keys (present in local cache but removed/undefined in metadata)
         for (const id of Object.keys(currentCache)) {
           const metadataKey = `${GRANULAR_KEY_PREFIX}${id}`;
           if (metadata[metadataKey] === null || metadata[metadataKey] === undefined) {

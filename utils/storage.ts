@@ -560,32 +560,23 @@ export async function loadCharactersApi(): Promise<any> {
   if (isOwlbear()) {
     try {
       const getCharactersFromMetadata = async (metadata: any) => {
-        const tempChunks: Record<string, { main?: any; texts?: any; images?: any }> = {};
+        const charactersData: Record<string, any> = {};
         let hasGranular = false;
         
-        // 1. Read granular character keys (can end with /texts or /images)
+        // 1. Read granular characters (keys that don't have slashes, i.e., clean main keys)
         for (const [key, value] of Object.entries(metadata)) {
-          if (key.startsWith(GRANULAR_KEY_PREFIX) && value !== null) {
-            hasGranular = true;
+          if (key.startsWith(GRANULAR_KEY_PREFIX) && value !== null && value !== undefined) {
             const path = key.replace(GRANULAR_KEY_PREFIX, '');
-            const parts = path.split('/');
-            const charId = parts[0];
-            const type = parts[1] || 'main'; // 'main', 'texts', 'images'
-
+            if (path.includes('/')) {
+              continue; // Skip chunked parts of legacy saves
+            }
+            
+            const charId = path;
             const decompressed = await decompressData(value);
             if (decompressed) {
-              if (!tempChunks[charId]) tempChunks[charId] = {};
-              tempChunks[charId][type as 'main' | 'texts' | 'images'] = decompressed;
+              charactersData[charId] = decompressed;
+              hasGranular = true;
             }
-          }
-        }
-
-        const charactersData: Record<string, any> = {};
-        for (const [charId, chunks] of Object.entries(tempChunks)) {
-          if (chunks && chunks.main) {
-            // Merge chunks
-            const merged = mergeCharacter(chunks.main, chunks.texts, chunks.images);
-            charactersData[charId] = merged;
           }
         }
 
@@ -602,28 +593,22 @@ export async function loadCharactersApi(): Promise<any> {
                 ...entry,
                 character: minifyCharacter(rawChar)
               };
-              
-              const chunks = splitCharacter(minified);
-              const mainCompressed = await compressData(chunks.main);
-              const textsCompressed = await compressData(chunks.texts);
-              const imagesCompressed = await compressData(chunks.images);
+              // Clean base64 data URLs to stay within 16KB limit
+              const cloudCharData = stripBase64(minified);
+              const compressed = await compressData(cloudCharData);
 
-              updateObj[`${GRANULAR_KEY_PREFIX}${charId}`] = mainCompressed;
-              updateObj[`${GRANULAR_KEY_PREFIX}${charId}/texts`] = textsCompressed;
-              updateObj[`${GRANULAR_KEY_PREFIX}${charId}/images`] = imagesCompressed;
-
-              charactersData[charId] = minified;
+              updateObj[`${GRANULAR_KEY_PREFIX}${charId}`] = compressed;
+              charactersData[charId] = cloudCharData;
             }
           }
-          updateObj[LEGACY_METADATA_KEY] = null;
+          updateObj[LEGACY_METADATA_KEY] = undefined; // Deletes the legacy key compliant with OBR
           try {
             await OBR.room.setMetadata(updateObj);
             console.log('[DND Sheet] Legacy migration metadata updated successfully.');
           } catch (err) {
             console.error('[DND Sheet] Failed to write migrated characters to metadata:', err);
-            // If the bulk write fails, try deleting the legacy key anyway to unblock the app
             try {
-              await OBR.room.setMetadata({ [LEGACY_METADATA_KEY]: null });
+              await OBR.room.setMetadata({ [LEGACY_METADATA_KEY]: undefined });
             } catch (ignore) {}
           }
         }
@@ -679,12 +664,51 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
 
   if (isOwlbear()) {
     try {
-      const baseKey = `${GRANULAR_KEY_PREFIX}${id}`;
-      // Clean base64 data URLs recursively to protect room metadata and total storage limit (64KB)
+      const key = `${GRANULAR_KEY_PREFIX}${id}`;
+      // Clean base64 data URLs recursively to protect room metadata and stay under the 16KB total room limit
       const cloudCharData = stripBase64(minifiedCharData);
+      const compressed = await compressData(cloudCharData);
 
-      await saveChunkedMetadata(baseKey, cloudCharData);
-      console.log(`[DND Sheet] Successfully saved chunked character ${id} to OBR.`);
+      if (OBR.isReady) {
+        // Clean up legacy chunking keys by setting them to undefined (OBR delete method)
+        const metadataUpdate: Record<string, any> = {
+          [key]: compressed,
+          [`${key}/info`]: undefined,
+          [`${key}/texts`]: undefined,
+          [`${key}/images`]: undefined
+        };
+
+        const currentMetadata = await OBR.room.getMetadata();
+        for (const k of Object.keys(currentMetadata)) {
+          if (k.startsWith(`${key}/chunk_`)) {
+            metadataUpdate[k] = undefined;
+          }
+        }
+
+        await OBR.room.setMetadata(metadataUpdate);
+        console.log(`[DND Sheet] Successfully saved compressed character ${id} to OBR.`);
+      } else {
+        await new Promise<void>((resolve) => {
+          OBR.onReady(async () => {
+            const metadataUpdate: Record<string, any> = {
+              [key]: compressed,
+              [`${key}/info`]: undefined,
+              [`${key}/texts`]: undefined,
+              [`${key}/images`]: undefined
+            };
+
+            const currentMetadata = await OBR.room.getMetadata();
+            for (const k of Object.keys(currentMetadata)) {
+              if (k.startsWith(`${key}/chunk_`)) {
+                metadataUpdate[k] = undefined;
+              }
+            }
+
+            await OBR.room.setMetadata(metadataUpdate);
+            resolve();
+          });
+        });
+      }
     } catch (error) {
       console.error(`Owlbear saveCharacter error for ${id}:`, error);
     }
@@ -703,18 +727,19 @@ export async function deleteCharacterApi(id: string): Promise<void> {
 
   if (isOwlbear()) {
     try {
-      const baseKey = `${GRANULAR_KEY_PREFIX}${id}`;
+      const key = `${GRANULAR_KEY_PREFIX}${id}`;
       
       if (OBR.isReady) {
         const currentMetadata = await OBR.room.getMetadata();
         const deleteObj: Record<string, any> = {
-          [`${baseKey}/info`]: null,
-          [baseKey]: null
+          [key]: undefined,
+          [`${key}/info`]: undefined,
+          [`${key}/texts`]: undefined,
+          [`${key}/images`]: undefined
         };
-        // Find and delete all chunk keys
-        for (const key of Object.keys(currentMetadata)) {
-          if (key.startsWith(`${baseKey}/chunk_`)) {
-            deleteObj[key] = null;
+        for (const k of Object.keys(currentMetadata)) {
+          if (k.startsWith(`${key}/chunk_`)) {
+            deleteObj[k] = undefined;
           }
         }
         await OBR.room.setMetadata(deleteObj);
@@ -723,12 +748,14 @@ export async function deleteCharacterApi(id: string): Promise<void> {
           OBR.onReady(async () => {
             const currentMetadata = await OBR.room.getMetadata();
             const deleteObj: Record<string, any> = {
-              [`${baseKey}/info`]: null,
-              [baseKey]: null
+              [key]: undefined,
+              [`${key}/info`]: undefined,
+              [`${key}/texts`]: undefined,
+              [`${key}/images`]: undefined
             };
-            for (const key of Object.keys(currentMetadata)) {
-              if (key.startsWith(`${baseKey}/chunk_`)) {
-                deleteObj[key] = null;
+            for (const k of Object.keys(currentMetadata)) {
+              if (k.startsWith(`${key}/chunk_`)) {
+                deleteObj[k] = undefined;
               }
             }
             await OBR.room.setMetadata(deleteObj);
