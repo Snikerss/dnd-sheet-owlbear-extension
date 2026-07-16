@@ -604,58 +604,25 @@ export async function loadCharactersApi(): Promise<any> {
 const MAX_BROADCAST_CHUNK_SIZE = 45000;
 
 /**
- * Broadcasts a large string by splitting it into smaller chunks under the 64KB VTT broadcast limit.
- */
-export async function broadcastLargeString(id: string, imgId: string, isPortrait: boolean, fullString: string): Promise<void> {
-  if (!fullString) return;
-  const totalLength = fullString.length;
-  const chunkCount = Math.ceil(totalLength / MAX_BROADCAST_CHUNK_SIZE);
-  
-  for (let i = 0; i < chunkCount; i++) {
-    const chunkStr = fullString.slice(i * MAX_BROADCAST_CHUNK_SIZE, (i + 1) * MAX_BROADCAST_CHUNK_SIZE);
-    await OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
-      type: 'IMAGE_CHUNK_SYNC',
-      id,
-      senderClientId: SESSION_CLIENT_ID,
-      imgId,
-      isPortrait,
-      chunkIndex: i,
-      totalChunks: chunkCount,
-      chunkData: chunkStr
-    });
-  }
-}
-
-/**
- * Broadcasts character data in separate, lightweight chunks (sheet, portrait, imageCache entries)
- * to stay under the VTT broadcast size limit.
+ * Broadcasts the entire character data by splitting it into smaller chunks under the 64KB VTT limit.
  */
 export async function broadcastCharacterSync(id: string, minifiedCharData: any): Promise<void> {
   if (!isOwlbear()) return;
   try {
-    // 1. Create a copy and strip large base64 images to stay under message size limits
-    const strippedData = stripBase64(minifiedCharData);
-
-    // Broadcast main sheet first (very small!)
-    await OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
-      type: 'FULL_CHARACTER_SYNC',
-      id,
-      senderClientId: SESSION_CLIENT_ID,
-      data: strippedData
-    });
-
-    // 2. Broadcast portrait chunked separately if it is a base64 image (no quality loss compression!)
-    if (minifiedCharData.character?.portraitUrl && minifiedCharData.character.portraitUrl.startsWith('data:')) {
-      await broadcastLargeString(id, 'portrait', true, minifiedCharData.character.portraitUrl);
-    }
-
-    // 3. Broadcast imageCache entries chunked one by one (no quality loss compression!)
-    if (Array.isArray(minifiedCharData.imageCache)) {
-      for (const [imgId, imgVal] of minifiedCharData.imageCache) {
-        if (imgVal) {
-          await broadcastLargeString(id, imgId, false, imgVal);
-        }
-      }
+    const jsonStr = JSON.stringify(minifiedCharData);
+    const totalLength = jsonStr.length;
+    const chunkCount = Math.ceil(totalLength / MAX_BROADCAST_CHUNK_SIZE);
+    
+    for (let i = 0; i < chunkCount; i++) {
+      const chunkStr = jsonStr.slice(i * MAX_BROADCAST_CHUNK_SIZE, (i + 1) * MAX_BROADCAST_CHUNK_SIZE);
+      await OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
+        type: 'CHARACTER_CHUNK_SYNC',
+        id,
+        senderClientId: SESSION_CLIENT_ID,
+        chunkIndex: i,
+        totalChunks: chunkCount,
+        chunkData: chunkStr
+      });
     }
   } catch (error) {
     console.error(`Owlbear broadcastCharacterSync error for ${id}:`, error);

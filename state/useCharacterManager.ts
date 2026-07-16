@@ -250,56 +250,14 @@ export const useCharacterManager = (): CharacterManager => {
           } catch (err) {
             console.error('[DND Sheet] Failed to respond to sheet request:', err);
           }
-        } else if (payload.type === 'FULL_CHARACTER_SYNC' && payload.id && payload.data) {
+        } else if (payload.type === 'CHARACTER_CHUNK_SYNC' && payload.id && (payload as any).chunkData !== undefined) {
           const charId = payload.id;
-          const incomingData = payload.data;
-          
-          // Only update if the message did not originate from this client session (deduplication)
-          if ((payload as any).senderClientId === SESSION_CLIENT_ID) {
-            return; 
-          }
-          
-          const localData = loadFromLocalStorage();
-          
-          // Unminify and restore images if we have them cached locally
-          const restoredCloud = restoreLocalData({ [charId]: incomingData }, localData);
-          const parsedState = parseCharactersData(restoredCloud);
-          const entry = parsedState[charId];
-          
-          if (entry) {
-            console.log(`[DND Sheet] Received full character sync via P2P for ${charId}. Merging...`);
-            dispatch({
-              type: 'SYNC_REMOTE_CHARACTER',
-              payload: {
-                id: charId,
-                entry
-              }
-            });
-            // Cache to our local LocalStorage
-            try {
-              const currentLocal = loadFromLocalStorage();
-              currentLocal[charId] = incomingData;
-              saveToLocalStorage(currentLocal);
-            } catch (err) {
-              console.error('Failed to cache remote character to LocalStorage:', err);
-            }
-            // Also update serialization cache to match so we don't trigger save
-            const obrCharData = {
-              character: entry.history.present,
-              log: entry.log || [],
-              history: { past: [], future: [] },
-              imageCache: entry.imageCache ? Array.from(entry.imageCache.entries()) : []
-            };
-            lastSerializedRef.current[charId] = serializeForCache(obrCharData);
-          }
-        } else if (payload.type === 'IMAGE_CHUNK_SYNC' && payload.id && (payload as any).imgId && (payload as any).chunkData !== undefined) {
-          const charId = payload.id;
-          const { imgId, isPortrait, chunkIndex, totalChunks, chunkData } = payload as any;
+          const { chunkIndex, totalChunks, chunkData } = payload as any;
           if ((payload as any).senderClientId === SESSION_CLIENT_ID) {
             return;
           }
           
-          const key = `${charId}/${imgId}`;
+          const key = `char-sheet/${charId}`;
           if (!incomingChunksRef.current[key]) {
             incomingChunksRef.current[key] = {
               chunks: Array(totalChunks).fill(''),
@@ -314,41 +272,43 @@ export const useCharacterManager = (): CharacterManager => {
             const assembledVal = incomingChunksRef.current[key].chunks.join('');
             delete incomingChunksRef.current[key];
             
-            if (isPortrait) {
-              console.log(`[DND Sheet] Received fully assembled remote portrait for ${charId}.`);
-              dispatch({
-                type: 'SYNC_REMOTE_CHARACTER_PORTRAIT',
-                payload: { id: charId, portraitUrl: assembledVal }
-              });
-              try {
-                const currentLocal = loadFromLocalStorage();
-                if (currentLocal[charId] && currentLocal[charId].character) {
-                  currentLocal[charId].character.portraitUrl = assembledVal;
-                  saveToLocalStorage(currentLocal);
-                }
-              } catch (err) {
-                console.error('Failed to cache remote character portrait to LocalStorage:', err);
-              }
-            } else {
-              console.log(`[DND Sheet] Received fully assembled remote image ${imgId} for ${charId}.`);
-              dispatch({
-                type: 'SYNC_REMOTE_CHARACTER_IMAGE',
-                payload: { id: charId, imgId, imgVal: assembledVal }
-              });
-              try {
-                const currentLocal = loadFromLocalStorage();
-                if (currentLocal[charId]) {
-                  const imageCacheList = currentLocal[charId].imageCache || [];
-                  const exists = imageCacheList.some((c: any) => c[0] === imgId);
-                  if (!exists) {
-                    imageCacheList.push([imgId, assembledVal]);
-                    currentLocal[charId].imageCache = imageCacheList;
-                    saveToLocalStorage(currentLocal);
+            try {
+              const incomingData = JSON.parse(assembledVal);
+              const localData = loadFromLocalStorage();
+              
+              // Unminify and restore images if we have them cached locally
+              const restoredCloud = restoreLocalData({ [charId]: incomingData }, localData);
+              const parsedState = parseCharactersData(restoredCloud);
+              const entry = parsedState[charId];
+              
+              if (entry) {
+                console.log(`[DND Sheet] Received fully assembled remote character sync via P2P for ${charId}. Merging...`);
+                dispatch({
+                  type: 'SYNC_REMOTE_CHARACTER',
+                  payload: {
+                    id: charId,
+                    entry
                   }
+                });
+                // Cache to our local LocalStorage
+                try {
+                  const currentLocal = loadFromLocalStorage();
+                  currentLocal[charId] = incomingData;
+                  saveToLocalStorage(currentLocal);
+                } catch (err) {
+                  console.error('Failed to cache remote character to LocalStorage:', err);
                 }
-              } catch (err) {
-                console.error('Failed to cache remote character image to LocalStorage:', err);
+                // Also update serialization cache to match so we don't trigger save
+                const obrCharData = {
+                  character: entry.history.present,
+                  log: entry.log || [],
+                  history: { past: [], future: [] },
+                  imageCache: entry.imageCache ? Array.from(entry.imageCache.entries()) : []
+                };
+                lastSerializedRef.current[charId] = serializeForCache(obrCharData);
               }
+            } catch (err) {
+              console.error('[DND Sheet] Failed to parse unified character sync JSON:', err);
             }
           }
         } else if (payload.type === 'DELETE_CHARACTER_SYNC' && payload.id) {
