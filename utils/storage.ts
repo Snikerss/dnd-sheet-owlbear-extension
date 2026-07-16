@@ -508,8 +508,9 @@ export const restoreLocalData = (cloudData: any, localBackup: any) => {
       }
       cloudEntry.imageCache = mergedCache;
 
-      // 2. Restore portraitUrl if it was stripped
-      if (localChar.portraitUrl?.startsWith('data:image/') && !cloudChar.portraitUrl) {
+      // 2. Restore portraitUrl if it was stripped or tokenized
+      const cloudPortraitIsToken = cloudChar.portraitUrl && cloudChar.portraitUrl.startsWith('img:ref:');
+      if (localChar.portraitUrl?.startsWith('data:image/') && (!cloudChar.portraitUrl || cloudPortraitIsToken)) {
         cloudChar.portraitUrl = localChar.portraitUrl;
       }
 
