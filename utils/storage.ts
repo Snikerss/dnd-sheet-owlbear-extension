@@ -20,11 +20,15 @@ export function minifyCharacter(char: Character): any {
 
   const basicFields = [
     'name', 'race', 'characterClass', 'level', 'experience', 'portraitUrl',
-    'maxHitPoints', 'currentHitPoints', 'temporaryHitPoints', 'speed',
-    'baseAC', 'initiativeBonus', 'proficiencyBonusBonus', 'speedBonus',
+    'hitDie', 'maxHitPoints', 'currentHitPoints', 'temporaryHitPoints', 'speed',
+    'baseAC', 'acBonus', 'initiativeBonus', 'proficiencyBonusBonus', 'speedBonus',
     'attunementSlots', 'inventoryRows', 'totalHitDice', 'currentHitDice',
-    'size', 'spellcastingAbility', 'maxPreparedSpells', 'spellSaveDcBonus',
-    'spellAttackBonusBonus', 'activeNoteId', 'ownerId', 'viewMode'
+    'longJumpBonus', 'highJumpBonus', 'size',
+    'passivePerceptionBonus', 'passiveInvestigationBonus', 'passiveInsightBonus',
+    'maxHpBonus', 'carryCapacityBonus',
+    'globalAttackDiceBonusToHitDice', 'globalAttackDiceBonusToDamageDice',
+    'spellcastingAbility', 'maxPreparedSpells', 'spellSaveDcBonus',
+    'spellAttackBonusBonus', 'activeNoteId', 'attunementMaxBonus', 'ownerId', 'viewMode'
   ];
 
   for (const field of basicFields) {
@@ -123,6 +127,7 @@ export function minifyCharacter(char: Character): any {
   if (char.noteGroups && char.noteGroups.length > 0) min.noteGroups = char.noteGroups;
   if (char.tabOrder && char.tabOrder.length > 0) min.tabOrder = char.tabOrder;
   if (char.collapsedTabs && Object.keys(char.collapsedTabs).length > 0) min.collapsedTabs = char.collapsedTabs;
+  if (char.equippedItems && char.equippedItems.length > 0) min.equippedItems = char.equippedItems;
 
   return min;
 }
@@ -137,11 +142,15 @@ export function unminifyCharacter(min: any): Character {
 
   const basicFields = [
     'name', 'race', 'characterClass', 'level', 'experience', 'portraitUrl',
-    'maxHitPoints', 'currentHitPoints', 'temporaryHitPoints', 'speed',
-    'baseAC', 'initiativeBonus', 'proficiencyBonusBonus', 'speedBonus',
+    'hitDie', 'maxHitPoints', 'currentHitPoints', 'temporaryHitPoints', 'speed',
+    'baseAC', 'acBonus', 'initiativeBonus', 'proficiencyBonusBonus', 'speedBonus',
     'attunementSlots', 'inventoryRows', 'totalHitDice', 'currentHitDice',
-    'size', 'spellcastingAbility', 'maxPreparedSpells', 'spellSaveDcBonus',
-    'spellAttackBonusBonus', 'activeNoteId', 'ownerId', 'viewMode'
+    'longJumpBonus', 'highJumpBonus', 'size',
+    'passivePerceptionBonus', 'passiveInvestigationBonus', 'passiveInsightBonus',
+    'maxHpBonus', 'carryCapacityBonus',
+    'globalAttackDiceBonusToHitDice', 'globalAttackDiceBonusToDamageDice',
+    'spellcastingAbility', 'maxPreparedSpells', 'spellSaveDcBonus',
+    'spellAttackBonusBonus', 'activeNoteId', 'attunementMaxBonus', 'ownerId', 'viewMode'
   ];
 
   for (const field of basicFields) {
@@ -266,6 +275,7 @@ export function unminifyCharacter(min: any): Character {
   if (Array.isArray(min.noteGroups)) char.noteGroups = min.noteGroups;
   if (Array.isArray(min.tabOrder)) char.tabOrder = min.tabOrder;
   if (min.collapsedTabs) char.collapsedTabs = min.collapsedTabs;
+  if (Array.isArray(min.equippedItems)) char.equippedItems = min.equippedItems;
 
   return char;
 }
