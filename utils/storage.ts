@@ -645,11 +645,15 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any):
       };
     }
     
-    // 2. Create the lightweight sheet data by extracting images into tokens
-    const { light } = extractImages(minifiedCharData.character);
+    // 2. Create the lightweight sheet data by extracting images into tokens.
+    // Since minifiedCharData.character is minified, we must unminify it first so extractImages can run,
+    // and then minify it back for optimal VTT storage/network footprint.
+    const fullChar = unminifyCharacter(minifiedCharData.character);
+    const { light } = extractImages(fullChar);
+    const minifiedLight = minifyCharacter(light);
     const strippedData = {
       ...minifiedCharData,
-      character: light,
+      character: minifiedLight,
       imageCache: []
     };
     if (strippedData.history) {
