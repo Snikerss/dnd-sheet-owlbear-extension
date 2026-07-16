@@ -43,39 +43,20 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           console.warn('Failed to retrieve player name from OBR:', e);
         }
         
-        // Formulate roll details text
-        const modSign = result.modifier >= 0 ? `+${result.modifier}` : `${result.modifier}`;
-        let rollDetails = '';
-        if ((result.rollType === RollType.Advantage || result.rollType === RollType.Disadvantage) && result.roll2 !== undefined) {
-          const typeStr = result.rollType === RollType.Advantage ? 'Преимущество' : 'Помеха';
-          rollDetails = `${typeStr}: [${result.roll1}, ${result.roll2}] -> выбор ${result.chosenRoll}`;
-        } else {
-          rollDetails = `кубик: ${result.chosenRoll}`;
-        }
-
-        if (result.bonusDiceRoll) {
-          rollDetails += ` + бонус: ${result.bonusDiceRoll}`;
-        }
-
-        // Show local notification at the top of the map
-        const localMessageText = `Вы (${characterName}) бросили ${result.name}: 🎲 ${result.total} (${rollDetails} ${modSign})`;
-        console.log('[DND Sheet] Displaying local roll notification:', localMessageText);
-        OBR.notification.show(localMessageText);
-
-        // Send to others in the room
-        console.log('[DND Sheet] Broadcasting roll data:', { playerName, characterName, result });
-        OBR.broadcast.sendMessage(ROLL_CHANNEL, {
+        // Send to ALL clients in the room (both local and remote)
+        console.log('[DND Sheet] Broadcasting roll data to ALL destination:', { playerName, characterName, result });
+        await OBR.broadcast.sendMessage(ROLL_CHANNEL, {
           playerName,
           characterName,
           result
-        });
+        }, { destination: 'ALL' });
       } catch (err) {
         console.error('[DND Sheet] Failed to send roll broadcast:', err);
       }
     }
   }, []);
 
-  // Listen for rolls from other players
+  // Listen for rolls from other players and our own broadcast
   useEffect(() => {
     if (isOwlbear()) {
       console.log('[DND Sheet] Subscribing to broadcast channel:', ROLL_CHANNEL);
@@ -103,9 +84,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             rollDetails += ` + бонус: ${result.bonusDiceRoll}`;
           }
 
-          // Show native OBR notification at the top of the map for this client
+          // Show native OBR notification at the top of the map
           const mapMessageText = `${playerName} (${characterName}) бросил ${result.name}: 🎲 ${result.total} (${rollDetails} ${modSign})`;
-          console.log('[DND Sheet] Displaying OBR map notification for remote roll:', mapMessageText);
+          console.log('[DND Sheet] Displaying OBR map notification for roll:', mapMessageText);
           OBR.notification.show(mapMessageText);
 
           // Also show React toast within the character sheet
