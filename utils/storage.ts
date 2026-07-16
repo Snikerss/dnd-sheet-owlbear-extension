@@ -280,6 +280,55 @@ export function unminifyCharacter(min: any): Character {
   return char;
 }
 
+// Compresses any JSON object into a Gzip base64 string if supported
+export async function compressData(data: any): Promise<any> {
+  try {
+    if (typeof window === 'undefined' || typeof window.CompressionStream === 'undefined') {
+      return data;
+    }
+    const jsonStr = JSON.stringify(data);
+    const stream = new Blob([jsonStr]).stream();
+    const compressedStream = stream.pipeThrough(new CompressionStream('gzip'));
+    const response = new Response(compressedStream);
+    const blob = await response.blob();
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve((reader.result as string).split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    return { compressed: base64 };
+  } catch (err) {
+    console.error('[DND Sheet] Compression failed, saving raw:', err);
+    return data;
+  }
+}
+
+// Decompresses a Gzip base64 string back into a JSON object if supported
+export async function decompressData(data: any): Promise<any> {
+  if (data && typeof data === 'object' && typeof data.compressed === 'string') {
+    try {
+      if (typeof window === 'undefined' || typeof window.DecompressionStream === 'undefined') {
+        throw new Error('DecompressionStream not supported');
+      }
+      const binaryString = atob(data.compressed);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const stream = new Blob([bytes]).stream();
+      const decompressedStream = stream.pipeThrough(new DecompressionStream('gzip'));
+      const response = new Response(decompressedStream);
+      const jsonStr = await response.text();
+      return JSON.parse(jsonStr);
+    } catch (err) {
+      console.error('[DND Sheet] Decompression failed:', err);
+      return null;
+    }
+  }
+  return data;
+}
+
 // Helper to clean base64 data URLs and any extremely long strings recursively from any object
 export function stripBase64(obj: any): any {
   if (typeof obj !== 'object' || obj === null) {
@@ -484,7 +533,8 @@ export async function loadCharactersApi(): Promise<any> {
               const optimized = stripLargeTexts(stripBase64(minified));
               optimized.imageCache = [];
               
-              updateObj[`${GRANULAR_KEY_PREFIX}${charId}`] = optimized;
+              const compressed = await compressData(optimized);
+              updateObj[`${GRANULAR_KEY_PREFIX}${charId}`] = compressed;
               charactersData[charId] = optimized;
             }
           }
@@ -558,13 +608,15 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
       const cloudCharData = stripLargeTexts(stripBase64(minifiedCharData));
       cloudCharData.imageCache = []; // Clear image cache array in VTT cloud
 
+      const finalData = await compressData(cloudCharData);
+
       if (OBR.isReady) {
-        await OBR.room.setMetadata({ [key]: cloudCharData });
-        console.log(`[DND Sheet] Successfully saved minified, stripped & optimized character ${id} to OBR.`);
+        await OBR.room.setMetadata({ [key]: finalData });
+        console.log(`[DND Sheet] Successfully saved compressed character ${id} to OBR.`);
       } else {
         await new Promise<void>((resolve) => {
           OBR.onReady(async () => {
-            await OBR.room.setMetadata({ [key]: cloudCharData });
+            await OBR.room.setMetadata({ [key]: finalData });
             resolve();
           });
         });

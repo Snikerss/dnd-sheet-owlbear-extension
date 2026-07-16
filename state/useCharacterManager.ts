@@ -6,7 +6,7 @@ import { isCharacter, migrateCharacterData } from './initialization';
 import { characterReducer } from './characterReducer';
 import { generateActionDescription } from '../utils/history';
 import { useNotifier } from '../context/NotificationContext';
-import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter, loadFromLocalStorage, saveToLocalStorage, stripLargeTexts } from '../utils/storage';
+import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter, loadFromLocalStorage, saveToLocalStorage, stripLargeTexts, decompressData } from '../utils/storage';
 
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/character/';
 
@@ -101,7 +101,7 @@ export const useCharacterManager = (): CharacterManager => {
     if (isOwlbear()) {
       console.log('[DND Sheet] Subscribing to OBR room metadata changes.');
       
-      const unsubscribe = OBR.room.onMetadataChange((metadata) => {
+      const unsubscribe = OBR.room.onMetadataChange(async (metadata) => {
         let hasChanges = false;
         const currentCache = { ...lastSerializedRef.current };
         const rawData: Record<string, any> = {};
@@ -111,11 +111,14 @@ export const useCharacterManager = (): CharacterManager => {
           if (key.startsWith(GRANULAR_KEY_PREFIX)) {
             const id = key.replace(GRANULAR_KEY_PREFIX, '');
             if (value !== null && value !== undefined) {
-              rawData[id] = value;
-              const serialized = JSON.stringify(value);
-              if (currentCache[id] !== serialized) {
-                currentCache[id] = serialized;
-                hasChanges = true;
+              const decompressed = await decompressData(value);
+              if (decompressed) {
+                rawData[id] = decompressed;
+                const serialized = JSON.stringify(decompressed);
+                if (currentCache[id] !== serialized) {
+                  currentCache[id] = serialized;
+                  hasChanges = true;
+                }
               }
             }
           }
