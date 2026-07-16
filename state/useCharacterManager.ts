@@ -58,11 +58,23 @@ const parseCharactersData = (data: any): CharactersState => {
 // Consistent serialization cache builder
 const serializeForCache = (charData: any): string => {
   if (!charData) return '';
-  const minified = {
-    ...charData,
-    character: minifyCharacter(charData.character)
+  
+  const minifiedChar = minifyCharacter(charData.character);
+  
+  const imageCacheList = Array.isArray(charData.imageCache) 
+    ? [...charData.imageCache] 
+    : (charData.imageCache instanceof Map ? Array.from(charData.imageCache.entries()) : []);
+    
+  // Sort image cache by key to ensure order independence
+  imageCacheList.sort((a, b) => a[0].localeCompare(b[0]));
+  
+  const cleanCharData = {
+    character: minifiedChar,
+    log: charData.log || [],
+    imageCache: imageCacheList
   };
-  return JSON.stringify(minified);
+  
+  return JSON.stringify(cleanCharData);
 };
 
 const getChecksum = (str: string): string => {
