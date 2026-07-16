@@ -361,7 +361,12 @@ function stripKeysRecursively(obj: any): any {
   }
   const cleaned: any = {};
   for (const [key, value] of Object.entries(obj)) {
-    if (key === 'description' || key === 'content' || key === 'notes' || key === 'materialDescription') {
+    if (
+      key === 'description' || 
+      key === 'content' || 
+      key === 'materialDescription' ||
+      (key === 'notes' && typeof value === 'string')
+    ) {
       cleaned[key] = '';
     } else {
       cleaned[key] = stripKeysRecursively(value);
