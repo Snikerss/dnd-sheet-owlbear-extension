@@ -270,9 +270,9 @@ export const useCharacterManager = (): CharacterManager => {
           lastSerializedRef.current = currentCache;
           const localBackup = loadFromLocalStorage();
           const restoredCloud = restoreLocalData(rawData, localBackup);
-          const restoredMemory = restoreFromMemory(restoredCloud, charactersStateRef.current);
-          const parsedState = parseCharactersData(restoredMemory);
-          dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
+          const parsedState = parseCharactersData(restoredCloud);
+          const restoredMemory = restoreFromMemory(parsedState, charactersStateRef.current);
+          dispatch({ type: 'SET_CHARACTERS', payload: restoredMemory });
         }
       });
 
@@ -345,6 +345,23 @@ export const useCharacterManager = (): CharacterManager => {
               imageCache: entry.imageCache ? Array.from(entry.imageCache.entries()) : []
             };
             lastSerializedRef.current[charId] = serializeForCache(obrCharData);
+          }
+        } else if (payload.type === 'DELETE_CHARACTER_SYNC' && payload.id) {
+          const charId = payload.id;
+          if ((payload as any).senderClientId === SESSION_CLIENT_ID) {
+            return;
+          }
+          console.log(`[DND Sheet] Received remote deletion sync via P2P for ${charId}. Removing...`);
+          dispatch({ type: 'DELETE_CHARACTER', payload: { id: charId } });
+          
+          try {
+            const localData = loadFromLocalStorage();
+            if (localData[charId]) {
+              delete localData[charId];
+              saveToLocalStorage(localData);
+            }
+          } catch (err) {
+            console.error('Failed to sync deletion to LocalStorage:', err);
           }
         }
       };
@@ -422,6 +439,14 @@ export const useCharacterManager = (): CharacterManager => {
   const deleteCharacter = useCallback((id: string) => {
     dispatch({ type: 'DELETE_CHARACTER', payload: { id } });
     deleteCharacterApi(id).catch(console.error);
+
+    if (isOwlbear()) {
+      OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
+        type: 'DELETE_CHARACTER_SYNC',
+        id,
+        senderClientId: SESSION_CLIENT_ID
+      }).catch(err => console.warn('[DND Sheet] Delete broadcast failed:', err));
+    }
     
     // Explicitly remove from serialization cache
     if (lastSerializedRef.current[id]) {
