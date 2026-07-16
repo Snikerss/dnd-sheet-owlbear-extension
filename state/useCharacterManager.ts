@@ -311,6 +311,67 @@ export const useCharacterManager = (): CharacterManager => {
               console.error('[DND Sheet] Failed to parse unified character sync JSON:', err);
             }
           }
+        } else if (payload.type === 'IMAGE_CHUNK_SYNC' && payload.id && (payload as any).imgId && (payload as any).chunkData !== undefined) {
+          const charId = payload.id;
+          const { imgId, isPortrait, chunkIndex, totalChunks, chunkData } = payload as any;
+          if ((payload as any).senderClientId === SESSION_CLIENT_ID) {
+            return;
+          }
+          
+          const key = `img-${charId}/${imgId}`;
+          if (!incomingChunksRef.current[key]) {
+            incomingChunksRef.current[key] = {
+              chunks: Array(totalChunks).fill(''),
+              total: totalChunks
+            };
+          }
+          
+          incomingChunksRef.current[key].chunks[chunkIndex] = chunkData;
+          
+          const isComplete = incomingChunksRef.current[key].chunks.every(c => c !== '');
+          if (isComplete) {
+            const assembledVal = incomingChunksRef.current[key].chunks.join('');
+            delete incomingChunksRef.current[key];
+            
+            if (isPortrait) {
+              console.log(`[DND Sheet] Received fully assembled remote portrait for ${charId}.`);
+              dispatch({
+                type: 'SYNC_REMOTE_CHARACTER_PORTRAIT',
+                payload: { id: charId, portraitUrl: assembledVal }
+              });
+              try {
+                const currentLocal = loadFromLocalStorage();
+                if (currentLocal[charId] && currentLocal[charId].character) {
+                  currentLocal[charId].character.portraitUrl = assembledVal;
+                  saveToLocalStorage(currentLocal);
+                }
+              } catch (err) {
+                console.error('Failed to cache remote character portrait to LocalStorage:', err);
+              }
+            } else {
+              console.log(`[DND Sheet] Received fully assembled remote image ${imgId} for ${charId}.`);
+              dispatch({
+                type: 'SYNC_REMOTE_CHARACTER_IMAGE',
+                payload: { id: charId, imgId, imgVal: assembledVal }
+              });
+              try {
+                const currentLocal = loadFromLocalStorage();
+                if (currentLocal[charId]) {
+                  const imageCacheList = currentLocal[charId].imageCache || [];
+                  const exists = imageCacheList.some((c: any) => c[0] === imgId);
+                  if (exists) {
+                    currentLocal[charId].imageCache = imageCacheList.map((c: any) => c[0] === imgId ? [imgId, assembledVal] : c);
+                  } else {
+                    imageCacheList.push([imgId, assembledVal]);
+                    currentLocal[charId].imageCache = imageCacheList;
+                  }
+                  saveToLocalStorage(currentLocal);
+                }
+              } catch (err) {
+                console.error('Failed to cache remote character image to LocalStorage:', err);
+              }
+            }
+          }
         } else if (payload.type === 'DELETE_CHARACTER_SYNC' && payload.id) {
           const charId = payload.id;
           if ((payload as any).senderClientId === SESSION_CLIENT_ID) {

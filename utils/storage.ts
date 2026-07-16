@@ -603,13 +603,52 @@ export async function loadCharactersApi(): Promise<any> {
 
 const MAX_BROADCAST_CHUNK_SIZE = 45000;
 
+// Global in-memory cache to track what has already been broadcasted to peers in the current session
+const lastSentImagesCache: Record<string, { portraitUrl: string, imageCacheKeys: Set<string> }> = {};
+
 /**
- * Broadcasts the entire character data by splitting it into smaller chunks under the 64KB VTT limit.
+ * Broadcasts a large string by splitting it into smaller chunks under the 64KB VTT broadcast limit.
+ */
+export async function broadcastLargeString(id: string, imgId: string, isPortrait: boolean, fullString: string): Promise<void> {
+  if (!fullString) return;
+  const totalLength = fullString.length;
+  const chunkCount = Math.ceil(totalLength / MAX_BROADCAST_CHUNK_SIZE);
+  
+  for (let i = 0; i < chunkCount; i++) {
+    const chunkStr = fullString.slice(i * MAX_BROADCAST_CHUNK_SIZE, (i + 1) * MAX_BROADCAST_CHUNK_SIZE);
+    await OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
+      type: 'IMAGE_CHUNK_SYNC',
+      id,
+      senderClientId: SESSION_CLIENT_ID,
+      imgId,
+      isPortrait,
+      chunkIndex: i,
+      totalChunks: chunkCount,
+      chunkData: chunkStr
+    });
+  }
+}
+
+/**
+ * Broadcasts character data. Sends the sheet data (without base64 images) on every edit,
+ * but ONLY sends portrait or item images if they have actually changed or are new.
  */
 export async function broadcastCharacterSync(id: string, minifiedCharData: any): Promise<void> {
   if (!isOwlbear()) return;
   try {
-    const jsonStr = JSON.stringify(minifiedCharData);
+    // 1. Initialize our sent tracker for this character if not present
+    if (!lastSentImagesCache[id]) {
+      lastSentImagesCache[id] = {
+        portraitUrl: '',
+        imageCacheKeys: new Set()
+      };
+    }
+    
+    // 2. Create the lightweight sheet data (recursively stripping all base64 images)
+    const strippedData = stripBase64(minifiedCharData);
+    
+    // Broadcast the lightweight sheet (extremely small, usually <3KB, so it's 1 chunk)
+    const jsonStr = JSON.stringify(strippedData);
     const totalLength = jsonStr.length;
     const chunkCount = Math.ceil(totalLength / MAX_BROADCAST_CHUNK_SIZE);
     
@@ -623,6 +662,23 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any):
         totalChunks: chunkCount,
         chunkData: chunkStr
       });
+    }
+    
+    // 3. Broadcast portrait ONLY if it has changed
+    const newPortrait = minifiedCharData.character?.portraitUrl || '';
+    if (newPortrait.startsWith('data:') && newPortrait !== lastSentImagesCache[id].portraitUrl) {
+      lastSentImagesCache[id].portraitUrl = newPortrait;
+      await broadcastLargeString(id, 'portrait', true, newPortrait);
+    }
+    
+    // 4. Broadcast imageCache entries ONLY if they are new or changed
+    if (Array.isArray(minifiedCharData.imageCache)) {
+      for (const [imgId, imgVal] of minifiedCharData.imageCache) {
+        if (imgVal && imgVal.startsWith('data:') && !lastSentImagesCache[id].imageCacheKeys.has(imgId)) {
+          lastSentImagesCache[id].imageCacheKeys.add(imgId);
+          await broadcastLargeString(id, imgId, false, imgVal);
+        }
+      }
     }
   } catch (error) {
     console.error(`Owlbear broadcastCharacterSync error for ${id}:`, error);
@@ -657,6 +713,9 @@ export async function deleteCharacterApi(id: string): Promise<void> {
   const localData = loadFromLocalStorage();
   delete localData[id];
   saveToLocalStorage(localData);
+
+  // Clear in-memory sent cache for deleted character
+  delete lastSentImagesCache[id];
 
   if (!isOwlbear()) {
     await saveToLocalDevApi(localData);
