@@ -310,7 +310,7 @@ export const useCharacterManager = (): CharacterManager => {
                 // Cache to our local LocalStorage
                 try {
                   const currentLocal = loadFromLocalStorage();
-                  currentLocal[charId] = incomingData;
+                  currentLocal[charId] = restoredCloud[charId];
                   saveToLocalStorage(currentLocal);
                 } catch (err) {
                   console.error('Failed to cache remote character to LocalStorage:', err);

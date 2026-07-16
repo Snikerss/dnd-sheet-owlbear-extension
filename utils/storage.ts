@@ -668,16 +668,32 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
       combinedImageCacheMap.set(imgId, imgVal);
     }
 
-    const minifiedLight = minifyCharacter(light);
-    const syncImageIds = Array.from(combinedImageCacheMap.entries())
-      .filter(([_, imgVal]) => imgVal && imgVal.startsWith('data:'))
-      .map(([imgId, _]) => imgId);
+    // Initialize session cache if not present
+    if (!lastSentImagesCache[id]) {
+      lastSentImagesCache[id] = { portraitUrl: '', imageCacheKeys: new Set() };
+    }
 
+    // Determine which images actually need to be sent (changed or forced)
+    const imagesToSync: string[] = [];
+    for (const [imgId, imgVal] of combinedImageCacheMap.entries()) {
+      if (imgVal && imgVal.startsWith('data:')) {
+        const isPortrait = imgId === 'img:ref:portrait';
+        const hasChanged = isPortrait 
+          ? imgVal !== lastSentImagesCache[id].portraitUrl 
+          : !lastSentImagesCache[id].imageCacheKeys.has(imgId);
+          
+        if (forceSyncImages || hasChanged) {
+          imagesToSync.push(imgId);
+        }
+      }
+    }
+
+    const minifiedLight = minifyCharacter(light);
     const strippedData = {
       ...minifiedCharData,
       character: minifiedLight,
       imageCache: [],
-      syncImageIds
+      syncImageIds: imagesToSync
     };
     if (strippedData.history) {
       strippedData.history.past = [];
@@ -702,29 +718,24 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
     }
     
     // 3. Broadcast portrait and all other imageCache entries if they are new, changed, or forceSyncImages is true
-    console.log(`[DND Sheet] broadcastCharacterSync: combinedImageCacheMap size is ${combinedImageCacheMap.size}`);
-    for (const [imgId, imgVal] of combinedImageCacheMap.entries()) {
-      if (imgVal && imgVal.startsWith('data:')) {
+    console.log(`[DND Sheet] broadcastCharacterSync: combinedImageCacheMap size is ${combinedImageCacheMap.size}, syncing ${imagesToSync.length} images`);
+    for (const imgId of imagesToSync) {
+      const imgVal = combinedImageCacheMap.get(imgId);
+      if (imgVal) {
         const isPortrait = imgId === 'img:ref:portrait';
-        const hasChanged = isPortrait 
-          ? imgVal !== lastSentImagesCache[id].portraitUrl 
-          : !lastSentImagesCache[id].imageCacheKeys.has(imgId);
-          
-        if (forceSyncImages || hasChanged) {
-          console.log(`[DND Sheet] Broadcasting image: ${imgId} (isPortrait: ${isPortrait}, force: ${forceSyncImages}, hasChanged: ${hasChanged}, size: ${imgVal.length})`);
-          try {
-            await broadcastLargeString(id, imgId, isPortrait, imgVal);
-            if (isPortrait) {
-              lastSentImagesCache[id].portraitUrl = imgVal;
-            } else {
-              lastSentImagesCache[id].imageCacheKeys.add(imgId);
-            }
-          } catch (err) {
-            console.error(`[DND Sheet] Failed to broadcast image ${imgId}:`, err);
+        console.log(`[DND Sheet] Broadcasting image: ${imgId} (isPortrait: ${isPortrait}, size: ${imgVal.length})`);
+        try {
+          await broadcastLargeString(id, imgId, isPortrait, imgVal);
+          if (isPortrait) {
+            lastSentImagesCache[id].portraitUrl = imgVal;
+          } else {
+            lastSentImagesCache[id].imageCacheKeys.add(imgId);
           }
-          // Add a delay between sending different images to prevent RateLimitHit
-          await delay(150);
+        } catch (err) {
+          console.error(`[DND Sheet] Failed to broadcast image ${imgId}:`, err);
         }
+        // Add a delay between sending different images to prevent RateLimitHit
+        await delay(150);
       }
     }
   } catch (error) {
