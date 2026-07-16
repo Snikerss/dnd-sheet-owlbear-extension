@@ -171,16 +171,6 @@ export const useCharacterManager = (): CharacterManager => {
         }
       }
 
-      // B. Delete characters that were removed locally
-      for (const id of Object.keys(currentCache)) {
-        if (!rawCharacters[id]) {
-          console.log(`[DND Sheet] Local deletion detected for character ${id}. Deleting granularly...`);
-          delete currentCache[id];
-          cacheUpdated = true;
-          deleteCharacterApi(id);
-        }
-      }
-
       if (cacheUpdated) {
         lastSerializedRef.current = currentCache;
       }
@@ -198,6 +188,14 @@ export const useCharacterManager = (): CharacterManager => {
 
   const deleteCharacter = useCallback((id: string) => {
     dispatch({ type: 'DELETE_CHARACTER', payload: { id } });
+    deleteCharacterApi(id).catch(console.error);
+    
+    // Explicitly remove from serialization cache
+    if (lastSerializedRef.current[id]) {
+      const newCache = { ...lastSerializedRef.current };
+      delete newCache[id];
+      lastSerializedRef.current = newCache;
+    }
   }, []);
 
   const updateCharacter = useCallback((id: string, action: CharacterAction) => {
