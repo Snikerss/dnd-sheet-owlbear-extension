@@ -182,6 +182,7 @@ export const useCharacterManager = (): CharacterManager => {
   // Track the serialized state of each character individually (indexed by character ID)
   const lastSerializedRef = useRef<Record<string, string>>({});
   const charactersStateRef = useRef<CharactersState>(characters);
+  const incomingChunksRef = useRef<Record<string, { chunks: string[], total: number }>>({});
 
   useEffect(() => {
     charactersStateRef.current = characters;
@@ -291,53 +292,64 @@ export const useCharacterManager = (): CharacterManager => {
             };
             lastSerializedRef.current[charId] = serializeForCache(obrCharData);
           }
-        } else if (payload.type === 'PORTRAIT_SYNC' && payload.id && (payload as any).portraitUrl !== undefined) {
+        } else if (payload.type === 'IMAGE_CHUNK_SYNC' && payload.id && (payload as any).imgId && (payload as any).chunkData !== undefined) {
           const charId = payload.id;
-          const portraitUrl = (payload as any).portraitUrl;
+          const { imgId, isPortrait, chunkIndex, totalChunks, chunkData } = payload as any;
           if ((payload as any).senderClientId === SESSION_CLIENT_ID) {
             return;
           }
-          console.log(`[DND Sheet] Received remote portrait sync via P2P for ${charId}.`);
-          dispatch({
-            type: 'SYNC_REMOTE_CHARACTER_PORTRAIT',
-            payload: { id: charId, portraitUrl }
-          });
-          // Cache to local LocalStorage
-          try {
-            const currentLocal = loadFromLocalStorage();
-            if (currentLocal[charId] && currentLocal[charId].character) {
-              currentLocal[charId].character.portraitUrl = portraitUrl;
-              saveToLocalStorage(currentLocal);
-            }
-          } catch (err) {
-            console.error('Failed to cache remote character portrait to LocalStorage:', err);
+          
+          const key = `${charId}/${imgId}`;
+          if (!incomingChunksRef.current[key]) {
+            incomingChunksRef.current[key] = {
+              chunks: Array(totalChunks).fill(''),
+              total: totalChunks
+            };
           }
-        } else if (payload.type === 'IMAGE_SYNC' && payload.id && (payload as any).imgId && (payload as any).imgVal !== undefined) {
-          const charId = payload.id;
-          const imgId = (payload as any).imgId;
-          const imgVal = (payload as any).imgVal;
-          if ((payload as any).senderClientId === SESSION_CLIENT_ID) {
-            return;
-          }
-          console.log(`[DND Sheet] Received remote image sync via P2P for ${charId} (Image: ${imgId}).`);
-          dispatch({
-            type: 'SYNC_REMOTE_CHARACTER_IMAGE',
-            payload: { id: charId, imgId, imgVal }
-          });
-          // Cache to local LocalStorage
-          try {
-            const currentLocal = loadFromLocalStorage();
-            if (currentLocal[charId]) {
-              const imageCacheList = currentLocal[charId].imageCache || [];
-              const exists = imageCacheList.some((c: any) => c[0] === imgId);
-              if (!exists) {
-                imageCacheList.push([imgId, imgVal]);
-                currentLocal[charId].imageCache = imageCacheList;
-                saveToLocalStorage(currentLocal);
+          
+          incomingChunksRef.current[key].chunks[chunkIndex] = chunkData;
+          
+          const isComplete = incomingChunksRef.current[key].chunks.every(c => c !== '');
+          if (isComplete) {
+            const assembledVal = incomingChunksRef.current[key].chunks.join('');
+            delete incomingChunksRef.current[key];
+            
+            if (isPortrait) {
+              console.log(`[DND Sheet] Received fully assembled remote portrait for ${charId}.`);
+              dispatch({
+                type: 'SYNC_REMOTE_CHARACTER_PORTRAIT',
+                payload: { id: charId, portraitUrl: assembledVal }
+              });
+              try {
+                const currentLocal = loadFromLocalStorage();
+                if (currentLocal[charId] && currentLocal[charId].character) {
+                  currentLocal[charId].character.portraitUrl = assembledVal;
+                  saveToLocalStorage(currentLocal);
+                }
+              } catch (err) {
+                console.error('Failed to cache remote character portrait to LocalStorage:', err);
+              }
+            } else {
+              console.log(`[DND Sheet] Received fully assembled remote image ${imgId} for ${charId}.`);
+              dispatch({
+                type: 'SYNC_REMOTE_CHARACTER_IMAGE',
+                payload: { id: charId, imgId, imgVal: assembledVal }
+              });
+              try {
+                const currentLocal = loadFromLocalStorage();
+                if (currentLocal[charId]) {
+                  const imageCacheList = currentLocal[charId].imageCache || [];
+                  const exists = imageCacheList.some((c: any) => c[0] === imgId);
+                  if (!exists) {
+                    imageCacheList.push([imgId, assembledVal]);
+                    currentLocal[charId].imageCache = imageCacheList;
+                    saveToLocalStorage(currentLocal);
+                  }
+                }
+              } catch (err) {
+                console.error('Failed to cache remote character image to LocalStorage:', err);
               }
             }
-          } catch (err) {
-            console.error('Failed to cache remote character image to LocalStorage:', err);
           }
         } else if (payload.type === 'DELETE_CHARACTER_SYNC' && payload.id) {
           const charId = payload.id;
