@@ -608,14 +608,7 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any):
   if (!isOwlbear()) return;
   try {
     // 1. Create a copy and strip large base64 images to stay under message size limits
-    const strippedData = {
-      ...minifiedCharData,
-      character: {
-        ...minifiedCharData.character,
-        portraitUrl: '' // Strip portrait URL from the main sync message
-      },
-      imageCache: [] // Strip imageCache from the main sync message
-    };
+    const strippedData = stripBase64(minifiedCharData);
 
     // Broadcast main sheet first (very small!)
     await OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
