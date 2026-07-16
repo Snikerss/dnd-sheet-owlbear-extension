@@ -601,6 +601,60 @@ export async function loadCharactersApi(): Promise<any> {
 }
 
 /**
+ * Broadcasts character data in separate, lightweight chunks (sheet, portrait, imageCache entries)
+ * to stay under the VTT broadcast size limit (JSON exceeds byte size limit).
+ */
+export async function broadcastCharacterSync(id: string, minifiedCharData: any): Promise<void> {
+  if (!isOwlbear()) return;
+  try {
+    // 1. Create a copy and strip large base64 images to stay under message size limits
+    const strippedData = {
+      ...minifiedCharData,
+      character: {
+        ...minifiedCharData.character,
+        portraitUrl: '' // Strip portrait URL from the main sync message
+      },
+      imageCache: [] // Strip imageCache from the main sync message
+    };
+
+    // Broadcast main sheet first (very small!)
+    await OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
+      type: 'FULL_CHARACTER_SYNC',
+      id,
+      senderClientId: SESSION_CLIENT_ID,
+      data: strippedData
+    });
+
+    // 2. Broadcast portrait separately if it is a base64 image
+    if (minifiedCharData.character?.portraitUrl && minifiedCharData.character.portraitUrl.startsWith('data:')) {
+      await OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
+        type: 'PORTRAIT_SYNC',
+        id,
+        senderClientId: SESSION_CLIENT_ID,
+        portraitUrl: minifiedCharData.character.portraitUrl
+      });
+    }
+
+    // 3. Broadcast imageCache entries one by one
+    if (Array.isArray(minifiedCharData.imageCache)) {
+      for (const [imgId, imgVal] of minifiedCharData.imageCache) {
+        if (imgVal) {
+          await OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
+            type: 'IMAGE_SYNC',
+            id,
+            senderClientId: SESSION_CLIENT_ID,
+            imgId,
+            imgVal
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error(`Owlbear broadcastCharacterSync error for ${id}:`, error);
+  }
+}
+
+/**
  * Saves a single character's data to local storage backup and broadcasts it to other players in the room.
  */
 export async function saveCharacterApi(id: string, characterData: any): Promise<void> {
@@ -615,17 +669,7 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
   saveToLocalStorage(localData);
 
   if (isOwlbear()) {
-    try {
-      // Broadcast the 100% complete character sheet (with all notes, descriptions, and base64 images) over the WebSocket broadcast!
-      OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
-        type: 'FULL_CHARACTER_SYNC',
-        id,
-        senderClientId: SESSION_CLIENT_ID,
-        data: minifiedCharData // Send 100% complete data including base64 images!
-      }).catch(err => console.warn('[DND Sheet] Broadcast sync failed:', err));
-    } catch (error) {
-      console.error(`Owlbear saveCharacter broadcast error for ${id}:`, error);
-    }
+    await broadcastCharacterSync(id, minifiedCharData);
   } else {
     await saveToLocalDevApi(localData);
   }

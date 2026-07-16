@@ -23,7 +23,9 @@ export type CharactersAction =
     | { type: 'UNDO'; payload: { id: string } }
     | { type: 'REDO'; payload: { id: string } }
     | { type: 'SET_CHARACTERS'; payload: CharactersState }
-    | { type: 'SYNC_REMOTE_CHARACTER'; payload: { id: string; entry: CharacterEntry } };
+    | { type: 'SYNC_REMOTE_CHARACTER'; payload: { id: string; entry: CharacterEntry } }
+    | { type: 'SYNC_REMOTE_CHARACTER_PORTRAIT'; payload: { id: string; portraitUrl: string } }
+    | { type: 'SYNC_REMOTE_CHARACTER_IMAGE'; payload: { id: string; imgId: string; imgVal: string } };
 
 const MAX_HISTORY_LENGTH = 20;
 
@@ -97,6 +99,45 @@ export const charactersReducer = (state: CharactersState, action: CharactersActi
             return {
                 ...state,
                 [id]: entry
+            };
+        }
+
+        case 'SYNC_REMOTE_CHARACTER_PORTRAIT': {
+            const { id, portraitUrl } = action.payload;
+            const entry = state[id];
+            if (!entry) return state;
+            return {
+                ...state,
+                [id]: {
+                    ...entry,
+                    history: {
+                        ...entry.history,
+                        present: {
+                            ...entry.history.present,
+                            portraitUrl
+                        }
+                    }
+                }
+            };
+        }
+
+        case 'SYNC_REMOTE_CHARACTER_IMAGE': {
+            const { id, imgId, imgVal } = action.payload;
+            const entry = state[id];
+            if (!entry) return state;
+            const imageCache = new Map(entry.imageCache || new Map());
+            imageCache.set(imgId, imgVal);
+            const present = applyImages(entry.history.present, imageCache);
+            return {
+                ...state,
+                [id]: {
+                    ...entry,
+                    history: {
+                        ...entry.history,
+                        present
+                    },
+                    imageCache
+                }
             };
         }
 
