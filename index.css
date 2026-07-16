@@ -24,6 +24,14 @@
   cursor: not-allowed !important;
 }
 
+/* Explicitly allow clicking the global dice roller FAB even on read-only sheets */
+.is-readonly .dice-fab,
+.is-readonly button.dice-fab,
+.is-readonly button.dice-fab * {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
 /* Re-enable pointer events for the dice roller modal even inside read-only containers */
 .is-readonly .dice-roller-modal * {
   pointer-events: auto !important;

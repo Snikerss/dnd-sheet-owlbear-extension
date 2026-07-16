@@ -898,9 +898,17 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
             )}
 
             {/* Global Dice Roller FAB */}
-            <button
+            <div
+                role="button"
+                tabIndex={0}
                 onClick={() => setIsDiceRollerOpen(true)}
-                className="dice-fab fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-r from-teal-500 to-emerald-600 text-white flex items-center justify-center shadow-[0_0_15px_rgba(20,184,166,0.5)] hover:shadow-[0_0_25px_rgba(20,184,166,0.8)] hover:scale-110 active:scale-95 transition-all duration-150 border border-teal-400/30 group"
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setIsDiceRollerOpen(true);
+                    }
+                }}
+                className="dice-fab fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-r from-teal-500 to-emerald-600 text-white flex items-center justify-center shadow-[0_0_15px_rgba(20,184,166,0.5)] hover:shadow-[0_0_25px_rgba(20,184,166,0.8)] hover:scale-110 active:scale-95 transition-all duration-150 border border-teal-400/30 group cursor-pointer"
                 data-tooltip="Открыть универсальный бросок кубиков"
             >
                 <svg
@@ -922,7 +930,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                     <polygon points="93.3,25 50,30 93.3,75" fill="none" stroke="currentColor" strokeWidth="3" />
                     <text x="50" y="58" textAnchor="middle" fill="currentColor" className="text-xl font-extrabold font-mono tracking-tighter" strokeWidth="0">20</text>
                 </svg>
-            </button>
+            </div>
 
             {/* Universal Dice Roller Modal */}
             <DiceRollerModal
