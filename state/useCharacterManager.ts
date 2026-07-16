@@ -192,12 +192,11 @@ export const useCharacterManager = (): CharacterManager => {
             const localData = loadFromLocalStorage();
             for (const [id, charData] of Object.entries(localData)) {
               if (charData) {
-                // Strip base64 to save WebSocket bandwidth, but keep all notes/descriptions!
-                const stripped = stripBase64(charData);
+                // Send 100% full data (including all notes, descriptions, and base64 images) over the broadcast WebSocket!
                 await OBR.broadcast.sendMessage(SYNC_CHANNEL, {
                   type: 'FULL_CHARACTER_SYNC',
                   id,
-                  data: stripped
+                  data: charData
                 });
               }
             }
