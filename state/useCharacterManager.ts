@@ -59,7 +59,8 @@ const parseCharactersData = (data: any): CharactersState => {
 const serializeForCache = (charData: any): string => {
   if (!charData) return '';
   
-  const minifiedChar = minifyCharacter(charData.character);
+  const fullChar = unminifyCharacter(charData.character);
+  const minifiedChar = minifyCharacter(fullChar);
   
   const imageCacheList = Array.isArray(charData.imageCache) 
     ? [...charData.imageCache] 
