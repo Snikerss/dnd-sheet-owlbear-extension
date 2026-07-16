@@ -641,7 +641,7 @@ export async function broadcastLargeString(id: string, imgId: string, isPortrait
  * Broadcasts character data. Sends the sheet data (without base64 images) on every edit,
  * but ONLY sends portrait or item images if they have actually changed or are new.
  */
-export async function broadcastCharacterSync(id: string, minifiedCharData: any, forceSyncImages: boolean = false): Promise<void> {
+export async function broadcastCharacterSync(id: string, minifiedCharData: any, forceSyncImages: boolean | string[] = false): Promise<void> {
   if (!isOwlbear()) return;
   try {
     // 1. Initialize our sent tracker for this character if not present
@@ -683,7 +683,11 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
           ? imgVal !== lastSentImagesCache[id].portraitUrl 
           : !lastSentImagesCache[id].imageCacheKeys.has(imgId);
           
-        if (forceSyncImages || hasChanged) {
+        const mustSync = (forceSyncImages === true) || 
+                         (Array.isArray(forceSyncImages) && forceSyncImages.includes(imgId)) || 
+                         hasChanged;
+                         
+        if (mustSync) {
           imagesToSync.push(imgId);
         }
       }

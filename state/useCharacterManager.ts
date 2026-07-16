@@ -101,6 +101,42 @@ const getChecksum = (str: string): string => {
   return (hash >>> 0).toString(16);
 };
 
+const getTextChecksum = (charData: any): string => {
+  if (!charData) return '';
+  const fullChar = unminifyCharacter(charData.character);
+  const { light } = extractImages(fullChar);
+  const minifiedChar = minifyCharacter(light);
+  const cleanText = {
+    character: minifiedChar,
+    log: charData.log || []
+  };
+  return getChecksum(JSON.stringify(cleanText));
+};
+
+const getImageChecksums = (charData: any): Record<string, string> => {
+  const checksums: Record<string, string> = {};
+  if (!charData) return checksums;
+  
+  const fullChar = unminifyCharacter(charData.character);
+  const { images: extractedImages } = extractImages(fullChar);
+  
+  const storedList = Array.isArray(charData.imageCache) 
+    ? charData.imageCache 
+    : (charData.imageCache instanceof Map ? Array.from(charData.imageCache.entries()) : []);
+    
+  for (const [id, val] of storedList) {
+    if (val && val.startsWith('data:')) {
+      checksums[id] = getChecksum(val);
+    }
+  }
+  for (const [id, val] of extractedImages.entries()) {
+    if (val && val.startsWith('data:')) {
+      checksums[id] = getChecksum(val);
+    }
+  }
+  return checksums;
+};
+
 interface CharacterManager {
   characters: CharactersState;
   isLoading: boolean;
@@ -286,18 +322,37 @@ export const useCharacterManager = (): CharacterManager => {
             for (const id of ownedList) {
               const charData = localData[id];
               if (charData) {
-                const serialized = serializeForCache(charData);
-                const currentChecksum = getChecksum(serialized);
+                const requesterVersion = cachedVersions[id];
                 
-                // Skip syncing if requester already has this exact checksum
-                if (cachedVersions[id] === currentChecksum) {
-                  console.log(`[DND Sheet] Requester already has up-to-date character ${id} (checksum: ${currentChecksum}). Skipping sync.`);
-                  continue;
+                if (requesterVersion && typeof requesterVersion === 'object') {
+                  const currentTextHash = getTextChecksum(charData);
+                  const currentImgHashes = getImageChecksums(charData);
+                  
+                  const textMatch = requesterVersion.textChecksum === currentTextHash;
+                  
+                  // Find which images the requester needs
+                  const requesterImgHashes = requesterVersion.imageChecksums || {};
+                  const missingOrChangedImages: string[] = [];
+                  for (const [imgId, imgHash] of Object.entries(currentImgHashes)) {
+                    if (requesterImgHashes[imgId] !== imgHash) {
+                      missingOrChangedImages.push(imgId);
+                    }
+                  }
+                  
+                  if (textMatch && missingOrChangedImages.length === 0) {
+                    console.log(`[DND Sheet] Requester already has up-to-date character ${id}. Skipping sync.`);
+                    continue;
+                  }
+                  
+                  console.log(`[DND Sheet] Checksum mismatch for character ${id}: Text match: ${textMatch} (Requester text: "${requesterVersion.textChecksum}", Current: "${currentTextHash}"). Requester needs ${missingOrChangedImages.length} images: ${JSON.stringify(missingOrChangedImages)}. Syncing...`);
+                  
+                  // Broadcast character sheet with only the images the requester needs
+                  await broadcastCharacterSync(id, charData, missingOrChangedImages);
+                } else {
+                  // Legacy or clean client: send everything!
+                  console.log(`[DND Sheet] Requester has no version info for ${id}. Syncing everything.`);
+                  await broadcastCharacterSync(id, charData, true);
                 }
-                
-                console.log(`[DND Sheet] Checksum mismatch for character ${id}: Requester checksum: "${cachedVersions[id]}", Current checksum: "${currentChecksum}". Syncing...`);
-                // Send in separate chunks to avoid exceeding broadcast limits
-                await broadcastCharacterSync(id, charData, true);
               }
             }
           } catch (err) {
@@ -482,10 +537,13 @@ export const useCharacterManager = (): CharacterManager => {
       
       // Request full sheets on startup to sync with already online players
       const localData = loadFromLocalStorage();
-      const cachedVersions: Record<string, string> = {};
+      const cachedVersions: Record<string, any> = {};
       for (const [id, entry] of Object.entries(localData)) {
         if (entry) {
-          cachedVersions[id] = getChecksum(serializeForCache(entry));
+          cachedVersions[id] = {
+            textChecksum: getTextChecksum(entry),
+            imageChecksums: getImageChecksums(entry)
+          };
         }
       }
 
