@@ -14,7 +14,7 @@ interface CharacterCardProps {
 
 export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ character, onSelect, onDuplicate, onDelete, onExport, isSyncing = false, pendingImagesCount = 0, currentUserId }) => {
   return (
-    <div className="relative bg-[var(--color-surface-opaque)] rounded-xl shadow-lg border border-[var(--color-border)] overflow-hidden transition-all duration-300 hover:shadow-2xl hover:border-[var(--color-border-hover)] flex flex-col">
+    <div className="relative aspect-[4/5] bg-[var(--color-surface-opaque)] rounded-xl shadow-lg border border-[var(--color-border)] overflow-hidden transition-all duration-300 hover:shadow-2xl hover:border-[var(--color-border-hover)] flex flex-col">
       {isSyncing && (
         <div 
           className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-30 p-4 text-center select-none"
@@ -30,8 +30,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
           </span>
         </div>
       )}
-      <div className="relative cursor-pointer group" onClick={onSelect}>
-        <div className="aspect-[4/3] bg-[var(--color-surface-well)] flex items-center justify-center overflow-hidden">
+      <div className="relative flex-1 cursor-pointer group overflow-hidden flex flex-col min-h-0" onClick={onSelect}>
+        <div className="flex-1 w-full bg-[var(--color-surface-well)] flex items-center justify-center overflow-hidden relative">
           {character.portraitUrl ? (
             <img src={character.portraitUrl} alt={character.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
           ) : (
@@ -41,16 +41,19 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
           )}
         </div>
         {character.ownerName && (
-          <div className="absolute top-2 right-2">
+          <div className="absolute top-2 right-2 z-10">
             <span className="bg-black/60 text-white/90 text-xs px-2 py-1 rounded-md backdrop-blur-sm border border-white/10 font-medium">
               👤 {character.ownerName}
             </span>
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent"></div>
-        <div className="absolute bottom-0 left-0 p-4">
-          <h3 className="text-xl font-bold text-white drop-shadow-lg">{character.name}</h3>
-          <p className="text-sm text-white/80 drop-shadow">{`${character.characterClass}, Уровень ${character.level}`}</p>
+        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-12 text-white">
+          <h3 className="text-lg font-bold truncate drop-shadow-md" title={character.name}>
+            {character.name}
+          </h3>
+          <p className="text-xs text-white/80 truncate drop-shadow-sm" title={`${character.characterClass}, Уровень ${character.level}`}>
+            {`${character.characterClass}, Уровень ${character.level}`}
+          </p>
         </div>
       </div>
       <div className="p-3 bg-[var(--color-surface-inset)] flex items-center justify-between mt-auto">
