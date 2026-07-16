@@ -329,12 +329,12 @@ export async function decompressData(data: any): Promise<any> {
   return data;
 }
 
-// Helper to clean base64 data URLs and any extremely long strings recursively from any object
+// Helper to clean base64 data URLs recursively from any object
 export function stripBase64(obj: any): any {
   if (typeof obj !== 'object' || obj === null) {
     if (typeof obj === 'string') {
-      if (obj.startsWith('data:') || obj.length > 500) {
-        return ''; // Strip base64 or any extremely long string to protect OBR limits
+      if (obj.startsWith('data:')) {
+        return ''; // Strip base64 data URL to protect OBR limits
       }
     }
     return obj;
@@ -351,51 +351,27 @@ export function stripBase64(obj: any): any {
   return cleaned;
 }
 
-// Helper to recursively strip any large text fields by key
-function stripKeysRecursively(obj: any): any {
-  if (typeof obj !== 'object' || obj === null) {
-    return obj;
-  }
-  if (Array.isArray(obj)) {
-    return obj.map(stripKeysRecursively);
-  }
-  const cleaned: any = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (
-      key === 'description' || 
-      key === 'content' || 
-      key === 'materialDescription' ||
-      (key === 'notes' && typeof value === 'string')
-    ) {
-      cleaned[key] = '';
-    } else {
-      cleaned[key] = stripKeysRecursively(value);
-    }
-  }
-  return cleaned;
-}
-
-// Strips heavy description text fields from minified character data recursively to stay below OBR's 16KB metadata limit
+// Strips heavy properties from minified character data recursively to stay below OBR's 16KB metadata limit
 export function stripLargeTexts(minifiedChar: any): any {
-  return stripKeysRecursively(minifiedChar);
+  // Now that we use Gzip compression, we don't need to strip description texts!
+  // Gzip easily compresses even 80KB of JSON text down to 4-8KB, which is well below 16KB.
+  // We keep this function as a pass-through to avoid breaking other files.
+  return minifiedChar;
 }
 
-// Merges local base64 images and stripped description texts from LocalStorage back into loaded cloud data
+// Merges local base64 images from LocalStorage back into loaded cloud data
 export const restoreLocalData = (cloudData: any, localBackup: any) => {
   if (!cloudData) return cloudData;
   if (!localBackup) return cloudData;
 
-  const restoreItemData = (cloudItem: any, localItem: any) => {
+  const restoreItemImages = (cloudItem: any, localItem: any) => {
     if (!cloudItem || !localItem) return;
     if (localItem.imageUrl?.startsWith('data:image/') && !cloudItem.imageUrl) {
       cloudItem.imageUrl = localItem.imageUrl;
     }
-    if (localItem.description && !cloudItem.description) {
-      cloudItem.description = localItem.description;
-    }
     if (cloudItem.isChest && Array.isArray(cloudItem.chestInventory) && Array.isArray(localItem.chestInventory)) {
       cloudItem.chestInventory.forEach((subItem: any, idx: number) => {
-        restoreItemData(subItem, localItem.chestInventory[idx]);
+        restoreItemImages(subItem, localItem.chestInventory[idx]);
       });
     }
   };
@@ -425,59 +401,22 @@ export const restoreLocalData = (cloudData: any, localBackup: any) => {
         cloudChar.portraitUrl = localChar.portraitUrl;
       }
 
-      // 3. Restore note contents
-      if (Array.isArray(cloudChar.notes) && Array.isArray(localChar.notes)) {
-        cloudChar.notes.forEach((n: any) => {
-          const match = localChar.notes.find((ln: any) => ln.id === n.id);
-          if (match && match.content) n.content = match.content;
-        });
-      }
-
-      // 4. Restore spell descriptions & material descriptions
-      if (Array.isArray(cloudChar.spells) && Array.isArray(localChar.spells)) {
-        cloudChar.spells.forEach((s: any) => {
-          const match = localChar.spells.find((ls: any) => ls.id === s.id);
-          if (match) {
-            if (match.description) s.description = match.description;
-            if (s.components && match.components && match.components.materialDescription) {
-              s.components.materialDescription = match.components.materialDescription;
-            }
-          }
-        });
-      }
-
-      // 5. Restore feature descriptions
-      if (Array.isArray(cloudChar.features) && Array.isArray(localChar.features)) {
-        cloudChar.features.forEach((f: any) => {
-          const match = localChar.features.find((lf: any) => lf.id === f.id);
-          if (match && match.description) f.description = match.description;
-        });
-      }
-
-      // 6. Restore attack notes
-      if (Array.isArray(cloudChar.attacks) && Array.isArray(localChar.attacks)) {
-        cloudChar.attacks.forEach((a: any) => {
-          const match = localChar.attacks.find((la: any) => la.id === a.id);
-          if (match && match.notes) a.notes = match.notes;
-        });
-      }
-
-      // 7. Restore inventory item descriptions & images (including chests)
+      // 3. Restore inventory item images (including chests)
       if (Array.isArray(cloudChar.inventory) && Array.isArray(localChar.inventory)) {
         cloudChar.inventory.forEach((invItem: any, idx: number) => {
           const localInvItem = localChar.inventory[idx];
           if (invItem && localInvItem && invItem.item && localInvItem.item) {
-            restoreItemData(invItem.item, localInvItem.item);
+            restoreItemImages(invItem.item, localInvItem.item);
           }
         });
       }
 
-      // 8. Restore equipped item descriptions
+      // 4. Restore equipped item images
       if (Array.isArray(cloudChar.equippedItems) && Array.isArray(localChar.equippedItems)) {
         cloudChar.equippedItems.forEach((eqItem: any) => {
           const match = localChar.equippedItems.find((le: any) => le.id === eqItem.id);
           if (match) {
-            restoreItemData(eqItem, match);
+            restoreItemImages(eqItem, match);
           }
         });
       }
