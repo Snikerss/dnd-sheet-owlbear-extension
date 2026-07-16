@@ -2,11 +2,11 @@
   "name": "D&D 5e Character Sheet",
   "version": "1.0.0",
   "manifest_version": 1,
-  "icon": "/action-icon.svg",
+  "icon": "action-icon.svg",
   "action": {
     "title": "Character Sheet",
-    "icon": "/action-icon.svg",
-    "popover": "/index.html",
+    "icon": "action-icon.svg",
+    "popover": "index.html",
     "width": 1000,
     "height": 800
   }
