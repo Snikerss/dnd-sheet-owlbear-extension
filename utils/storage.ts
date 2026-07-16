@@ -351,218 +351,77 @@ export function stripBase64(obj: any): any {
   return cleaned;
 }
 
-// Split character into Main, Texts, and Images chunks to bypass OBR 16KB size limit per key/update
-export function splitCharacter(characterData: any): { main: any; texts: any; images: any } {
-  const char = structuredClone(characterData);
+const MAX_CHUNK_SIZE = 10000; // 10KB chunks, well below the 16KB OBR limit
+
+// Generic helper to chunk any compressed object across multiple keys to bypass OBR 16KB transaction limit
+export async function saveChunkedMetadata(baseKey: string, data: any): Promise<void> {
+  const compressed = await compressData(data);
+  const jsonStr = JSON.stringify(compressed);
   
-  const texts: any = {
-    notes: {},
-    spells: {},
-    features: {},
-    attacks: {},
-    inventory: {},
-    equippedItems: {}
-  };
-
-  const images: any = {
-    portraitUrl: '',
-    inventory: {},
-    equippedItems: {},
-    imageCache: char.imageCache || []
-  };
-
-  // 1. Portrait Image
-  if (char.character.portraitUrl?.startsWith('data:')) {
-    images.portraitUrl = char.character.portraitUrl;
-    char.character.portraitUrl = '';
-  }
-
-  // 2. Notes
-  if (Array.isArray(char.character.notes)) {
-    char.character.notes.forEach((n: any) => {
-      texts.notes[n.id] = n.content;
-      n.content = '';
-    });
-  }
-
-  // 3. Spells
-  if (Array.isArray(char.character.spells)) {
-    char.character.spells.forEach((s: any) => {
-      texts.spells[s.id] = {
-        description: s.description || '',
-        materialDescription: s.components?.materialDescription || ''
-      };
-      s.description = '';
-      if (s.components) s.components.materialDescription = '';
-    });
-  }
-
-  // 4. Features
-  if (Array.isArray(char.character.features)) {
-    char.character.features.forEach((f: any) => {
-      texts.features[f.id] = f.description || '';
-      f.description = '';
-    });
-  }
-
-  // 5. Attacks
-  if (Array.isArray(char.character.attacks)) {
-    char.character.attacks.forEach((a: any) => {
-      texts.attacks[a.id] = a.notes || '';
-      a.notes = '';
-    });
-  }
-
-  // Helper to extract item texts & images (including chests recursively)
-  const extractItemData = (item: any, path: string) => {
-    if (!item) return;
-    if (item.description) {
-      texts.inventory[`${path}.description`] = item.description;
-      item.description = '';
+  const totalLength = jsonStr.length;
+  const chunkCount = Math.ceil(totalLength / MAX_CHUNK_SIZE);
+  
+  // 1. Clear any old chunks first if the new save has fewer chunks
+  const oldMetadataUpdate: Record<string, any> = {};
+  if (OBR.isReady) {
+    const currentMetadata = await OBR.room.getMetadata();
+    let index = chunkCount;
+    while (currentMetadata[`${baseKey}/chunk_${index}`] !== undefined && currentMetadata[`${baseKey}/chunk_${index}`] !== null) {
+      oldMetadataUpdate[`${baseKey}/chunk_${index}`] = null;
+      index++;
     }
-    if (item.imageUrl?.startsWith('data:')) {
-      images.inventory[`${path}.imageUrl`] = item.imageUrl;
-      item.imageUrl = '';
-    }
-    if (item.isChest && Array.isArray(item.chestInventory)) {
-      item.chestInventory.forEach((subItem: any, idx: number) => {
-        extractItemData(subItem, `${path}.chestInventory.${idx}`);
-      });
-    }
-  };
-
-  // 6. Inventory Items
-  if (Array.isArray(char.character.inventory)) {
-    char.character.inventory.forEach((invItem: any, idx: number) => {
-      if (invItem && invItem.item) {
-        extractItemData(invItem.item, `idx.${idx}`);
-      }
-    });
   }
 
-  // 7. Equipped Items
-  if (Array.isArray(char.character.equippedItems)) {
-    char.character.equippedItems.forEach((eqItem: any) => {
-      if (eqItem) {
-        if (eqItem.description) {
-          texts.equippedItems[`id.${eqItem.id}.description`] = eqItem.description;
-          eqItem.description = '';
-        }
-        if (eqItem.imageUrl?.startsWith('data:')) {
-          images.equippedItems[`id.${eqItem.id}.imageUrl`] = eqItem.imageUrl;
-          eqItem.imageUrl = '';
-        }
-      }
-    });
+  // 2. Perform separate setMetadata calls for each chunk to keep each update transaction strictly under 10KB
+  for (let i = 0; i < chunkCount; i++) {
+    const chunkStr = jsonStr.slice(i * MAX_CHUNK_SIZE, (i + 1) * MAX_CHUNK_SIZE);
+    await OBR.room.setMetadata({ [`${baseKey}/chunk_${i}`]: chunkStr });
   }
 
-  char.imageCache = []; // Clear from main chunk to save space
+  // 3. Clear obsolete chunks
+  if (Object.keys(oldMetadataUpdate).length > 0) {
+    await OBR.room.setMetadata(oldMetadataUpdate);
+  }
 
-  return {
-    main: char,
-    texts,
-    images
-  };
+  // 4. Update the info control key (this is the final step to signal completion)
+  await OBR.room.setMetadata({ [`${baseKey}/info`]: { chunkCount } });
 }
 
-// Merge Main, Texts, and Images chunks back into the complete character structure
+// Generic helper to load chunked metadata and decompress it back into an object
+export async function loadChunkedMetadata(baseKey: string, metadata: any): Promise<any | null> {
+  const info = metadata[`${baseKey}/info`];
+  if (!info || typeof info.chunkCount !== 'number') {
+    // Fall back to legacy non-chunked key if it exists
+    const legacyValue = metadata[baseKey];
+    if (legacyValue) {
+      return decompressData(legacyValue);
+    }
+    return null;
+  }
+
+  const chunkCount = info.chunkCount;
+  let jsonStr = '';
+  for (let i = 0; i < chunkCount; i++) {
+    const chunk = metadata[`${baseKey}/chunk_${i}`];
+    if (chunk === undefined || chunk === null) {
+      console.warn(`[DND Sheet] Missing chunk ${i} for key ${baseKey}`);
+      return null;
+    }
+    jsonStr += chunk;
+  }
+
+  try {
+    const compressed = JSON.parse(jsonStr);
+    return decompressData(compressed);
+  } catch (err) {
+    console.error(`[DND Sheet] Failed to parse chunked metadata for ${baseKey}:`, err);
+    return null;
+  }
+}
+
+// Kept as pass-through for compatibility
 export function mergeCharacter(main: any, texts: any, images: any): any {
-  if (!main) return null;
-  const char = structuredClone(main);
-
-  if (!char.character) return char;
-
-  const setNestedProperty = (obj: any, path: string, val: any) => {
-    const parts = path.split('.');
-    let curr = obj;
-    for (let i = 0; i < parts.length - 1; i++) {
-      const part = parts[i];
-      const nextPart = parts[i + 1];
-      const isNextNumber = !isNaN(Number(nextPart));
-      if (curr[part] === undefined) {
-        curr[part] = isNextNumber ? [] : {};
-      }
-      curr = curr[part];
-    }
-    curr[parts[parts.length - 1]] = val;
-  };
-
-  const t = texts || {};
-  const img = images || {};
-
-  // 1. Restore portrait Url
-  if (img.portraitUrl) {
-    char.character.portraitUrl = img.portraitUrl;
-  }
-
-  // 2. Restore Notes
-  if (Array.isArray(char.character.notes) && t.notes) {
-    char.character.notes.forEach((n: any) => {
-      if (t.notes[n.id] !== undefined) n.content = t.notes[n.id];
-    });
-  }
-
-  // 3. Restore Spells
-  if (Array.isArray(char.character.spells) && t.spells) {
-    char.character.spells.forEach((s: any) => {
-      const spellText = t.spells[s.id];
-      if (spellText) {
-        if (spellText.description !== undefined) s.description = spellText.description;
-        if (s.components && spellText.materialDescription !== undefined) {
-          s.components.materialDescription = spellText.materialDescription;
-        }
-      }
-    });
-  }
-
-  // 4. Restore Features
-  if (Array.isArray(char.character.features) && t.features) {
-    char.character.features.forEach((f: any) => {
-      if (t.features[f.id] !== undefined) f.description = t.features[f.id];
-    });
-  }
-
-  // 5. Restore Attacks
-  if (Array.isArray(char.character.attacks) && t.attacks) {
-    char.character.attacks.forEach((a: any) => {
-      if (t.attacks[a.id] !== undefined) a.notes = t.attacks[a.id];
-    });
-  }
-
-  // 6. Restore Inventory texts & images
-  if (Array.isArray(char.character.inventory)) {
-    if (t.inventory) {
-      for (const [path, val] of Object.entries(t.inventory)) {
-        setNestedProperty(char.character.inventory, path, val);
-      }
-    }
-    if (img.inventory) {
-      for (const [path, val] of Object.entries(img.inventory)) {
-        setNestedProperty(char.character.inventory, path, val);
-      }
-    }
-  }
-
-  // 7. Restore Equipped items texts & images
-  if (Array.isArray(char.character.equippedItems)) {
-    char.character.equippedItems.forEach((eqItem: any) => {
-      if (eqItem) {
-        if (t.equippedItems && t.equippedItems[`id.${eqItem.id}.description`] !== undefined) {
-          eqItem.description = t.equippedItems[`id.${eqItem.id}.description`];
-        }
-        if (img.equippedItems && img.equippedItems[`id.${eqItem.id}.imageUrl`] !== undefined) {
-          eqItem.imageUrl = img.equippedItems[`id.${eqItem.id}.imageUrl`];
-        }
-      }
-    });
-  }
-
-  // 8. Restore imageCache
-  if (img.imageCache) {
-    char.imageCache = img.imageCache;
-  }
-
-  return char;
+  return main;
 }
 
 // Strips heavy properties from minified character data recursively to stay below OBR's 16KB metadata limit
