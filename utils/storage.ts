@@ -280,11 +280,13 @@ export function unminifyCharacter(min: any): Character {
   return char;
 }
 
-// Helper to clean base64 data URLs recursively from any object
+// Helper to clean base64 data URLs and any extremely long strings recursively from any object
 export function stripBase64(obj: any): any {
   if (typeof obj !== 'object' || obj === null) {
-    if (typeof obj === 'string' && obj.startsWith('data:image/')) {
-      return ''; // Strip base64 data URL
+    if (typeof obj === 'string') {
+      if (obj.startsWith('data:') || obj.length > 500) {
+        return ''; // Strip base64 or any extremely long string to protect OBR limits
+      }
     }
     return obj;
   }

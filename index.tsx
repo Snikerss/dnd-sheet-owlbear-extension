@@ -45,9 +45,10 @@ if (isHiddenIframe) {
   });
 } else if (isOwlbear()) {
   OBR.onReady(() => {
-    console.log("[DND Sheet] OBR is ready. Rendering extension inside native popover.");
+    console.log("[DND Sheet] OBR is ready. Version: 1.0.3 (Deep recursive stripper + 500ch limit active). Rendering...");
     renderApp();
   });
 } else {
+  console.log("[DND Sheet] Standalone mode. Version: 1.0.3.");
   renderApp();
 }
