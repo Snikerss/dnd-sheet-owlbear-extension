@@ -387,7 +387,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 overflow-y-auto grow pr-2">
           
           {/* Left Panel: Custom Dice Roller (Col span 2) */}
-          <div className="md:col-span-2 space-y-4 border-r border-[var(--color-border-subtle)]/30 pr-0 md:pr-6 flex flex-col">
+          <div className="md:col-span-2 space-y-4 border-b md:border-b-0 md:border-r border-[var(--color-border-subtle)]/30 pb-6 md:pb-0 pr-0 md:pr-6 flex flex-col">
             <h3 className="text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
               Конструктор броска
             </h3>
@@ -544,7 +544,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
           </div>
 
           {/* Right Panel: Predefined Pools list (Col span 3) */}
-          <div className="md:col-span-3 flex flex-col h-full overflow-hidden">
+          <div className="md:col-span-3 flex flex-col md:h-full md:overflow-hidden min-h-0">
             <div className="flex justify-between items-center mb-3">
               <h3 className="text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
                 Быстрый выбор из проверок персонажа
@@ -563,7 +563,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
             </div>
 
             {/* Categorized List */}
-            <div className="overflow-y-auto grow pr-1 space-y-4">
+            <div className="overflow-y-visible md:overflow-y-auto grow pr-1 space-y-4">
               {Object.keys(groupedPool).length === 0 ? (
                 <div className="text-center py-10 text-xs text-[var(--color-text-muted)]">
                   Ничего не найдено по вашему запросу
