@@ -666,10 +666,15 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
     }
 
     const minifiedLight = minifyCharacter(light);
+    const syncImageIds = Array.from(combinedImageCacheMap.entries())
+      .filter(([_, imgVal]) => imgVal && imgVal.startsWith('data:'))
+      .map(([imgId, _]) => imgId);
+
     const strippedData = {
       ...minifiedCharData,
       character: minifiedLight,
-      imageCache: []
+      imageCache: [],
+      syncImageIds
     };
     if (strippedData.history) {
       strippedData.history.past = [];

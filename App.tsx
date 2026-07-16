@@ -317,6 +317,7 @@ const AppContent: React.FC = () => {
       ) : (
         <CharacterSelectionScreen
           characters={characterList}
+          syncingCharacters={syncingCharacters}
           onSelectCharacter={handleSelectCharacter}
           onCreateCharacter={handleCreateCharacter}
           onDeleteCharacter={handleDeleteCharacter}

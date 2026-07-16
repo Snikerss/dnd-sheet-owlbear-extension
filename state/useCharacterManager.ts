@@ -68,6 +68,7 @@ const serializeForCache = (charData: any): string => {
 interface CharacterManager {
   characters: CharactersState;
   isLoading: boolean;
+  syncingCharacters: Record<string, { status: 'images', pendingImages: string[] }>;
   addCharacter: (id: string, character: Character) => void;
   deleteCharacter: (id: string) => void;
   updateCharacter: (id: string, action: CharacterAction) => void;
@@ -180,6 +181,7 @@ const restoreFromMemory = (cloudData: any, memoryBackup: CharactersState) => {
 export const useCharacterManager = (): CharacterManager => {
   const [characters, dispatch] = useReducer(charactersReducer, {});
   const [isLoading, setIsLoading] = useState(true);
+  const [syncingCharacters, setSyncingCharacters] = useState<Record<string, { status: 'images', pendingImages: string[] }>>({});
   const { addNotification } = useNotifier();
 
   // Track the serialized state of each character individually (indexed by character ID)
@@ -286,6 +288,18 @@ export const useCharacterManager = (): CharacterManager => {
               
               if (entry) {
                 console.log(`[DND Sheet] Received fully assembled remote character sync via P2P for ${charId}. Merging...`);
+                
+                if (Array.isArray(incomingData.syncImageIds) && incomingData.syncImageIds.length > 0) {
+                  console.log(`[DND Sheet] Waiting for ${incomingData.syncImageIds.length} remote images for ${charId}...`);
+                  setSyncingCharacters(prev => ({
+                    ...prev,
+                    [charId]: {
+                      status: 'images',
+                      pendingImages: incomingData.syncImageIds
+                    }
+                  }));
+                }
+
                 dispatch({
                   type: 'SYNC_REMOTE_CHARACTER',
                   payload: {
@@ -336,6 +350,25 @@ export const useCharacterManager = (): CharacterManager => {
           if (isComplete) {
             const assembledVal = incomingChunksRef.current[key].chunks.join('');
             delete incomingChunksRef.current[key];
+
+            setSyncingCharacters(prev => {
+              const current = prev[charId];
+              if (!current) return prev;
+              const pending = current.pendingImages.filter((id: string) => id !== imgId);
+              if (pending.length === 0) {
+                console.log(`[DND Sheet] All remote images for character ${charId} received successfully!`);
+                const next = { ...prev };
+                delete next[charId];
+                return next;
+              }
+              return {
+                ...prev,
+                [charId]: {
+                  ...current,
+                  pendingImages: pending
+                }
+              };
+            });
             
             if (isPortrait) {
               console.log(`[DND Sheet] Received fully assembled remote portrait for ${charId}.`);
@@ -524,6 +557,7 @@ export const useCharacterManager = (): CharacterManager => {
   return {
     characters,
     isLoading,
+    syncingCharacters,
     addCharacter,
     deleteCharacter,
     updateCharacter,

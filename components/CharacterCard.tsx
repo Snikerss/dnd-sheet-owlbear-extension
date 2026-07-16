@@ -7,11 +7,28 @@ interface CharacterCardProps {
   onDuplicate: () => void;
   onDelete: () => void;
   onExport: () => void;
+  isSyncing?: boolean;
+  pendingImagesCount?: number;
 }
 
-export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ character, onSelect, onDuplicate, onDelete, onExport }) => {
+export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ character, onSelect, onDuplicate, onDelete, onExport, isSyncing = false, pendingImagesCount = 0 }) => {
   return (
-    <div className="bg-[var(--color-surface-opaque)] rounded-xl shadow-lg border border-[var(--color-border)] overflow-hidden transition-all duration-300 hover:shadow-2xl hover:border-[var(--color-border-hover)] flex flex-col">
+    <div className="relative bg-[var(--color-surface-opaque)] rounded-xl shadow-lg border border-[var(--color-border)] overflow-hidden transition-all duration-300 hover:shadow-2xl hover:border-[var(--color-border-hover)] flex flex-col">
+      {isSyncing && (
+        <div 
+          className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-30 p-4 text-center select-none"
+          onClick={e => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+        >
+          <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+          <span className="text-teal-400 font-bold text-sm">Синхронизация...</span>
+          <span className="text-[var(--color-text-medium)] text-xs mt-1">
+            Осталось картинок: {pendingImagesCount}
+          </span>
+        </div>
+      )}
       <div className="relative cursor-pointer group" onClick={onSelect}>
         <div className="aspect-[4/3] bg-[var(--color-surface-well)] flex items-center justify-center overflow-hidden">
           {character.portraitUrl ? (

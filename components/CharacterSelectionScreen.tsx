@@ -8,6 +8,7 @@ import { compressCharacterImages } from '../utils/imageCompress';
 
 interface CharacterSelectionScreenProps {
   characters: Record<string, Character>;
+  syncingCharacters?: Record<string, { status: 'images', pendingImages: string[] }>;
   onSelectCharacter: (id: string) => void;
   onCreateCharacter: () => void;
   onDeleteCharacter: (id: string) => void;
@@ -17,6 +18,7 @@ interface CharacterSelectionScreenProps {
 
 export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> = ({
   characters,
+  syncingCharacters,
   onSelectCharacter,
   onCreateCharacter,
   onDeleteCharacter,
@@ -117,16 +119,21 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
       <main className="flex-grow">
         {characterEntries.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 max-w-screen-2xl mx-auto">
-            {characterEntries.map(([id, character]) => (
-              <CharacterCard
-                key={id}
-                character={character}
-                onSelect={() => onSelectCharacter(id)}
-                onDuplicate={() => onDuplicateCharacter(id)}
-                onDelete={() => onDeleteCharacter(id)}
-                onExport={() => handleExportCharacter(id)}
-              />
-            ))}
+            {characterEntries.map(([id, character]) => {
+              const syncState = syncingCharacters?.[id];
+              return (
+                <CharacterCard
+                  key={id}
+                  character={character}
+                  onSelect={() => onSelectCharacter(id)}
+                  onDuplicate={() => onDuplicateCharacter(id)}
+                  onDelete={() => onDeleteCharacter(id)}
+                  onExport={() => handleExportCharacter(id)}
+                  isSyncing={!!syncState}
+                  pendingImagesCount={syncState?.pendingImages.length || 0}
+                />
+              );
+            })}
              <button
               onClick={onCreateCharacter}
               className="group aspect-[4/5] bg-[var(--color-surface-opaque)] rounded-xl shadow-lg border-2 border-dashed border-[var(--color-border)] flex flex-col items-center justify-center text-[var(--color-text-muted)] hover:border-[var(--color-accent-primary)] hover:text-[var(--color-accent-primary)] transition-all duration-300"
