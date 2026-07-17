@@ -230,8 +230,8 @@ const restoreFromMemory = (cloudData: any, memoryBackup: CharactersState) => {
       if (Array.isArray(cloudChar.inventory) && Array.isArray(memoryChar.inventory)) {
         cloudChar.inventory.forEach((invItem: any, idx: number) => {
           const memoryInvItem = memoryChar.inventory[idx];
-          if (invItem && memoryInvItem && invItem.item && memoryInvItem.item) {
-            restoreItemImages(invItem.item, memoryInvItem.item);
+          if (invItem && memoryInvItem) {
+            restoreItemImages(invItem, memoryInvItem);
           }
         });
       }
@@ -417,6 +417,17 @@ export const useCharacterManager = (): CharacterManager => {
                     entry
                   }
                 });
+                // Broadcast to local channel for standalone tab syncing
+                try {
+                  const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
+                  channel.postMessage({
+                    type: 'CHARACTER_SYNC',
+                    charId,
+                    entry,
+                    senderId: SESSION_CLIENT_ID
+                  });
+                  channel.close();
+                } catch (e) {}
                 // Cache to our local LocalStorage
                 try {
                   const currentLocal = loadFromLocalStorage();
@@ -667,6 +678,17 @@ export const useCharacterManager = (): CharacterManager => {
 
   const updateCharacter = useCallback((id: string, action: CharacterAction) => {
     dispatch({ type: 'DISPATCH_CHARACTER_ACTION', payload: { id, action } });
+    // Broadcast to local channel for standalone tab syncing
+    try {
+      const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
+      channel.postMessage({
+        type: 'CHARACTER_ACTION',
+        charId: id,
+        action,
+        senderId: SESSION_CLIENT_ID
+      });
+      channel.close();
+    } catch (e) {}
   }, []);
 
   const undo = useCallback((id: string) => {
@@ -675,6 +697,36 @@ export const useCharacterManager = (): CharacterManager => {
 
   const redo = useCallback((id: string) => {
     dispatch({ type: 'REDO', payload: { id } });
+  }, []);
+
+  // Local bridge for multi-tab synchronization
+  useEffect(() => {
+    const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
+    
+    const handleLocalBridgeMessage = (event: MessageEvent) => {
+      const payload = event.data;
+      if (!payload || payload.senderId === SESSION_CLIENT_ID) return;
+      
+      if (payload.type === 'CHARACTER_ACTION' && payload.charId && payload.action) {
+        console.log('[DND Sheet] Local Bridge: Syncing action from another tab:', payload.action);
+        dispatch({
+          type: 'DISPATCH_CHARACTER_ACTION',
+          payload: { id: payload.charId, action: payload.action }
+        });
+      } else if (payload.type === 'CHARACTER_SYNC' && payload.charId && payload.entry) {
+        console.log('[DND Sheet] Local Bridge: Syncing full character from another tab:', payload.charId);
+        dispatch({
+          type: 'SYNC_REMOTE_CHARACTER',
+          payload: { id: payload.charId, entry: payload.entry }
+        });
+      }
+    };
+    
+    channel.addEventListener('message', handleLocalBridgeMessage);
+    return () => {
+      channel.removeEventListener('message', handleLocalBridgeMessage);
+      channel.close();
+    };
   }, []);
 
   return {

@@ -15,7 +15,12 @@ import { isOwlbear } from './utils/storage';
 const AppContent: React.FC = () => {
   const { characters, isLoading, syncingCharacters, addCharacter, deleteCharacter, updateCharacter, undo, redo } = useCharacterManager();
   
-  const [activeCharacterId, setActiveCharacterId] = useState<string | null>(null);
+  const [activeCharacterId, setActiveCharacterId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return new URLSearchParams(window.location.search).get('charId');
+    }
+    return null;
+  });
   const [characterPendingDeletion, setCharacterPendingDeletion] = useState<{id: string, name: string} | null>(null);
   const [isHistoryLogOpen, setIsHistoryLogOpen] = useState(false);
 
@@ -230,6 +235,12 @@ const AppContent: React.FC = () => {
     addCharacter(id, charWithNewOwner);
   }, [addCharacter, playerName]);
 
+  const handleOpenStandalone = useCallback((id: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('charId', id);
+    window.open(url.toString(), '_blank');
+  }, []);
+
   const handleUpdateCharacter = useCallback((action: CharacterAction) => {
     if (activeCharacterId) {
       const activeCharacterState = characters[activeCharacterId];
@@ -346,6 +357,7 @@ const AppContent: React.FC = () => {
           onDeleteCharacter={handleDeleteCharacter}
           onDuplicateCharacter={handleDuplicateCharacter}
           onAddCharacter={handleAddCharacter}
+          onOpenStandalone={handleOpenStandalone}
         />
       )}
     </>

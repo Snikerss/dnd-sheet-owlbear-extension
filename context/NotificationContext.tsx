@@ -2,7 +2,7 @@ import React, { createContext, useState, useCallback, useContext, useMemo, useEf
 import OBR from '@owlbear-rodeo/sdk';
 import { NotificationToast, NotificationType } from '../components/NotificationToast';
 import { generateUUID } from '../utils/uuid';
-import { isOwlbear } from '../utils/storage';
+import { isOwlbear, SESSION_CLIENT_ID } from '../utils/storage';
 import { RollResult, RollType } from '../types';
 
 interface Notification {
@@ -53,6 +53,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       } catch (err) {
         console.error('[DND Sheet] Failed to send roll broadcast:', err);
       }
+    } else {
+      // Standalone mode: send via local bridge BroadcastChannel
+      try {
+        const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
+        channel.postMessage({
+          type: 'ROLL_DICE',
+          characterName,
+          result,
+          senderId: SESSION_CLIENT_ID
+        });
+        channel.close();
+      } catch (e) {}
     }
   }, []);
 
@@ -119,12 +131,48 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           // Also show React toast within the character sheet as a backup
           const toastMessageText = `${playerName} (${characterName}) совершил бросок:\n**${result.name}**\n🎲 **${result.total}** (${rollDetails} ${modSign})`;
           addNotification(toastMessageText, 'info');
+
+          // Broadcast notification to standalone tab
+          try {
+            const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
+            channel.postMessage({
+              type: 'SHOW_NOTIFICATION',
+              message: toastMessageText,
+              notificationType: 'info',
+              senderId: SESSION_CLIENT_ID
+            });
+            channel.close();
+          } catch (e) {}
         }
       });
 
       return unsubscribe;
     }
   }, [addNotification]);
+
+  // Listen to BroadcastChannel for standalone/iframe communication
+  useEffect(() => {
+    const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
+    
+    const handleLocalBridgeMessage = (event: MessageEvent) => {
+      const payload = event.data;
+      if (!payload || payload.senderId === SESSION_CLIENT_ID) return;
+
+      if (payload.type === 'ROLL_DICE' && isOwlbear()) {
+        console.log('[DND Sheet] Local Bridge: Proxying roll from standalone tab to OBR:', payload);
+        broadcastRoll(payload.characterName, payload.result);
+      } else if (payload.type === 'SHOW_NOTIFICATION') {
+        console.log('[DND Sheet] Local Bridge: Showing notification toast:', payload.message);
+        addNotification(payload.message, payload.notificationType);
+      }
+    };
+
+    channel.addEventListener('message', handleLocalBridgeMessage);
+    return () => {
+      channel.removeEventListener('message', handleLocalBridgeMessage);
+      channel.close();
+    };
+  }, [broadcastRoll, addNotification]);
 
   const contextValue = useMemo(() => ({ addNotification, broadcastRoll }), [addNotification, broadcastRoll]);
 

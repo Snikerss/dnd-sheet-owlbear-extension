@@ -7,12 +7,13 @@ interface CharacterCardProps {
   onDuplicate: () => void;
   onDelete: () => void;
   onExport: () => void;
+  onOpenStandalone?: () => void;
   isSyncing?: boolean;
   pendingImagesCount?: number;
   currentUserId?: string | null;
 }
 
-export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ character, onSelect, onDuplicate, onDelete, onExport, isSyncing = false, pendingImagesCount = 0, currentUserId }) => {
+export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ character, onSelect, onDuplicate, onDelete, onExport, onOpenStandalone, isSyncing = false, pendingImagesCount = 0, currentUserId }) => {
   return (
     <div className="relative aspect-[4/5] bg-[var(--color-surface-opaque)] rounded-xl shadow-lg border border-[var(--color-border)] overflow-hidden transition-all duration-300 hover:shadow-2xl hover:border-[var(--color-border-hover)] flex flex-col">
       {isSyncing && (
@@ -77,6 +78,17 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
                 <path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h6a2 2 0 00-2-2H5z" />
               </svg>
             </button>
+            {onOpenStandalone && (
+              <button
+                onClick={onOpenStandalone}
+                data-tooltip="Открыть в новой вкладке"
+                className="p-2 ml-1 rounded-full text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-base)] transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </button>
+            )}
         </div>
         <button
           onClick={onSelect}

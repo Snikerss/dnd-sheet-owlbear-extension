@@ -15,6 +15,7 @@ interface CharacterSelectionScreenProps {
   onDeleteCharacter: (id: string) => void;
   onDuplicateCharacter: (id: string) => void;
   onAddCharacter: (id: string, character: Character) => void;
+  onOpenStandalone: (id: string) => void;
 }
 
 export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> = ({
@@ -26,6 +27,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
   onDeleteCharacter,
   onDuplicateCharacter,
   onAddCharacter,
+  onOpenStandalone,
 }) => {
   const characterEntries = Object.entries(characters);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -131,6 +133,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
                   onDuplicate={() => onDuplicateCharacter(id)}
                   onDelete={() => onDeleteCharacter(id)}
                   onExport={() => handleExportCharacter(id)}
+                  onOpenStandalone={() => onOpenStandalone(id)}
                   isSyncing={!!syncState}
                   pendingImagesCount={syncState?.pendingImages.length || 0}
                   currentUserId={currentUserId}
