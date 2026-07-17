@@ -1,5 +1,5 @@
 import OBR from '@owlbear-rodeo/sdk';
-import { Character, Ability, Skill, ProficiencyLevel, InventoryItem } from '../types';
+import { Character, Ability, Skill, ProficiencyLevel, InventoryItem, Currency } from '../types';
 import { defaultCharacterState } from '../state/defaultCharacterState';
 import { compressBase64Image } from './imageCompress';
 import { extractImages } from './imageStore';
@@ -265,17 +265,18 @@ export function unminifyCharacter(min: any): Character {
   // Currency
   if (min.cur) {
     for (const [coin, amount] of Object.entries(min.cur)) {
-      if (char.currency[coin as any] !== undefined) {
-        char.currency[coin as any] = Number(amount);
+      if (char.currency[coin as Currency] !== undefined) {
+        char.currency[coin as Currency] = Number(amount);
       }
     }
   }
 
   // Spell slots
   if (min.slots) {
-    for (const [lvlStr, [total, used]] of Object.entries(min.slots)) {
+    for (const [lvlStr, slotData] of Object.entries(min.slots as Record<string, [any, any]>)) {
       const lvl = Number(lvlStr);
-      if (char.spellSlots[lvl]) {
+      if (char.spellSlots[lvl] && Array.isArray(slotData)) {
+        const [total, used] = slotData;
         char.spellSlots[lvl] = { total: Number(total), used: Number(used) };
       }
     }
@@ -308,7 +309,11 @@ export async function compressData(data: any): Promise<any> {
     const blob = await response.blob();
     const base64 = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve((reader.result as string).split(',')[1]);
+      reader.onload = () => {
+        const result = reader.result as string;
+        const parts = result ? result.split(',') : [];
+        resolve(parts[1] || '');
+      };
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });

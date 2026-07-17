@@ -222,7 +222,7 @@ export interface RollResult {
 
 // --- ACTION TYPES for characterReducer ---
 export type CharacterAction =
-  | { type: 'SET_FIELD'; payload: { field: 'name' | 'race' | 'characterClass' | 'experience' | 'portraitUrl' | 'speed' | 'temporaryHitPoints' | 'ownerId'; value: any } }
+  | { type: 'SET_FIELD'; payload: { field: 'name' | 'race' | 'characterClass' | 'experience' | 'portraitUrl' | 'speed' | 'temporaryHitPoints' | 'ownerId' | 'ownerName'; value: any } }
   | { type: 'SET_SCORE'; payload: { ability: Ability; score: number } }
   | { type: 'SET_PROFICIENCY'; payload: string }
   | { type: 'SET_SAVING_THROW_PROF'; payload: Ability }
