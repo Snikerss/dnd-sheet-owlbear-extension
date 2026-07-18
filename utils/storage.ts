@@ -3,6 +3,9 @@ import { Character, Ability, Skill, ProficiencyLevel, InventoryItem, Currency } 
 import { defaultCharacterState } from '../state/defaultCharacterState';
 import { compressBase64Image } from './imageCompress';
 import { extractImages } from './imageStore';
+import { imageDb } from './indexedDbStore';
+
+const inMemoryCharactersCache: Record<string, any> = {};
 
 /**
  * Checks if the application is running inside the Owlbear Rodeo iframe environment.
@@ -602,9 +605,25 @@ export async function loadCharactersApi(): Promise<any> {
   const localBackup = loadFromLocalStorage();
 
   if (isOwlbear()) {
-    // Simply load from local storage backup immediately.
-    // Sync with other online players is handled via broadcast REQUEST_FULL_CHARACTERS in useCharacterManager.
-    return restoreGranularData(localBackup);
+    // 1. Load light data from LocalStorage
+    const rawData = { ...localBackup };
+    
+    // 2. Asynchronously load imageCache lists from IndexedDB and merge them
+    for (const id of Object.keys(rawData)) {
+      try {
+        const imageCacheArray = await imageDb.get('char-images/' + id);
+        if (imageCacheArray && Array.isArray(imageCacheArray)) {
+          rawData[id].imageCache = imageCacheArray;
+        }
+      } catch (err) {
+        console.error(`Failed to load images from IndexedDB for ${id}:`, err);
+      }
+      
+      // Update our synchronous in-memory cache with the full data
+      inMemoryCharactersCache[id] = rawData[id];
+    }
+
+    return restoreGranularData(rawData);
   } else {
     const rawDev = await loadFromLocalDevApi();
     return restoreGranularData(rawDev);
@@ -762,15 +781,33 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
     character: minifyCharacter(characterData.character)
   };
 
-  // Always write the full representation (including base64 images) to local storage backup
-  const localData = loadFromLocalStorage();
-  localData[id] = minifiedCharData;
-  saveToLocalStorage(localData);
+  // 1. Update in-memory cache with full representation (including images)
+  inMemoryCharactersCache[id] = minifiedCharData;
+
+  // 2. Save imageCache array to IndexedDB
+  try {
+    const imageCacheArray = minifiedCharData.imageCache || [];
+    await imageDb.set('char-images/' + id, imageCacheArray);
+  } catch (err) {
+    console.error(`Failed to save images to IndexedDB for ${id}:`, err);
+  }
+
+  // 3. Save a copy with EMPTY imageCache to LocalStorage to save space
+  const localData = { ...inMemoryCharactersCache };
+  const lightLocalData: Record<string, any> = {};
+  for (const [charId, entry] of Object.entries(localData)) {
+    lightLocalData[charId] = {
+      ...entry,
+      imageCache: [] // Strip base64 imageCache completely for local storage copy
+    };
+  }
+
+  saveToLocalStorage(lightLocalData);
 
   if (isOwlbear()) {
     await broadcastCharacterSync(id, minifiedCharData);
   } else {
-    await saveToLocalDevApi(localData);
+    await saveToLocalDevApi(lightLocalData);
   }
 }
 
@@ -778,20 +815,40 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
  * Deletes a single character's data from local storage.
  */
 export async function deleteCharacterApi(id: string): Promise<void> {
-  const localData = loadFromLocalStorage();
-  delete localData[id];
-  saveToLocalStorage(localData);
+  // 1. Delete from in-memory cache
+  delete inMemoryCharactersCache[id];
+
+  // 2. Delete from LocalStorage
+  const localData = { ...inMemoryCharactersCache };
+  const lightLocalData: Record<string, any> = {};
+  for (const [charId, entry] of Object.entries(localData)) {
+    lightLocalData[charId] = {
+      ...entry,
+      imageCache: []
+    };
+  }
+  saveToLocalStorage(lightLocalData);
+
+  // 3. Delete from IndexedDB
+  try {
+    await imageDb.delete('char-images/' + id);
+  } catch (err) {
+    console.error(`Failed to delete images from IndexedDB for ${id}:`, err);
+  }
 
   // Clear in-memory sent cache for deleted character
   delete lastSentImagesCache[id];
 
   if (!isOwlbear()) {
-    await saveToLocalDevApi(localData);
+    await saveToLocalDevApi(lightLocalData);
   }
 }
 
 export function loadFromLocalStorage(): any {
   if (typeof window === 'undefined') return {};
+  if (Object.keys(inMemoryCharactersCache).length > 0) {
+    return inMemoryCharactersCache;
+  }
   const data = localStorage.getItem('dnd-characters');
   return data ? JSON.parse(data) : {};
 }
