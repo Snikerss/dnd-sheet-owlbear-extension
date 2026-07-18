@@ -102,6 +102,7 @@ const writeItemAtLocation = (
             ...state,
             inventory: state.inventory.map(updateChest),
             attunementItems: state.attunementItems.map(updateChest),
+            equippedItems: (state.equippedItems || []).map(updateChest).filter((x): x is InventoryItem => x !== null),
         };
     }
     return state;
@@ -162,7 +163,39 @@ export const inventoryReducer = (state: Character, action: CharacterAction): Cha
 
             // Обработка chest (вложенный массив внутри предмета) — нужна особая логика
             if (location.container === 'chest' && location.chestId) {
+                let chestFound = false;
                 const newInventory = updateItemInArray(state.inventory, (item) => {
+                    if (item && item.id === location.chestId && item.isChest && item.chestInventory) {
+                        chestFound = true;
+                        const updatedChestItem = { ...item, chestInventory: [...item.chestInventory] };
+                        updatedChestItem.chestInventory[location.index] = itemData;
+                        return updatedChestItem;
+                    }
+                    return item;
+                });
+
+                if (chestFound) {
+                    return { ...state, inventory: newInventory };
+                }
+
+                // Check attunement items
+                let chestFoundInAttunement = false;
+                const newAttunement = updateItemInArray(state.attunementItems, (item) => {
+                    if (item && item.id === location.chestId && item.isChest && item.chestInventory) {
+                        chestFoundInAttunement = true;
+                        const updatedChestItem = { ...item, chestInventory: [...item.chestInventory] };
+                        updatedChestItem.chestInventory[location.index] = itemData;
+                        return updatedChestItem;
+                    }
+                    return item;
+                });
+
+                if (chestFoundInAttunement) {
+                    return { ...state, attunementItems: newAttunement };
+                }
+
+                // Fallback to equipped items (doll)
+                const newEquipped = updateItemInArray(state.equippedItems || [], (item) => {
                     if (item && item.id === location.chestId && item.isChest && item.chestInventory) {
                         const updatedChestItem = { ...item, chestInventory: [...item.chestInventory] };
                         updatedChestItem.chestInventory[location.index] = itemData;
@@ -170,7 +203,8 @@ export const inventoryReducer = (state: Character, action: CharacterAction): Cha
                     }
                     return item;
                 });
-                return { ...state, inventory: newInventory };
+
+                return { ...state, equippedItems: newEquipped.filter((x): x is InventoryItem => x !== null) };
             }
 
             if (location.container === 'inventory') {
