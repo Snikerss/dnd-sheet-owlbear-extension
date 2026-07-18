@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Character } from '../types';
+import { useNotifier } from '../context/NotificationContext';
 
 interface CharacterCardProps {
   character: Character;
@@ -14,6 +15,11 @@ interface CharacterCardProps {
 }
 
 export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ character, onSelect, onDuplicate, onDelete, onExport, standaloneUrl, isSyncing = false, pendingImagesCount = 0, currentUserId }) => {
+  const { addNotification } = useNotifier();
+
+  const handleLinkClick = () => {
+    addNotification("Примечание для Brave: если открылось пустое окно, пожалуйста, отключите Brave Shields для сайта Owlbear Rodeo.", 'info');
+  };
   return (
     <div className="relative aspect-[4/5] bg-[var(--color-surface-opaque)] rounded-xl shadow-lg border border-[var(--color-border)] overflow-hidden transition-all duration-300 hover:shadow-2xl hover:border-[var(--color-border-hover)] flex flex-col">
       {isSyncing && (
@@ -83,6 +89,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
                 href={standaloneUrl}
                 target="_blank"
                 rel="opener"
+                onClick={handleLinkClick}
                 data-tooltip="Открыть в новой вкладке"
                 className="p-2 ml-1 rounded-full text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-base)] transition-colors flex items-center justify-center"
               >
