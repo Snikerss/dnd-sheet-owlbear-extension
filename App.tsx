@@ -10,7 +10,7 @@ import { defaultCharacterState } from './state/defaultCharacterState';
 import { NotificationProvider } from './context/NotificationContext';
 import { CharacterProvider } from './context/CharacterContext';
 import { generateUUID } from './utils/uuid';
-import { isOwlbear } from './utils/storage';
+import { isOwlbear, compressData } from './utils/storage';
 
 const AppContent: React.FC = () => {
   const { characters, isLoading, syncingCharacters, addCharacter, deleteCharacter, updateCharacter, undo, redo } = useCharacterManager();
@@ -243,19 +243,55 @@ const AppContent: React.FC = () => {
     addCharacter(id, charWithNewOwner);
   }, [addCharacter, userId, playerName]);
 
-  const handleOpenStandalone = useCallback((id: string) => {
+  const handleOpenStandalone = useCallback(async (id: string) => {
     const url = new URL(window.location.href);
     url.searchParams.set('charId', id);
     if (userId) url.searchParams.set('userId', userId);
     if (userRole) url.searchParams.set('userRole', userRole);
     if (playerName) url.searchParams.set('playerName', playerName);
+
+    // Get the character data and prepare a lightweight version for the URL
+    const activeCharacterState = characters[id];
+    if (activeCharacterState) {
+      const lightChar = { ...activeCharacterState.history.present };
+      if (lightChar.portraitUrl && lightChar.portraitUrl.length > 5000) {
+        lightChar.portraitUrl = '';
+      }
+
+      const lightImageCache: [string, string][] = [];
+      if (activeCharacterState.imageCache) {
+        for (const [imgId, imgVal] of activeCharacterState.imageCache.entries()) {
+          if (imgVal && imgVal.length < 5000) {
+            lightImageCache.push([imgId, imgVal]);
+          } else {
+            lightImageCache.push([imgId, '']);
+          }
+        }
+      }
+
+      const entry = {
+        character: lightChar,
+        log: activeCharacterState.log || [],
+        imageCache: lightImageCache
+      };
+
+      try {
+        const compressed = await compressData(entry);
+        if (compressed && compressed.compressed) {
+          url.searchParams.set('charData', compressed.compressed);
+        }
+      } catch (e) {
+        console.error('Failed to compress character data for standalone tab:', e);
+      }
+    }
+
     const win = window.open(url.toString(), '_blank');
     if (win && typeof window !== 'undefined') {
       const opened = (window as any).__dndOpenedWindows || [];
       opened.push(win);
       (window as any).__dndOpenedWindows = opened;
     }
-  }, [userId, userRole, playerName]);
+  }, [characters, userId, userRole, playerName]);
 
   const handleUpdateCharacter = useCallback((action: CharacterAction) => {
     if (activeCharacterId) {

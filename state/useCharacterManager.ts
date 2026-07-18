@@ -289,13 +289,13 @@ export const useCharacterManager = (): CharacterManager => {
         
         const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         const charId = urlParams?.get('charId');
+        const charDataParam = urlParams?.get('charData');
 
-        if (!isOwlbear() && charId) {
-          console.log(`[DND Sheet] Standalone mode detected with charId ${charId}. Requesting latest character data...`);
-          
+        const requestHandshake = (cid: string) => {
+          console.log(`[DND Sheet] Standalone mode: Requesting latest character data for ${cid}...`);
           const payload = {
             type: 'REQUEST_CHARACTER_DATA',
-            charId,
+            charId: cid,
             senderId: SESSION_CLIENT_ID
           };
 
@@ -316,6 +316,47 @@ export const useCharacterManager = (): CharacterManager => {
           }, 1000);
 
           (window as any).__handshakeTimeoutId = timeoutId;
+        };
+
+        if (!isOwlbear() && charId) {
+          if (charDataParam) {
+            console.log(`[DND Sheet] Standalone mode: found charData in URL. Decompressing...`);
+            decompressData({ compressed: charDataParam })
+              .then(decompressed => {
+                if (decompressed && decompressed.character) {
+                  console.log(`[DND Sheet] Successfully decompressed character data from URL.`);
+                  const entry = {
+                    history: {
+                      past: [],
+                      present: unminifyCharacter(decompressed.character),
+                      future: []
+                    },
+                    log: decompressed.log || [],
+                    imageCache: Array.isArray(decompressed.imageCache) 
+                      ? new Map(decompressed.imageCache) 
+                      : new Map()
+                  };
+                  dispatch({
+                    type: 'SYNC_REMOTE_CHARACTER',
+                    payload: { id: charId, entry }
+                  });
+                  
+                  // Still do a background handshake to get any heavy images/updates that were stripped from URL
+                  requestHandshake(charId);
+                  
+                  // Stop loading immediately since we have the base character sheet
+                  setIsLoading(false);
+                } else {
+                  throw new Error("Invalid decompressed character data");
+                }
+              })
+              .catch(err => {
+                console.error('[DND Sheet] URL charData decompression failed, falling back to handshake:', err);
+                requestHandshake(charId);
+              });
+          } else {
+            requestHandshake(charId);
+          }
         } else {
           setIsLoading(false);
         }
