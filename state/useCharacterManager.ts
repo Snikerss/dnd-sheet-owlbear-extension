@@ -7,7 +7,7 @@ import { isCharacter, migrateCharacterData } from './initialization';
 import { characterReducer } from './characterReducer';
 import { generateActionDescription } from '../utils/history';
 import { useNotifier } from '../context/NotificationContext';
-import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter, loadFromLocalStorage, saveToLocalStorage, stripLargeTexts, decompressData, restoreLocalData, mergeCharacter, SESSION_CLIENT_ID, broadcastCharacterSync } from '../utils/storage';
+import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter, loadFromLocalStorage, saveToLocalStorage, stripLargeTexts, decompressData, decodeBase64Sync, restoreLocalData, mergeCharacter, SESSION_CLIENT_ID, broadcastCharacterSync } from '../utils/storage';
 
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/v2/character/';
 
@@ -320,40 +320,35 @@ export const useCharacterManager = (): CharacterManager => {
 
         if (!isOwlbear() && charId) {
           if (charDataParam) {
-            console.log(`[DND Sheet] Standalone mode: found charData in URL. Decompressing...`);
-            decompressData({ compressed: charDataParam })
-              .then(decompressed => {
-                if (decompressed && decompressed.character) {
-                  console.log(`[DND Sheet] Successfully decompressed character data from URL.`);
-                  const entry = {
-                    history: {
-                      past: [],
-                      present: unminifyCharacter(decompressed.character),
-                      future: []
-                    },
-                    log: decompressed.log || [],
-                    imageCache: Array.isArray(decompressed.imageCache) 
-                      ? new Map(decompressed.imageCache) 
-                      : new Map()
-                  };
-                  dispatch({
-                    type: 'SYNC_REMOTE_CHARACTER',
-                    payload: { id: charId, entry }
-                  });
-                  
-                  // Still do a background handshake to get any heavy images/updates that were stripped from URL
-                  requestHandshake(charId);
-                  
-                  // Stop loading immediately since we have the base character sheet
-                  setIsLoading(false);
-                } else {
-                  throw new Error("Invalid decompressed character data");
-                }
-              })
-              .catch(err => {
-                console.error('[DND Sheet] URL charData decompression failed, falling back to handshake:', err);
-                requestHandshake(charId);
+            console.log(`[DND Sheet] Standalone mode: found charData in URL. Decoding synchronously...`);
+            const decompressed = decodeBase64Sync(charDataParam);
+            if (decompressed && decompressed.character) {
+              console.log(`[DND Sheet] Successfully decoded character data from URL.`);
+              const entry = {
+                history: {
+                  past: [],
+                  present: unminifyCharacter(decompressed.character),
+                  future: []
+                },
+                log: decompressed.log || [],
+                imageCache: Array.isArray(decompressed.imageCache) 
+                  ? new Map(decompressed.imageCache) 
+                  : new Map()
+              };
+              dispatch({
+                type: 'SYNC_REMOTE_CHARACTER',
+                payload: { id: charId, entry }
               });
+              
+              // Still do a background handshake to get any heavy images/updates that were stripped from URL
+              requestHandshake(charId);
+              
+              // Stop loading immediately since we have the base character sheet
+              setIsLoading(false);
+            } else {
+              console.warn('[DND Sheet] URL charData decoding failed, falling back to handshake.');
+              requestHandshake(charId);
+            }
           } else {
             requestHandshake(charId);
           }

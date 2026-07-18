@@ -10,7 +10,7 @@ import { defaultCharacterState } from './state/defaultCharacterState';
 import { NotificationProvider } from './context/NotificationContext';
 import { CharacterProvider } from './context/CharacterContext';
 import { generateUUID } from './utils/uuid';
-import { isOwlbear, compressData } from './utils/storage';
+import { isOwlbear, encodeBase64Sync } from './utils/storage';
 
 const AppContent: React.FC = () => {
   const { characters, isLoading, syncingCharacters, addCharacter, deleteCharacter, updateCharacter, undo, redo } = useCharacterManager();
@@ -243,7 +243,7 @@ const AppContent: React.FC = () => {
     addCharacter(id, charWithNewOwner);
   }, [addCharacter, userId, playerName]);
 
-  const handleOpenStandalone = useCallback(async (id: string) => {
+  const handleOpenStandalone = useCallback((id: string) => {
     const url = new URL(window.location.href);
     url.searchParams.set('charId', id);
     if (userId) url.searchParams.set('userId', userId);
@@ -275,13 +275,9 @@ const AppContent: React.FC = () => {
         imageCache: lightImageCache
       };
 
-      try {
-        const compressed = await compressData(entry);
-        if (compressed && compressed.compressed) {
-          url.searchParams.set('charData', compressed.compressed);
-        }
-      } catch (e) {
-        console.error('Failed to compress character data for standalone tab:', e);
+      const base64Data = encodeBase64Sync(entry);
+      if (base64Data) {
+        url.searchParams.set('charData', base64Data);
       }
     }
 

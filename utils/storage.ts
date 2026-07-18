@@ -848,3 +848,32 @@ async function saveToLocalDevApi(characters: any): Promise<any> {
     return { success: true };
   }
 }
+
+// Synchronous base64 encoding/decoding for safe URL payload passing
+export function encodeBase64Sync(obj: any): string {
+  try {
+    const jsonStr = JSON.stringify(obj);
+    const utf8Bytes = encodeURIComponent(jsonStr).replace(/%([0-9A-F]{2})/g, (_match, p1) => {
+      return String.fromCharCode(parseInt(p1, 16));
+    });
+    return btoa(utf8Bytes);
+  } catch (err) {
+    console.error('[DND Sheet] Sync base64 encoding failed:', err);
+    return '';
+  }
+}
+
+export function decodeBase64Sync(base64: string): any {
+  try {
+    const binary = atob(base64);
+    const charCodes: string[] = [];
+    for (let i = 0; i < binary.length; i++) {
+      charCodes.push('%' + ('00' + binary.charCodeAt(i).toString(16)).slice(-2));
+    }
+    const utf8Str = decodeURIComponent(charCodes.join(''));
+    return JSON.parse(utf8Str);
+  } catch (err) {
+    console.error('[DND Sheet] Sync base64 decoding failed:', err);
+    return null;
+  }
+}
