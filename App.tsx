@@ -243,13 +243,19 @@ const AppContent: React.FC = () => {
     addCharacter(id, charWithNewOwner);
   }, [addCharacter, userId, playerName]);
 
-  const buildStandaloneUrl = useCallback((id: string) => {
+  const handleOpenStandalone = useCallback((id: string) => {
     const url = new URL(window.location.href);
     url.searchParams.set('charId', id);
     if (userId) url.searchParams.set('userId', userId);
     if (userRole) url.searchParams.set('userRole', userRole);
     if (playerName) url.searchParams.set('playerName', playerName);
-    return url.toString();
+
+    const win = window.open(url.toString(), '_blank');
+    if (win && typeof window !== 'undefined') {
+      const opened = (window as any).__dndOpenedWindows || [];
+      opened.push(win);
+      (window as any).__dndOpenedWindows = opened;
+    }
   }, [userId, userRole, playerName]);
 
   const handleUpdateCharacter = useCallback((action: CharacterAction) => {
@@ -368,7 +374,7 @@ const AppContent: React.FC = () => {
           onDeleteCharacter={handleDeleteCharacter}
           onDuplicateCharacter={handleDuplicateCharacter}
           onAddCharacter={handleAddCharacter}
-          buildStandaloneUrl={buildStandaloneUrl}
+          onOpenStandalone={handleOpenStandalone}
         />
       )}
     </>
