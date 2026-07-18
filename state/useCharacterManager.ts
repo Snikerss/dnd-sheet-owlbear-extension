@@ -833,7 +833,7 @@ export const useCharacterManager = (): CharacterManager => {
           }
           try {
             (sourceWindow as any).sendDndMessageToOpener = (msg: any) => {
-              handleSyncMessage(msg);
+              window.postMessage(msg, '*');
             };
           } catch (e) {}
         }
@@ -889,7 +889,7 @@ export const useCharacterManager = (): CharacterManager => {
               
               // Expose parent callback on child window
               win.sendDndMessageToOpener = (payload: any) => {
-                handleSyncMessage(payload);
+                window.postMessage(payload, '*');
               };
               
               // Sync latest character data

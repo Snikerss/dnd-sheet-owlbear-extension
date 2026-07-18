@@ -67,8 +67,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         channel.close();
       } catch (e) {}
 
-      if (typeof window !== 'undefined' && window.opener) {
-        window.opener.postMessage(payload, '*');
+      if (typeof window !== 'undefined') {
+        if ((window as any).sendDndMessageToOpener) {
+          try {
+            (window as any).sendDndMessageToOpener(payload);
+          } catch (e) {}
+        } else if (window.opener) {
+          try {
+            window.opener.postMessage(payload, '*');
+          } catch (e) {}
+        }
       }
     }
   }, []);
