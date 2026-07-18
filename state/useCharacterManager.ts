@@ -823,6 +823,21 @@ export const useCharacterManager = (): CharacterManager => {
         }
       } else if (payload.type === 'REQUEST_CHARACTER_DATA' && payload.charId) {
         console.log('[DND Sheet] Bridge Sync: Received request for character data:', payload.charId);
+        
+        // Save the source window for future updates & expose direct return bridge
+        if (sourceWindow && typeof window !== 'undefined') {
+          const opened = (window as any).__dndOpenedWindows || [];
+          if (!opened.includes(sourceWindow)) {
+            opened.push(sourceWindow);
+            (window as any).__dndOpenedWindows = opened;
+          }
+          try {
+            (sourceWindow as any).sendDndMessageToOpener = (msg: any) => {
+              handleSyncMessage(msg);
+            };
+          } catch (e) {}
+        }
+
         const state = charactersStateRef.current;
         const entry = state[payload.charId];
         if (entry) {
