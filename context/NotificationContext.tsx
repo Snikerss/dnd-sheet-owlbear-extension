@@ -183,21 +183,27 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const handleSyncMessage = (payload: any) => {
       if (!payload || payload.senderId === SESSION_CLIENT_ID) return;
 
-      // De-duplicate messages using msgId
-      const msgId = payload.msgId;
+      // De-duplicate messages using msgId or event-signature fallback (for caching client versions)
+      const msgId = payload.msgId || `${payload.type}-${JSON.stringify(payload.result || payload.message)}`;
       if (msgId) {
-        const processed = (window as any).__dndProcessedMsgIds || new Set();
+        const now = Date.now();
+        const processed = (window as any).__dndProcessedMsgTimes || new Map();
         if (processed.has(msgId)) {
-          console.log('[DND Sheet] Bridge Sync: Duplicate event message ignored:', msgId);
-          return;
+          const lastTime = processed.get(msgId);
+          if (now - lastTime < 500) {
+            console.log('[DND Sheet] Bridge Sync: Duplicate event message ignored (dedup):', msgId);
+            return;
+          }
         }
-        processed.add(msgId);
+        processed.set(msgId, now);
         if (processed.size > 100) {
-          const arr = Array.from(processed);
-          (window as any).__dndProcessedMsgIds = new Set(arr.slice(50));
-        } else {
-          (window as any).__dndProcessedMsgIds = processed;
+          for (const [key, time] of processed.entries()) {
+            if (now - time > 5000) {
+              processed.delete(key);
+            }
+          }
         }
+        (window as any).__dndProcessedMsgTimes = processed;
       }
 
       if (payload.type === 'ROLL_DICE' && isOwlbear()) {

@@ -793,21 +793,27 @@ export const useCharacterManager = (): CharacterManager => {
       if (!payload || payload.senderId === SESSION_CLIENT_ID) return;
 
       if (payload.type === 'CHARACTER_ACTION' && payload.charId && payload.action) {
-        // De-duplicate actions using actionId
-        const actId = payload.action.actionId;
+        // De-duplicate actions using actionId or action-signature fallback (for caching client versions)
+        const actId = payload.action.actionId || `${payload.action.type}-${JSON.stringify(payload.action.payload)}`;
         if (actId) {
-          const processed = (window as any).__dndProcessedActionIds || new Set();
+          const now = Date.now();
+          const processed = (window as any).__dndProcessedActionTimes || new Map();
           if (processed.has(actId)) {
-            console.log('[DND Sheet] Bridge Sync: Duplicate action ignored:', actId);
-            return;
+            const lastTime = processed.get(actId);
+            if (now - lastTime < 300) {
+              console.log('[DND Sheet] Bridge Sync: Duplicate action ignored (dedup):', actId);
+              return;
+            }
           }
-          processed.add(actId);
+          processed.set(actId, now);
           if (processed.size > 100) {
-            const arr = Array.from(processed);
-            (window as any).__dndProcessedActionIds = new Set(arr.slice(50));
-          } else {
-            (window as any).__dndProcessedActionIds = processed;
+            for (const [key, time] of processed.entries()) {
+              if (now - time > 5000) {
+                processed.delete(key);
+              }
+            }
           }
+          (window as any).__dndProcessedActionTimes = processed;
         }
 
         console.log('[DND Sheet] Bridge Sync: Syncing action:', payload.action);
