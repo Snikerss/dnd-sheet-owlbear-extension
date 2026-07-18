@@ -37,10 +37,10 @@ const AppContent: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (activeCharacterId && !characters[activeCharacterId]) {
+    if (!isLoading && activeCharacterId && !characters[activeCharacterId]) {
       setActiveCharacterId(null);
     }
-  }, [characters, activeCharacterId]);
+  }, [characters, activeCharacterId, isLoading]);
 
   useEffect(() => {
     const tooltipEl = document.createElement('div');
