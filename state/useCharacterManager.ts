@@ -745,14 +745,13 @@ export const useCharacterManager = (): CharacterManager => {
 
     // Post to parent window (if in standalone window)
     if (typeof window !== 'undefined') {
-      if (window.opener) {
-        try {
-          window.opener.postMessage(payload, '*');
-        } catch (e) {}
-      }
       if ((window as any).sendDndMessageToOpener) {
         try {
           (window as any).sendDndMessageToOpener(payload);
+        } catch (e) {}
+      } else if (window.opener) {
+        try {
+          window.opener.postMessage(payload, '*');
         } catch (e) {}
       }
     }
