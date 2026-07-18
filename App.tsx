@@ -250,44 +250,13 @@ const AppContent: React.FC = () => {
     if (userRole) url.searchParams.set('userRole', userRole);
     if (playerName) url.searchParams.set('playerName', playerName);
 
-    // Get the character data and prepare a lightweight version for the URL
-    const activeCharacterState = characters[id];
-    if (activeCharacterState) {
-      const lightChar = { ...activeCharacterState.history.present };
-      if (lightChar.portraitUrl && lightChar.portraitUrl.length > 5000) {
-        lightChar.portraitUrl = '';
-      }
-
-      const lightImageCache: [string, string][] = [];
-      if (activeCharacterState.imageCache) {
-        for (const [imgId, imgVal] of activeCharacterState.imageCache.entries()) {
-          if (imgVal && imgVal.length < 5000) {
-            lightImageCache.push([imgId, imgVal]);
-          } else {
-            lightImageCache.push([imgId, '']);
-          }
-        }
-      }
-
-      const entry = {
-        character: lightChar,
-        log: activeCharacterState.log || [],
-        imageCache: lightImageCache
-      };
-
-      const base64Data = encodeBase64Sync(entry);
-      if (base64Data) {
-        url.searchParams.set('charData', base64Data);
-      }
-    }
-
     const win = window.open(url.toString(), '_blank');
     if (win && typeof window !== 'undefined') {
       const opened = (window as any).__dndOpenedWindows || [];
       opened.push(win);
       (window as any).__dndOpenedWindows = opened;
     }
-  }, [characters, userId, userRole, playerName]);
+  }, [userId, userRole, playerName]);
 
   const handleUpdateCharacter = useCallback((action: CharacterAction) => {
     if (activeCharacterId) {

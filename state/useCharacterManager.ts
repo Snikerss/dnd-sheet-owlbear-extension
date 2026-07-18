@@ -289,13 +289,17 @@ export const useCharacterManager = (): CharacterManager => {
         
         const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         const charId = urlParams?.get('charId');
-        const charDataParam = urlParams?.get('charData');
 
-        const requestHandshake = (cid: string) => {
-          console.log(`[DND Sheet] Standalone mode: Requesting latest character data for ${cid}...`);
+        if (!isOwlbear() && charId) {
+          console.log(`[DND Sheet] Standalone mode: Requesting latest character data for ${charId}...`);
+          
+          if (typeof window !== 'undefined') {
+            (window as any).__dndChildReady = true;
+          }
+
           const payload = {
             type: 'REQUEST_CHARACTER_DATA',
-            charId: cid,
+            charId,
             senderId: SESSION_CLIENT_ID
           };
 
@@ -313,45 +317,9 @@ export const useCharacterManager = (): CharacterManager => {
           const timeoutId = setTimeout(() => {
             console.log(`[DND Sheet] Handshake timeout. Proceeding with local data.`);
             setIsLoading(false);
-          }, 1000);
+          }, 1500);
 
           (window as any).__handshakeTimeoutId = timeoutId;
-        };
-
-        if (!isOwlbear() && charId) {
-          if (charDataParam) {
-            console.log(`[DND Sheet] Standalone mode: found charData in URL. Decoding synchronously...`);
-            const decompressed = decodeBase64Sync(charDataParam);
-            if (decompressed && decompressed.character) {
-              console.log(`[DND Sheet] Successfully decoded character data from URL.`);
-              const entry = {
-                history: {
-                  past: [],
-                  present: unminifyCharacter(decompressed.character),
-                  future: []
-                },
-                log: decompressed.log || [],
-                imageCache: Array.isArray(decompressed.imageCache) 
-                  ? new Map(decompressed.imageCache) 
-                  : new Map()
-              };
-              dispatch({
-                type: 'SYNC_REMOTE_CHARACTER',
-                payload: { id: charId, entry }
-              });
-              
-              // Still do a background handshake to get any heavy images/updates that were stripped from URL
-              requestHandshake(charId);
-              
-              // Stop loading immediately since we have the base character sheet
-              setIsLoading(false);
-            } else {
-              console.warn('[DND Sheet] URL charData decoding failed, falling back to handshake.');
-              requestHandshake(charId);
-            }
-          } else {
-            requestHandshake(charId);
-          }
         } else {
           setIsLoading(false);
         }
@@ -775,7 +743,21 @@ export const useCharacterManager = (): CharacterManager => {
       channel.close();
     } catch (e) {}
 
-    // Post to child windows if any
+    // Post to parent window (if in standalone window)
+    if (typeof window !== 'undefined') {
+      if (window.opener) {
+        try {
+          window.opener.postMessage(payload, '*');
+        } catch (e) {}
+      }
+      if ((window as any).sendDndMessageToOpener) {
+        try {
+          (window as any).sendDndMessageToOpener(payload);
+        } catch (e) {}
+      }
+    }
+
+    // Post to child windows if any (if in VTT window)
     if (typeof window !== 'undefined') {
       const opened = (window as any).__dndOpenedWindows || [];
       opened.forEach((win: any) => {
@@ -880,10 +862,60 @@ export const useCharacterManager = (): CharacterManager => {
     channel.addEventListener('message', handleLocalBridgeMessage);
     window.addEventListener('message', handleWindowMessage);
 
+    // Polling interval to bridge child windows in same-origin environments (bypassing window.opener null restriction)
+    let intervalId: any = null;
+    if (isOwlbear()) {
+      intervalId = setInterval(() => {
+        const opened = (window as any).__dndOpenedWindows || [];
+        opened.forEach((win: any) => {
+          try {
+            if (win && !win.closed && win.__dndChildReady) {
+              console.log('[DND Sheet] Direct Bridge: Exposing callback and syncing with child window.');
+              
+              // Expose parent callback on child window
+              win.sendDndMessageToOpener = (payload: any) => {
+                handleSyncMessage(payload);
+              };
+              
+              // Sync latest character data
+              const urlParams = new URLSearchParams(win.location.search);
+              const childCharId = urlParams.get('charId');
+              if (childCharId) {
+                const state = charactersStateRef.current;
+                const entry = state[childCharId];
+                if (entry) {
+                  const imageCacheArray = entry.imageCache 
+                    ? Array.from(entry.imageCache.entries()) 
+                    : [];
+                  win.postMessage({
+                    type: 'CHARACTER_SYNC',
+                    charId: childCharId,
+                    entry: {
+                      ...entry,
+                      imageCache: imageCacheArray
+                    },
+                    senderId: SESSION_CLIENT_ID
+                  }, '*');
+                }
+              }
+              
+              // Clear child ready flag so we don't repeat
+              delete win.__dndChildReady;
+            }
+          } catch (e) {
+            // Ignore cross-origin errors (e.g. if the window navigated elsewhere)
+          }
+        });
+      }, 200);
+    }
+
     return () => {
       channel.removeEventListener('message', handleLocalBridgeMessage);
       window.removeEventListener('message', handleWindowMessage);
       channel.close();
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
       if ((window as any).__handshakeTimeoutId) {
         clearTimeout((window as any).__handshakeTimeoutId);
         delete (window as any).__handshakeTimeoutId;
