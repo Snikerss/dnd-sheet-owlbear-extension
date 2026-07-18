@@ -286,7 +286,32 @@ export const useCharacterManager = (): CharacterManager => {
             }
           } catch (e) {}
         }
-        setIsLoading(false);
+        
+        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const charId = urlParams?.get('charId');
+
+        if (!isOwlbear() && charId) {
+          console.log(`[DND Sheet] Standalone mode detected with charId ${charId}. Requesting latest character data from VTT iframe...`);
+          
+          const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
+          channel.postMessage({
+            type: 'REQUEST_CHARACTER_DATA',
+            charId,
+            senderId: SESSION_CLIENT_ID
+          });
+
+          // Set a timeout to stop loading if VTT iframe doesn't respond
+          const timeoutId = setTimeout(() => {
+            console.log(`[DND Sheet] Handshake timeout. Proceeding with local data.`);
+            setIsLoading(false);
+            channel.close();
+          }, 1000);
+
+          (window as any).__handshakeTimeoutId = timeoutId;
+          (window as any).__handshakeChannel = channel;
+        } else {
+          setIsLoading(false);
+        }
       })
       .catch(error => {
         console.error("Failed to load characters initially:", error);
@@ -699,6 +724,11 @@ export const useCharacterManager = (): CharacterManager => {
     dispatch({ type: 'REDO', payload: { id } });
   }, []);
 
+  const isLoadingRef = useRef(isLoading);
+  useEffect(() => {
+    isLoadingRef.current = isLoading;
+  }, [isLoading]);
+
   // Local bridge for multi-tab synchronization
   useEffect(() => {
     const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
@@ -719,6 +749,36 @@ export const useCharacterManager = (): CharacterManager => {
           type: 'SYNC_REMOTE_CHARACTER',
           payload: { id: payload.charId, entry: payload.entry }
         });
+
+        // If we are waiting for this character to load, stop loading!
+        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const urlCharId = urlParams?.get('charId');
+        if (payload.charId === urlCharId && isLoadingRef.current) {
+          console.log('[DND Sheet] Received requested character data. Stopping loading.');
+          if ((window as any).__handshakeTimeoutId) {
+            clearTimeout((window as any).__handshakeTimeoutId);
+            delete (window as any).__handshakeTimeoutId;
+          }
+          if ((window as any).__handshakeChannel) {
+            (window as any).__handshakeChannel.close();
+            delete (window as any).__handshakeChannel;
+          }
+          setIsLoading(false);
+        }
+      } else if (payload.type === 'REQUEST_CHARACTER_DATA' && payload.charId) {
+        // If we are in the VTT iframe (or have the character data), send it back!
+        console.log('[DND Sheet] Local Bridge: Received request for character data:', payload.charId);
+        const state = charactersStateRef.current;
+        const entry = state[payload.charId];
+        if (entry) {
+          console.log('[DND Sheet] Local Bridge: Sending character data back to standalone tab:', payload.charId);
+          channel.postMessage({
+            type: 'CHARACTER_SYNC',
+            charId: payload.charId,
+            entry,
+            senderId: SESSION_CLIENT_ID
+          });
+        }
       }
     };
     
@@ -726,6 +786,14 @@ export const useCharacterManager = (): CharacterManager => {
     return () => {
       channel.removeEventListener('message', handleLocalBridgeMessage);
       channel.close();
+      if ((window as any).__handshakeTimeoutId) {
+        clearTimeout((window as any).__handshakeTimeoutId);
+        delete (window as any).__handshakeTimeoutId;
+      }
+      if ((window as any).__handshakeChannel) {
+        (window as any).__handshakeChannel.close();
+        delete (window as any).__handshakeChannel;
+      }
     };
   }, []);
 

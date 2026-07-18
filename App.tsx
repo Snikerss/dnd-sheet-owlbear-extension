@@ -33,6 +33,14 @@ const AppContent: React.FC = () => {
       setUserId(OBR.player.id);
       OBR.player.getRole().then(setUserRole).catch(console.error);
       OBR.player.getName().then(setPlayerName).catch(console.error);
+    } else {
+      const params = new URLSearchParams(window.location.search);
+      const urlUserId = params.get('userId');
+      const urlUserRole = params.get('userRole') as 'GM' | 'PLAYER' | null;
+      const urlPlayerName = params.get('playerName');
+      if (urlUserId) setUserId(urlUserId);
+      if (urlUserRole) setUserRole(urlUserRole);
+      if (urlPlayerName) setPlayerName(urlPlayerName);
     }
   }, []);
 
@@ -198,7 +206,7 @@ const AppContent: React.FC = () => {
   const handleDeleteCharacter = useCallback((id: string) => {
     const characterToDelete = characters[id]?.history.present;
     if (characterToDelete) {
-      if (isOwlbear() && characterToDelete.ownerId && userId && characterToDelete.ownerId !== userId) {
+      if (characterToDelete.ownerId && userId && characterToDelete.ownerId !== userId) {
         return;
       }
       setCharacterPendingDeletion({ id, name: characterToDelete.name });
@@ -213,8 +221,8 @@ const AppContent: React.FC = () => {
     const newCharacter: Character = structuredClone(characterToCopy);
     newCharacter.name = `${characterToCopy.name} (копия)`;
 
-    if (isOwlbear() && OBR.player.id) {
-      newCharacter.ownerId = OBR.player.id;
+    if (userId) {
+      newCharacter.ownerId = userId;
       if (playerName) {
         newCharacter.ownerName = playerName;
       }
@@ -222,30 +230,33 @@ const AppContent: React.FC = () => {
 
     addCharacter(newId, newCharacter);
     setActiveCharacterId(newId);
-  }, [characters, addCharacter, playerName]);
+  }, [characters, addCharacter, userId, playerName]);
 
   const handleAddCharacter = useCallback((id: string, character: Character) => {
     const charWithNewOwner = { ...character };
-    if (isOwlbear() && OBR.player.id) {
-      charWithNewOwner.ownerId = OBR.player.id;
+    if (userId) {
+      charWithNewOwner.ownerId = userId;
       if (playerName) {
         charWithNewOwner.ownerName = playerName;
       }
     }
     addCharacter(id, charWithNewOwner);
-  }, [addCharacter, playerName]);
+  }, [addCharacter, userId, playerName]);
 
   const handleOpenStandalone = useCallback((id: string) => {
     const url = new URL(window.location.href);
     url.searchParams.set('charId', id);
+    if (userId) url.searchParams.set('userId', userId);
+    if (userRole) url.searchParams.set('userRole', userRole);
+    if (playerName) url.searchParams.set('playerName', playerName);
     window.open(url.toString(), '_blank');
-  }, []);
+  }, [userId, userRole, playerName]);
 
   const handleUpdateCharacter = useCallback((action: CharacterAction) => {
     if (activeCharacterId) {
       const activeCharacterState = characters[activeCharacterId];
       const activeChar = activeCharacterState?.history.present;
-      const isReadOnly = activeChar && isOwlbear() && activeChar.ownerId && userId && activeChar.ownerId !== userId;
+      const isReadOnly = activeChar && activeChar.ownerId && userId && activeChar.ownerId !== userId;
       if (isReadOnly) {
         console.warn('[DND Sheet] Blocked update for read-only character:', activeCharacterId);
         return;
@@ -258,7 +269,7 @@ const AppContent: React.FC = () => {
     if (activeCharacterId) {
       const activeCharacterState = characters[activeCharacterId];
       const activeChar = activeCharacterState?.history.present;
-      const isReadOnly = activeChar && isOwlbear() && activeChar.ownerId && userId && activeChar.ownerId !== userId;
+      const isReadOnly = activeChar && activeChar.ownerId && userId && activeChar.ownerId !== userId;
       if (isReadOnly) return;
       undo(activeCharacterId);
     }
@@ -268,7 +279,7 @@ const AppContent: React.FC = () => {
     if (activeCharacterId) {
       const activeCharacterState = characters[activeCharacterId];
       const activeChar = activeCharacterState?.history.present;
-      const isReadOnly = activeChar && isOwlbear() && activeChar.ownerId && userId && activeChar.ownerId !== userId;
+      const isReadOnly = activeChar && activeChar.ownerId && userId && activeChar.ownerId !== userId;
       if (isReadOnly) return;
       redo(activeCharacterId);
     }
@@ -278,7 +289,7 @@ const AppContent: React.FC = () => {
   const characterList = useMemo(() => {
     const rawList = Object.entries(characters).map(([id, data]) => [id, data.history.present] as [string, Character]);
     
-    if (isOwlbear() && userId && userRole === 'PLAYER') {
+    if (userId && userRole === 'PLAYER') {
       // Filter: only show characters owned by the current user, or characters with no owner
       const filtered = rawList.filter(([_, char]) => !char.ownerId || char.ownerId === userId);
       return Object.fromEntries(filtered);
@@ -311,7 +322,7 @@ const AppContent: React.FC = () => {
 
   const activeCharacterState = activeCharacterId ? characters[activeCharacterId] : null;
   const activeCharacter = activeCharacterState?.history.present;
-  const isReadOnly = activeCharacter && isOwlbear() && activeCharacter.ownerId && userId && activeCharacter.ownerId !== userId;
+  const isReadOnly = activeCharacter && activeCharacter.ownerId && userId && activeCharacter.ownerId !== userId;
   const activeLog: LogEntry[] = activeCharacterState?.log || [];
   const canUndo = !isReadOnly && (activeCharacterState?.history.past.length ?? 0) > 0;
   const canRedo = !isReadOnly && (activeCharacterState?.history.future.length ?? 0) > 0;
