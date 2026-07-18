@@ -48,18 +48,20 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         await OBR.broadcast.sendMessage(ROLL_CHANNEL, {
           playerName,
           characterName,
-          result
+          result,
+          msgId: Math.random().toString(36).substring(2) + Date.now().toString(36)
         }, { destination: 'ALL' });
       } catch (err) {
         console.error('[DND Sheet] Failed to send roll broadcast:', err);
       }
     } else {
-      // Standalone mode: send via local bridge BroadcastChannel and window.opener
+      // Standalone mode: send via local bridge BroadcastChannel and parent window bridge
       const payload = {
         type: 'ROLL_DICE',
         characterName,
         result,
-        senderId: SESSION_CLIENT_ID
+        senderId: SESSION_CLIENT_ID,
+        msgId: Math.random().toString(36).substring(2) + Date.now().toString(36)
       };
       try {
         const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
@@ -150,7 +152,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             type: 'SHOW_NOTIFICATION',
             message: toastMessageText,
             notificationType: 'info',
-            senderId: SESSION_CLIENT_ID
+            senderId: SESSION_CLIENT_ID,
+            msgId: Math.random().toString(36).substring(2) + Date.now().toString(36)
           };
           try {
             const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
@@ -179,6 +182,23 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     const handleSyncMessage = (payload: any) => {
       if (!payload || payload.senderId === SESSION_CLIENT_ID) return;
+
+      // De-duplicate messages using msgId
+      const msgId = payload.msgId;
+      if (msgId) {
+        const processed = (window as any).__dndProcessedMsgIds || new Set();
+        if (processed.has(msgId)) {
+          console.log('[DND Sheet] Bridge Sync: Duplicate event message ignored:', msgId);
+          return;
+        }
+        processed.add(msgId);
+        if (processed.size > 100) {
+          const arr = Array.from(processed);
+          (window as any).__dndProcessedMsgIds = new Set(arr.slice(50));
+        } else {
+          (window as any).__dndProcessedMsgIds = processed;
+        }
+      }
 
       if (payload.type === 'ROLL_DICE' && isOwlbear()) {
         console.log('[DND Sheet] Bridge Sync: Proxying roll from standalone tab to OBR:', payload);

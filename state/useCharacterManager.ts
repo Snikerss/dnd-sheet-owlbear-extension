@@ -729,12 +729,17 @@ export const useCharacterManager = (): CharacterManager => {
   }, []);
 
   const updateCharacter = useCallback((id: string, action: CharacterAction) => {
-    dispatch({ type: 'DISPATCH_CHARACTER_ACTION', payload: { id, action } });
+    const actionWithId = {
+      ...action,
+      actionId: (action as any).actionId || Math.random().toString(36).substring(2) + Date.now().toString(36)
+    };
+
+    dispatch({ type: 'DISPATCH_CHARACTER_ACTION', payload: { id, action: actionWithId } });
     // Broadcast to local channel for standalone tab syncing
     const payload = {
       type: 'CHARACTER_ACTION',
       charId: id,
-      action,
+      action: actionWithId,
       senderId: SESSION_CLIENT_ID
     };
     try {
@@ -788,6 +793,23 @@ export const useCharacterManager = (): CharacterManager => {
       if (!payload || payload.senderId === SESSION_CLIENT_ID) return;
 
       if (payload.type === 'CHARACTER_ACTION' && payload.charId && payload.action) {
+        // De-duplicate actions using actionId
+        const actId = payload.action.actionId;
+        if (actId) {
+          const processed = (window as any).__dndProcessedActionIds || new Set();
+          if (processed.has(actId)) {
+            console.log('[DND Sheet] Bridge Sync: Duplicate action ignored:', actId);
+            return;
+          }
+          processed.add(actId);
+          if (processed.size > 100) {
+            const arr = Array.from(processed);
+            (window as any).__dndProcessedActionIds = new Set(arr.slice(50));
+          } else {
+            (window as any).__dndProcessedActionIds = processed;
+          }
+        }
+
         console.log('[DND Sheet] Bridge Sync: Syncing action:', payload.action);
         dispatch({
           type: 'DISPATCH_CHARACTER_ACTION',
