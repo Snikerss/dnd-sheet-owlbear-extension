@@ -54,17 +54,22 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         console.error('[DND Sheet] Failed to send roll broadcast:', err);
       }
     } else {
-      // Standalone mode: send via local bridge BroadcastChannel
+      // Standalone mode: send via local bridge BroadcastChannel and window.opener
+      const payload = {
+        type: 'ROLL_DICE',
+        characterName,
+        result,
+        senderId: SESSION_CLIENT_ID
+      };
       try {
         const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
-        channel.postMessage({
-          type: 'ROLL_DICE',
-          characterName,
-          result,
-          senderId: SESSION_CLIENT_ID
-        });
+        channel.postMessage(payload);
         channel.close();
       } catch (e) {}
+
+      if (typeof window !== 'undefined' && window.opener) {
+        window.opener.postMessage(payload, '*');
+      }
     }
   }, []);
 
@@ -133,16 +138,26 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           addNotification(toastMessageText, 'info');
 
           // Broadcast notification to standalone tab
+          const notifPayload = {
+            type: 'SHOW_NOTIFICATION',
+            message: toastMessageText,
+            notificationType: 'info',
+            senderId: SESSION_CLIENT_ID
+          };
           try {
             const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
-            channel.postMessage({
-              type: 'SHOW_NOTIFICATION',
-              message: toastMessageText,
-              notificationType: 'info',
-              senderId: SESSION_CLIENT_ID
-            });
+            channel.postMessage(notifPayload);
             channel.close();
           } catch (e) {}
+
+          if (typeof window !== 'undefined') {
+            const opened = (window as any).__dndOpenedWindows || [];
+            opened.forEach((win: any) => {
+              if (win && !win.closed) {
+                win.postMessage(notifPayload, '*');
+              }
+            });
+          }
         }
       });
 
@@ -150,26 +165,36 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, [addNotification]);
 
-  // Listen to BroadcastChannel for standalone/iframe communication
+  // Listen to BroadcastChannel and window messages for standalone/iframe communication
   useEffect(() => {
     const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
     
-    const handleLocalBridgeMessage = (event: MessageEvent) => {
-      const payload = event.data;
+    const handleSyncMessage = (payload: any) => {
       if (!payload || payload.senderId === SESSION_CLIENT_ID) return;
 
       if (payload.type === 'ROLL_DICE' && isOwlbear()) {
-        console.log('[DND Sheet] Local Bridge: Proxying roll from standalone tab to OBR:', payload);
+        console.log('[DND Sheet] Bridge Sync: Proxying roll from standalone tab to OBR:', payload);
         broadcastRoll(payload.characterName, payload.result);
       } else if (payload.type === 'SHOW_NOTIFICATION') {
-        console.log('[DND Sheet] Local Bridge: Showing notification toast:', payload.message);
+        console.log('[DND Sheet] Bridge Sync: Showing notification toast:', payload.message);
         addNotification(payload.message, payload.notificationType);
       }
     };
 
+    const handleLocalBridgeMessage = (event: MessageEvent) => {
+      handleSyncMessage(event.data);
+    };
+
+    const handleWindowMessage = (event: MessageEvent) => {
+      handleSyncMessage(event.data);
+    };
+
     channel.addEventListener('message', handleLocalBridgeMessage);
+    window.addEventListener('message', handleWindowMessage);
+
     return () => {
       channel.removeEventListener('message', handleLocalBridgeMessage);
+      window.removeEventListener('message', handleWindowMessage);
       channel.close();
     };
   }, [broadcastRoll, addNotification]);

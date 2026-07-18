@@ -291,24 +291,31 @@ export const useCharacterManager = (): CharacterManager => {
         const charId = urlParams?.get('charId');
 
         if (!isOwlbear() && charId) {
-          console.log(`[DND Sheet] Standalone mode detected with charId ${charId}. Requesting latest character data from VTT iframe...`);
+          console.log(`[DND Sheet] Standalone mode detected with charId ${charId}. Requesting latest character data...`);
           
-          const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
-          channel.postMessage({
+          const payload = {
             type: 'REQUEST_CHARACTER_DATA',
             charId,
             senderId: SESSION_CLIENT_ID
-          });
+          };
+
+          try {
+            const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
+            channel.postMessage(payload);
+            channel.close();
+          } catch (e) {}
+
+          if (typeof window !== 'undefined' && window.opener) {
+            window.opener.postMessage(payload, '*');
+          }
 
           // Set a timeout to stop loading if VTT iframe doesn't respond
           const timeoutId = setTimeout(() => {
             console.log(`[DND Sheet] Handshake timeout. Proceeding with local data.`);
             setIsLoading(false);
-            channel.close();
           }, 1000);
 
           (window as any).__handshakeTimeoutId = timeoutId;
-          (window as any).__handshakeChannel = channel;
         } else {
           setIsLoading(false);
         }
@@ -443,16 +450,32 @@ export const useCharacterManager = (): CharacterManager => {
                   }
                 });
                 // Broadcast to local channel for standalone tab syncing
+                const imageCacheArray = entry.imageCache 
+                  ? Array.from(entry.imageCache.entries()) 
+                  : [];
+                const syncPayload = {
+                  type: 'CHARACTER_SYNC',
+                  charId,
+                  entry: {
+                    ...entry,
+                    imageCache: imageCacheArray
+                  },
+                  senderId: SESSION_CLIENT_ID
+                };
                 try {
                   const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
-                  channel.postMessage({
-                    type: 'CHARACTER_SYNC',
-                    charId,
-                    entry,
-                    senderId: SESSION_CLIENT_ID
-                  });
+                  channel.postMessage(syncPayload);
                   channel.close();
                 } catch (e) {}
+
+                if (typeof window !== 'undefined') {
+                  const opened = (window as any).__dndOpenedWindows || [];
+                  opened.forEach((win: any) => {
+                    if (win && !win.closed) {
+                      win.postMessage(syncPayload, '*');
+                    }
+                  });
+                }
                 // Cache to our local LocalStorage
                 try {
                   const currentLocal = loadFromLocalStorage();
@@ -704,16 +727,27 @@ export const useCharacterManager = (): CharacterManager => {
   const updateCharacter = useCallback((id: string, action: CharacterAction) => {
     dispatch({ type: 'DISPATCH_CHARACTER_ACTION', payload: { id, action } });
     // Broadcast to local channel for standalone tab syncing
+    const payload = {
+      type: 'CHARACTER_ACTION',
+      charId: id,
+      action,
+      senderId: SESSION_CLIENT_ID
+    };
     try {
       const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
-      channel.postMessage({
-        type: 'CHARACTER_ACTION',
-        charId: id,
-        action,
-        senderId: SESSION_CLIENT_ID
-      });
+      channel.postMessage(payload);
       channel.close();
     } catch (e) {}
+
+    // Post to child windows if any
+    if (typeof window !== 'undefined') {
+      const opened = (window as any).__dndOpenedWindows || [];
+      opened.forEach((win: any) => {
+        if (win && !win.closed) {
+          win.postMessage(payload, '*');
+        }
+      });
+    }
   }, []);
 
   const undo = useCallback((id: string) => {
@@ -733,21 +767,29 @@ export const useCharacterManager = (): CharacterManager => {
   useEffect(() => {
     const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
     
-    const handleLocalBridgeMessage = (event: MessageEvent) => {
-      const payload = event.data;
+    const handleSyncMessage = (payload: any, sourceWindow?: Window) => {
       if (!payload || payload.senderId === SESSION_CLIENT_ID) return;
-      
+
       if (payload.type === 'CHARACTER_ACTION' && payload.charId && payload.action) {
-        console.log('[DND Sheet] Local Bridge: Syncing action from another tab:', payload.action);
+        console.log('[DND Sheet] Bridge Sync: Syncing action:', payload.action);
         dispatch({
           type: 'DISPATCH_CHARACTER_ACTION',
           payload: { id: payload.charId, action: payload.action }
         });
       } else if (payload.type === 'CHARACTER_SYNC' && payload.charId && payload.entry) {
-        console.log('[DND Sheet] Local Bridge: Syncing full character from another tab:', payload.charId);
+        console.log('[DND Sheet] Bridge Sync: Syncing full character:', payload.charId);
+        
+        // Convert imageCache back to Map if it's an array
+        const entryWithMap = {
+          ...payload.entry,
+          imageCache: Array.isArray(payload.entry.imageCache) 
+            ? new Map(payload.entry.imageCache) 
+            : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
+        };
+
         dispatch({
           type: 'SYNC_REMOTE_CHARACTER',
-          payload: { id: payload.charId, entry: payload.entry }
+          payload: { id: payload.charId, entry: entryWithMap }
         });
 
         // If we are waiting for this character to load, stop loading!
@@ -759,40 +801,56 @@ export const useCharacterManager = (): CharacterManager => {
             clearTimeout((window as any).__handshakeTimeoutId);
             delete (window as any).__handshakeTimeoutId;
           }
-          if ((window as any).__handshakeChannel) {
-            (window as any).__handshakeChannel.close();
-            delete (window as any).__handshakeChannel;
-          }
           setIsLoading(false);
         }
       } else if (payload.type === 'REQUEST_CHARACTER_DATA' && payload.charId) {
-        // If we are in the VTT iframe (or have the character data), send it back!
-        console.log('[DND Sheet] Local Bridge: Received request for character data:', payload.charId);
+        console.log('[DND Sheet] Bridge Sync: Received request for character data:', payload.charId);
         const state = charactersStateRef.current;
         const entry = state[payload.charId];
         if (entry) {
-          console.log('[DND Sheet] Local Bridge: Sending character data back to standalone tab:', payload.charId);
-          channel.postMessage({
+          const imageCacheArray = entry.imageCache 
+            ? Array.from(entry.imageCache.entries()) 
+            : [];
+          const responsePayload = {
             type: 'CHARACTER_SYNC',
             charId: payload.charId,
-            entry,
+            entry: {
+              ...entry,
+              imageCache: imageCacheArray
+            },
             senderId: SESSION_CLIENT_ID
-          });
+          };
+
+          console.log('[DND Sheet] Bridge Sync: Sending character data back:', payload.charId);
+          // Send to BroadcastChannel
+          channel.postMessage(responsePayload);
+          
+          // Send to source window directly
+          if (sourceWindow) {
+            sourceWindow.postMessage(responsePayload, '*');
+          }
         }
       }
     };
+
+    const handleLocalBridgeMessage = (event: MessageEvent) => {
+      handleSyncMessage(event.data);
+    };
+
+    const handleWindowMessage = (event: MessageEvent) => {
+      handleSyncMessage(event.data, event.source as Window);
+    };
     
     channel.addEventListener('message', handleLocalBridgeMessage);
+    window.addEventListener('message', handleWindowMessage);
+
     return () => {
       channel.removeEventListener('message', handleLocalBridgeMessage);
+      window.removeEventListener('message', handleWindowMessage);
       channel.close();
       if ((window as any).__handshakeTimeoutId) {
         clearTimeout((window as any).__handshakeTimeoutId);
         delete (window as any).__handshakeTimeoutId;
-      }
-      if ((window as any).__handshakeChannel) {
-        (window as any).__handshakeChannel.close();
-        delete (window as any).__handshakeChannel;
       }
     };
   }, []);

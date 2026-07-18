@@ -249,7 +249,12 @@ const AppContent: React.FC = () => {
     if (userId) url.searchParams.set('userId', userId);
     if (userRole) url.searchParams.set('userRole', userRole);
     if (playerName) url.searchParams.set('playerName', playerName);
-    window.open(url.toString(), '_blank');
+    const win = window.open(url.toString(), '_blank');
+    if (win && typeof window !== 'undefined') {
+      const opened = (window as any).__dndOpenedWindows || [];
+      opened.push(win);
+      (window as any).__dndOpenedWindows = opened;
+    }
   }, [userId, userRole, playerName]);
 
   const handleUpdateCharacter = useCallback((action: CharacterAction) => {
