@@ -790,7 +790,14 @@ export const useCharacterManager = (): CharacterManager => {
 
   // Local bridge for multi-tab synchronization
   useEffect(() => {
-    const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
+    let channel: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
+      }
+    } catch (e) {
+      console.warn('[DND Sheet] BroadcastChannel unavailable or blocked:', e);
+    }
     
     const handleSyncMessage = (payload: any, sourceWindow?: Window) => {
       if (!payload || payload.senderId === SESSION_CLIENT_ID) return;
@@ -853,7 +860,10 @@ export const useCharacterManager = (): CharacterManager => {
         }
       } else if (payload.type === 'REQUEST_CHARACTER_DATA' && payload.charId) {
         console.log('[DND Sheet] Bridge Sync: Received request for character data:', payload.charId);
-        
+        if (typeof window !== 'undefined') {
+          (window as any).__dndParentReady = true;
+        }
+
         // Save the source window for future updates & expose direct return bridge
         if (sourceWindow && typeof window !== 'undefined') {
           const opened = (window as any).__dndOpenedWindows || [];
@@ -886,7 +896,11 @@ export const useCharacterManager = (): CharacterManager => {
 
           console.log('[DND Sheet] Bridge Sync: Sending character data back:', payload.charId);
           // Send to BroadcastChannel
-          channel.postMessage(responsePayload);
+          if (channel) {
+            try {
+              channel.postMessage(responsePayload);
+            } catch (e) {}
+          }
           
           // Send to source window directly
           if (sourceWindow) {
@@ -904,7 +918,11 @@ export const useCharacterManager = (): CharacterManager => {
       handleSyncMessage(event.data, event.source as Window);
     };
     
-    channel.addEventListener('message', handleLocalBridgeMessage);
+    if (channel) {
+      try {
+        channel.addEventListener('message', handleLocalBridgeMessage);
+      } catch (e) {}
+    }
     window.addEventListener('message', handleWindowMessage);
 
     // Polling interval to bridge child windows in same-origin environments (bypassing window.opener null restriction)
@@ -955,9 +973,13 @@ export const useCharacterManager = (): CharacterManager => {
     }
 
     return () => {
-      channel.removeEventListener('message', handleLocalBridgeMessage);
+      if (channel) {
+        try {
+          channel.removeEventListener('message', handleLocalBridgeMessage);
+          channel.close();
+        } catch (e) {}
+      }
       window.removeEventListener('message', handleWindowMessage);
-      channel.close();
       if (intervalId) {
         clearInterval(intervalId);
       }

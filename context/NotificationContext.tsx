@@ -178,7 +178,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Listen to BroadcastChannel and window messages for standalone/iframe communication
   useEffect(() => {
-    const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
+    let channel: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
+      }
+    } catch (e) {
+      console.warn('[DND Sheet] NotificationContext: BroadcastChannel unavailable or blocked:', e);
+    }
     
     const handleSyncMessage = (payload: any) => {
       if (!payload || payload.senderId === SESSION_CLIENT_ID) return;
@@ -223,13 +230,21 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       handleSyncMessage(event.data);
     };
 
-    channel.addEventListener('message', handleLocalBridgeMessage);
+    if (channel) {
+      try {
+        channel.addEventListener('message', handleLocalBridgeMessage);
+      } catch (e) {}
+    }
     window.addEventListener('message', handleWindowMessage);
 
     return () => {
-      channel.removeEventListener('message', handleLocalBridgeMessage);
+      if (channel) {
+        try {
+          channel.removeEventListener('message', handleLocalBridgeMessage);
+          channel.close();
+        } catch (e) {}
+      }
       window.removeEventListener('message', handleWindowMessage);
-      channel.close();
     };
   }, [broadcastRoll, addNotification]);
 
