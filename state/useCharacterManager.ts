@@ -293,11 +293,11 @@ export const useCharacterManager = (): CharacterManager => {
           lastSerializedRef.current = cache;
           dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
 
-          // Initialize owned character IDs if not present
+          // Initialize owned character IDs if not present (default to empty array so we only save/broadcast characters we created locally)
           try {
             const owned = localStorage.getItem('dnd-owned-ids');
             if (!owned) {
-              localStorage.setItem('dnd-owned-ids', JSON.stringify(Object.keys(parsedState)));
+              localStorage.setItem('dnd-owned-ids', JSON.stringify([]));
             }
           } catch (e) {}
         }
