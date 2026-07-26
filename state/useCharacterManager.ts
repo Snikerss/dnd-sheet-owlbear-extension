@@ -12,6 +12,14 @@ import { imageDb } from '../utils/indexedDbStore';
 
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/v2/character/';
 
+const isCharacterOwner = (character: any, currentUserId?: string): boolean => {
+  if (!character) return false;
+  const myId = currentUserId || (isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '');
+  if (!character.ownerId) return true; // Legacy or unclaimed character
+  if (!myId) return true;
+  return character.ownerId === myId;
+};
+
 // Helper to safely parse character data structure from raw metadata
 const parseCharactersData = (data: any): CharactersState => {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) {
@@ -293,13 +301,6 @@ export const useCharacterManager = (): CharacterManager => {
           lastSerializedRef.current = cache;
           dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
 
-          // Initialize owned character IDs if not present (default to empty array so we only save/broadcast characters we created locally)
-          try {
-            const owned = localStorage.getItem('dnd-owned-ids');
-            if (!owned) {
-              localStorage.setItem('dnd-owned-ids', JSON.stringify([]));
-            }
-          } catch (e) {}
         }
         
         const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -365,8 +366,6 @@ export const useCharacterManager = (): CharacterManager => {
         if (payload.type === 'REQUEST_FULL_CHARACTERS') {
           // Someone requested full sheets (e.g. GM joined). Broadcast all our owned sheets!
           try {
-            const owned = localStorage.getItem('dnd-owned-ids');
-            const ownedList = owned ? JSON.parse(owned) : [];
             const localData = loadFromLocalStorage();
             const cachedVersions = (payload as any).cachedVersions || {};
             const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
@@ -374,11 +373,7 @@ export const useCharacterManager = (): CharacterManager => {
             for (const [id, charData] of Object.entries(localData)) {
               if (!charData || !(charData as any).character) continue;
               const fullChar = unminifyCharacter((charData as any).character);
-              const isOwner = (fullChar && fullChar.ownerId && myId)
-                ? fullChar.ownerId === myId
-                : (!fullChar?.ownerId || ownedList.includes(id));
-
-              if (!isOwner) continue;
+              if (!isCharacterOwner(fullChar, myId)) continue;
 
               const requesterVersion = cachedVersions[id];
                 
@@ -442,13 +437,8 @@ export const useCharacterManager = (): CharacterManager => {
               const fullChar = incomingData.character ? unminifyCharacter(incomingData.character) : null;
               const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
               const isGM = isOwlbear() && typeof OBR !== 'undefined' ? ((await OBR.player.getRole()) === 'GM') : true;
-              const owned = localStorage.getItem('dnd-owned-ids');
-              const ownedList = owned ? JSON.parse(owned) : [];
-              const isOwner = (fullChar && fullChar.ownerId && myId)
-                ? fullChar.ownerId === myId
-                : (!fullChar?.ownerId || ownedList.includes(charId));
 
-              if (!isGM && !isOwner) {
+              if (!isGM && !isCharacterOwner(fullChar, myId)) {
                 console.log(`[DND Sheet] Discarding incoming P2P sync for character ${charId} (recipient is a player, not GM or owner).`);
                 return;
               }
@@ -679,16 +669,10 @@ export const useCharacterManager = (): CharacterManager => {
 
       // A. Save or update characters that have changes
       for (const [id, rawChar] of Object.entries(rawCharacters)) {
-        // Only save/broadcast if we own this character! Check character.ownerId from the sheet itself
+        // Only save/broadcast if we own this character! Check character.ownerId directly from the sheet
         const fullChar = rawChar.character;
         const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
-        const owned = localStorage.getItem('dnd-owned-ids');
-        const ownedList = owned ? JSON.parse(owned) : [];
-        const isOwner = (fullChar && fullChar.ownerId && myId)
-          ? fullChar.ownerId === myId
-          : (!fullChar?.ownerId || ownedList.includes(id));
-
-        if (!isOwner) {
+        if (!isCharacterOwner(fullChar, myId)) {
           continue; 
         }
 
@@ -725,14 +709,6 @@ export const useCharacterManager = (): CharacterManager => {
 
   const addCharacter = useCallback((id: string, character: Character) => {
     dispatch({ type: 'ADD_CHARACTER', payload: { id, character } });
-    try {
-      const owned = localStorage.getItem('dnd-owned-ids');
-      const ownedList = owned ? JSON.parse(owned) : [];
-      if (!ownedList.includes(id)) {
-        ownedList.push(id);
-        localStorage.setItem('dnd-owned-ids', JSON.stringify(ownedList));
-      }
-    } catch (e) {}
   }, []);
 
   const deleteCharacter = useCallback((id: string) => {
@@ -753,14 +729,6 @@ export const useCharacterManager = (): CharacterManager => {
       delete newCache[id];
       lastSerializedRef.current = newCache;
     }
-
-    try {
-      const owned = localStorage.getItem('dnd-owned-ids');
-      if (owned) {
-        const ownedList = JSON.parse(owned).filter((x: string) => x !== id);
-        localStorage.setItem('dnd-owned-ids', JSON.stringify(ownedList));
-      }
-    } catch (e) {}
   }, []);
 
   const updateCharacter = useCallback((id: string, action: CharacterAction) => {
