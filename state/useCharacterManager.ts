@@ -8,6 +8,7 @@ import { characterReducer } from './characterReducer';
 import { generateActionDescription } from '../utils/history';
 import { useNotifier } from '../context/NotificationContext';
 import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter, loadFromLocalStorage, saveToLocalStorage, stripLargeTexts, decompressData, decodeBase64Sync, restoreLocalData, mergeCharacter, SESSION_CLIENT_ID, broadcastCharacterSync } from '../utils/storage';
+import { imageDb } from '../utils/indexedDbStore';
 
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/v2/character/';
 
@@ -153,7 +154,8 @@ const restoreFromMemory = (cloudData: any, memoryBackup: CharactersState) => {
 
   const restoreItemImages = (cloudItem: any, memoryItem: any) => {
     if (!cloudItem || !memoryItem) return;
-    if (memoryItem.imageUrl && !cloudItem.imageUrl) {
+    const cloudImgIsToken = typeof cloudItem.imageUrl === 'string' && cloudItem.imageUrl.startsWith('img:ref:');
+    if (memoryItem.imageUrl?.startsWith('data:image/') && (!cloudItem.imageUrl || cloudImgIsToken)) {
       cloudItem.imageUrl = memoryItem.imageUrl;
     }
     if (memoryItem.description && !cloudItem.description) {
@@ -174,20 +176,27 @@ const restoreFromMemory = (cloudData: any, memoryBackup: CharactersState) => {
       const cloudChar = cloudEntry.character;
       const memoryChar = memoryEntry.history.present;
 
-      // 1. Restore imageCache
-      const cloudCache = cloudEntry.imageCache || [];
+      // 1. Restore imageCache safely
+      const cloudCacheMap = new Map<string, string>();
+      const cloudCacheList = Array.isArray(cloudEntry.imageCache) ? cloudEntry.imageCache : [];
+      for (const [k, v] of cloudCacheList) {
+        if (k) cloudCacheMap.set(k, v);
+      }
+
       const memoryCache = memoryEntry.imageCache || new Map();
-      const mergedCache = [...cloudCache];
       for (const [imgId, imgVal] of memoryCache.entries()) {
-        const exists = mergedCache.some(c => c[0] === imgId);
-        if (!exists) {
-          mergedCache.push([imgId, imgVal]);
+        if (imgId && imgVal && imgVal.startsWith('data:image/')) {
+          const currentVal = cloudCacheMap.get(imgId);
+          if (!currentVal || !currentVal.startsWith('data:image/')) {
+            cloudCacheMap.set(imgId, imgVal);
+          }
         }
       }
-      cloudEntry.imageCache = mergedCache;
+      cloudEntry.imageCache = Array.from(cloudCacheMap.entries());
 
       // 2. Restore portraitUrl if it was stripped in cloud but present in memory
-      if (memoryChar.portraitUrl && !cloudChar.portraitUrl) {
+      const cloudPortraitIsToken = typeof cloudChar.portraitUrl === 'string' && cloudChar.portraitUrl.startsWith('img:ref:');
+      if (memoryChar.portraitUrl?.startsWith('data:image/') && (!cloudChar.portraitUrl || cloudPortraitIsToken)) {
         cloudChar.portraitUrl = memoryChar.portraitUrl;
       }
 
@@ -203,9 +212,12 @@ const restoreFromMemory = (cloudData: any, memoryBackup: CharactersState) => {
       if (Array.isArray(cloudChar.spells) && Array.isArray(memoryChar.spells)) {
         cloudChar.spells.forEach((s: any) => {
           const match = memoryChar.spells.find((ls: any) => ls.id === s.id);
-          if (match && match.description && !s.description) s.description = match.description;
-          if (s.components && match && match.components && match.components.materialDescription && !s.components.materialDescription) {
-            s.components.materialDescription = match.components.materialDescription;
+          if (match) {
+            restoreItemImages(s, match);
+            if (match.description && !s.description) s.description = match.description;
+            if (s.components && match.components && match.components.materialDescription && !s.components.materialDescription) {
+              s.components.materialDescription = match.components.materialDescription;
+            }
           }
         });
       }
@@ -222,7 +234,10 @@ const restoreFromMemory = (cloudData: any, memoryBackup: CharactersState) => {
       if (Array.isArray(cloudChar.attacks) && Array.isArray(memoryChar.attacks)) {
         cloudChar.attacks.forEach((a: any) => {
           const match = memoryChar.attacks.find((la: any) => la.id === a.id);
-          if (match && match.notes && !a.notes) a.notes = match.notes;
+          if (match) {
+            restoreItemImages(a, match);
+            if (match.notes && !a.notes) a.notes = match.notes;
+          }
         });
       }
 
@@ -543,43 +558,37 @@ export const useCharacterManager = (): CharacterManager => {
               };
             });
             
+            const saveImageToDbAndCache = async (imgIdKey: string, imgVal: string) => {
+              try {
+                const currentLocal = loadFromLocalStorage();
+                if (currentLocal[charId]) {
+                  const imageCacheList = Array.isArray(currentLocal[charId].imageCache) ? currentLocal[charId].imageCache : [];
+                  const map = new Map<string, string>(imageCacheList);
+                  map.set(imgIdKey, imgVal);
+                  const updatedList = Array.from(map.entries());
+                  currentLocal[charId].imageCache = updatedList;
+                  saveToLocalStorage(currentLocal);
+                  await imageDb.set('char-images/' + charId, updatedList);
+                }
+              } catch (err) {
+                console.error(`Failed to cache remote image ${imgIdKey} to IndexedDB:`, err);
+              }
+            };
+
             if (isPortrait) {
               console.log(`[DND Sheet] Received fully assembled remote portrait for ${charId}.`);
               dispatch({
                 type: 'SYNC_REMOTE_CHARACTER_PORTRAIT',
                 payload: { id: charId, portraitUrl: assembledVal }
               });
-              try {
-                const currentLocal = loadFromLocalStorage();
-                if (currentLocal[charId] && currentLocal[charId].character) {
-                  currentLocal[charId].character.portraitUrl = assembledVal;
-                  saveToLocalStorage(currentLocal);
-                }
-              } catch (err) {
-                console.error('Failed to cache remote character portrait to LocalStorage:', err);
-              }
+              saveImageToDbAndCache('img:ref:portrait', assembledVal);
             } else {
               console.log(`[DND Sheet] Received fully assembled remote image ${imgId} for ${charId}.`);
               dispatch({
                 type: 'SYNC_REMOTE_CHARACTER_IMAGE',
                 payload: { id: charId, imgId, imgVal: assembledVal }
               });
-              try {
-                const currentLocal = loadFromLocalStorage();
-                if (currentLocal[charId]) {
-                  const imageCacheList = currentLocal[charId].imageCache || [];
-                  const exists = imageCacheList.some((c: any) => c[0] === imgId);
-                  if (exists) {
-                    currentLocal[charId].imageCache = imageCacheList.map((c: any) => c[0] === imgId ? [imgId, assembledVal] : c);
-                  } else {
-                    imageCacheList.push([imgId, assembledVal]);
-                    currentLocal[charId].imageCache = imageCacheList;
-                  }
-                  saveToLocalStorage(currentLocal);
-                }
-              } catch (err) {
-                console.error('Failed to cache remote character image to LocalStorage:', err);
-              }
+              saveImageToDbAndCache(imgId, assembledVal);
             }
           }
         } else if (payload.type === 'DELETE_CHARACTER_SYNC' && payload.id) {

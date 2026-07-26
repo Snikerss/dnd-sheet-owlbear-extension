@@ -483,7 +483,8 @@ export const restoreLocalData = (cloudData: any, localBackup: any) => {
 
   const restoreItemImages = (cloudItem: any, localItem: any) => {
     if (!cloudItem || !localItem) return;
-    if (localItem.imageUrl?.startsWith('data:image/') && !cloudItem.imageUrl) {
+    const cloudImgIsToken = typeof cloudItem.imageUrl === 'string' && cloudItem.imageUrl.startsWith('img:ref:');
+    if (localItem.imageUrl?.startsWith('data:image/') && (!cloudItem.imageUrl || cloudImgIsToken)) {
       cloudItem.imageUrl = localItem.imageUrl;
     }
     if (localItem.description && !cloudItem.description) {
@@ -504,20 +505,26 @@ export const restoreLocalData = (cloudData: any, localBackup: any) => {
       const cloudChar = cloudEntry.character;
       const localChar = localEntry.character;
 
-      // 1. Restore imageCache
-      const cloudCache = cloudEntry.imageCache || [];
-      const localCache = localEntry.imageCache || [];
-      const mergedCache = [...cloudCache];
-      for (const localImg of localCache) {
-        const exists = mergedCache.some(c => c[0] === localImg[0]);
-        if (!exists) {
-          mergedCache.push(localImg);
+      // 1. Restore imageCache safely without overwriting valid data URLs with empty values
+      const cloudCacheMap = new Map<string, string>();
+      const cloudCacheList = Array.isArray(cloudEntry.imageCache) ? cloudEntry.imageCache : [];
+      for (const [k, v] of cloudCacheList) {
+        if (k) cloudCacheMap.set(k, v);
+      }
+
+      const localCacheList = Array.isArray(localEntry.imageCache) ? localEntry.imageCache : [];
+      for (const [k, v] of localCacheList) {
+        if (k && v && v.startsWith('data:image/')) {
+          const currentVal = cloudCacheMap.get(k);
+          if (!currentVal || !currentVal.startsWith('data:image/')) {
+            cloudCacheMap.set(k, v);
+          }
         }
       }
-      cloudEntry.imageCache = mergedCache;
+      cloudEntry.imageCache = Array.from(cloudCacheMap.entries());
 
       // 2. Restore portraitUrl if it was stripped or tokenized
-      const cloudPortraitIsToken = cloudChar.portraitUrl && cloudChar.portraitUrl.startsWith('img:ref:');
+      const cloudPortraitIsToken = typeof cloudChar.portraitUrl === 'string' && cloudChar.portraitUrl.startsWith('img:ref:');
       if (localChar.portraitUrl?.startsWith('data:image/') && (!cloudChar.portraitUrl || cloudPortraitIsToken)) {
         cloudChar.portraitUrl = localChar.portraitUrl;
       }
@@ -535,6 +542,7 @@ export const restoreLocalData = (cloudData: any, localBackup: any) => {
         cloudChar.spells.forEach((s: any) => {
           const match = localChar.spells.find((ls: any) => ls.id === s.id);
           if (match) {
+            restoreItemImages(s, match);
             if (match.description && !s.description) s.description = match.description;
             if (s.components && match.components && match.components.materialDescription && !s.components.materialDescription) {
               s.components.materialDescription = match.components.materialDescription;
@@ -555,7 +563,10 @@ export const restoreLocalData = (cloudData: any, localBackup: any) => {
       if (Array.isArray(cloudChar.attacks) && Array.isArray(localChar.attacks)) {
         cloudChar.attacks.forEach((a: any) => {
           const match = localChar.attacks.find((la: any) => la.id === a.id);
-          if (match && match.notes && !a.notes) a.notes = match.notes;
+          if (match) {
+            restoreItemImages(a, match);
+            if (match.notes && !a.notes) a.notes = match.notes;
+          }
         });
       }
 
@@ -776,9 +787,40 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
  * Saves a single character's data to local storage backup and broadcasts it to other players in the room.
  */
 export async function saveCharacterApi(id: string, characterData: any): Promise<void> {
+  const fullChar = unminifyCharacter(characterData.character);
+  const { light, images: newExtractedImages } = extractImages(fullChar);
+
+  const combinedImageCacheMap = new Map<string, string>();
+  if (Array.isArray(characterData.imageCache)) {
+    for (const [imgId, imgVal] of characterData.imageCache) {
+      if (imgId && imgVal) combinedImageCacheMap.set(imgId, imgVal);
+    }
+  } else if (characterData.imageCache instanceof Map) {
+    for (const [imgId, imgVal] of characterData.imageCache.entries()) {
+      if (imgId && imgVal) combinedImageCacheMap.set(imgId, imgVal);
+    }
+  }
+  for (const [imgId, imgVal] of newExtractedImages.entries()) {
+    if (imgId && imgVal) combinedImageCacheMap.set(imgId, imgVal);
+  }
+
+  // Preserve pre-existing images from IndexedDB if present
+  try {
+    const existingDbImages = await imageDb.get('char-images/' + id);
+    if (Array.isArray(existingDbImages)) {
+      for (const [imgId, imgVal] of existingDbImages) {
+        if (imgId && imgVal && imgVal.startsWith('data:image/') && !combinedImageCacheMap.has(imgId)) {
+          combinedImageCacheMap.set(imgId, imgVal);
+        }
+      }
+    }
+  } catch (e) {}
+
+  const imageCacheArray = Array.from(combinedImageCacheMap.entries());
   const minifiedCharData = {
     ...characterData,
-    character: minifyCharacter(characterData.character)
+    character: minifyCharacter(light),
+    imageCache: imageCacheArray
   };
 
   // 1. Update in-memory cache with full representation (including images)
@@ -786,7 +828,6 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
 
   // 2. Save imageCache array to IndexedDB
   try {
-    const imageCacheArray = minifiedCharData.imageCache || [];
     await imageDb.set('char-images/' + id, imageCacheArray);
   } catch (err) {
     console.error(`Failed to save images to IndexedDB for ${id}:`, err);

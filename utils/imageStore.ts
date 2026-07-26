@@ -57,7 +57,9 @@ const restoreItem = (item: InventoryItem | null, images: ImageMap): InventoryIte
 
     if (typeof item.imageUrl === 'string' && item.imageUrl.startsWith(TOKEN_PREFIX)) {
         const original = images.get(item.imageUrl);
-        newItem.imageUrl = original ?? '';
+        if (original) {
+            newItem.imageUrl = original;
+        }
     }
 
     if (item.isChest && Array.isArray(item.chestInventory)) {
@@ -143,7 +145,10 @@ export const applyImages = (character: Character, images: ImageMap): Character =
     const full: Character = { ...character };
 
     if (typeof character.portraitUrl === 'string' && character.portraitUrl.startsWith(TOKEN_PREFIX)) {
-        full.portraitUrl = images.get(character.portraitUrl) ?? '';
+        const original = images.get(character.portraitUrl);
+        if (original) {
+            full.portraitUrl = original;
+        }
     }
 
     full.inventory = character.inventory.map((item) => restoreItem(item, images));
@@ -154,14 +159,20 @@ export const applyImages = (character: Character, images: ImageMap): Character =
 
     full.attacks = character.attacks.map((attack: Attack): Attack => {
         if (typeof attack.imageUrl === 'string' && attack.imageUrl.startsWith(TOKEN_PREFIX)) {
-            return { ...attack, imageUrl: images.get(attack.imageUrl) ?? '' };
+            const original = images.get(attack.imageUrl);
+            if (original) {
+                return { ...attack, imageUrl: original };
+            }
         }
         return attack;
     });
 
     full.spells = character.spells.map((spell: Spell): Spell => {
         if (typeof spell.imageUrl === 'string' && spell.imageUrl.startsWith(TOKEN_PREFIX)) {
-            return { ...spell, imageUrl: images.get(spell.imageUrl) ?? '' };
+            const original = images.get(spell.imageUrl);
+            if (original) {
+                return { ...spell, imageUrl: original };
+            }
         }
         return spell;
     });
