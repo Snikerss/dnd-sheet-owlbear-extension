@@ -439,6 +439,20 @@ export const useCharacterManager = (): CharacterManager => {
             
             try {
               const incomingData = JSON.parse(assembledVal);
+              const fullChar = incomingData.character ? unminifyCharacter(incomingData.character) : null;
+              const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
+              const isGM = isOwlbear() && typeof OBR !== 'undefined' ? ((await OBR.player.getRole()) === 'GM') : true;
+              const owned = localStorage.getItem('dnd-owned-ids');
+              const ownedList = owned ? JSON.parse(owned) : [];
+              const isOwner = (fullChar && fullChar.ownerId && myId)
+                ? fullChar.ownerId === myId
+                : (!fullChar?.ownerId || ownedList.includes(charId));
+
+              if (!isGM && !isOwner) {
+                console.log(`[DND Sheet] Discarding incoming P2P sync for character ${charId} (recipient is a player, not GM or owner).`);
+                return;
+              }
+
               const localData = loadFromLocalStorage();
               
               // Unminify and restore images if we have them cached locally
