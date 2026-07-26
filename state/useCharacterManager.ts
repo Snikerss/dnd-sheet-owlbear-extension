@@ -369,11 +369,18 @@ export const useCharacterManager = (): CharacterManager => {
             const ownedList = owned ? JSON.parse(owned) : [];
             const localData = loadFromLocalStorage();
             const cachedVersions = (payload as any).cachedVersions || {};
+            const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
             
-            for (const id of ownedList) {
-              const charData = localData[id];
-              if (charData) {
-                const requesterVersion = cachedVersions[id];
+            for (const [id, charData] of Object.entries(localData)) {
+              if (!charData || !(charData as any).character) continue;
+              const fullChar = unminifyCharacter((charData as any).character);
+              const isOwner = (fullChar && fullChar.ownerId && myId)
+                ? fullChar.ownerId === myId
+                : (!fullChar?.ownerId || ownedList.includes(id));
+
+              if (!isOwner) continue;
+
+              const requesterVersion = cachedVersions[id];
                 
                 if (requesterVersion && typeof requesterVersion === 'object') {
                   const currentTextHash = getTextChecksum(charData);
@@ -405,7 +412,6 @@ export const useCharacterManager = (): CharacterManager => {
                   await broadcastCharacterSync(id, charData, true);
                 }
               }
-            }
           } catch (err) {
             console.error('[DND Sheet] Failed to respond to sheet request:', err);
           }
@@ -659,10 +665,16 @@ export const useCharacterManager = (): CharacterManager => {
 
       // A. Save or update characters that have changes
       for (const [id, rawChar] of Object.entries(rawCharacters)) {
-        // Only save/broadcast if we own this character!
+        // Only save/broadcast if we own this character! Check character.ownerId from the sheet itself
+        const fullChar = rawChar.character;
+        const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
         const owned = localStorage.getItem('dnd-owned-ids');
         const ownedList = owned ? JSON.parse(owned) : [];
-        if (!ownedList.includes(id)) {
+        const isOwner = (fullChar && fullChar.ownerId && myId)
+          ? fullChar.ownerId === myId
+          : (!fullChar?.ownerId || ownedList.includes(id));
+
+        if (!isOwner) {
           continue; 
         }
 
