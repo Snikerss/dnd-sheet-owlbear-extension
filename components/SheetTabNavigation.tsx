@@ -8,7 +8,7 @@ interface SheetTabNavigationProps {
   isEditingTabs: boolean;
   setIsEditingTabs: (val: boolean) => void;
   tabNames: Record<string, string>;
-  tabIcons: Record<string, React.ReactNode>;
+  tabIcons?: Record<string, React.ReactNode>;
   draggedTab: string | null;
   handleTabDragStart: (e: React.DragEvent, tab: string) => void;
   handleTabDragOver: (e: React.DragEvent) => void;
@@ -24,7 +24,6 @@ export const SheetTabNavigation: React.FC<SheetTabNavigationProps> = ({
   isEditingTabs,
   setIsEditingTabs,
   tabNames,
-  tabIcons,
   draggedTab,
   handleTabDragStart,
   handleTabDragOver,
@@ -36,50 +35,70 @@ export const SheetTabNavigation: React.FC<SheetTabNavigationProps> = ({
   const tabOrder = character.tabOrder || ['stats', 'combat', 'inventory', 'features', 'notes'];
 
   return (
-    <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] pb-2 mb-4 gap-2 overflow-x-auto">
-      <nav className="flex space-x-1 sm:space-x-2 flex-grow overflow-x-auto py-1 px-1 custom-scrollbar">
-        {tabOrder.map((tab) => {
-          const isActive = activeTab === tab;
-          const isBeingDragged = draggedTab === tab;
+    <div className={`flex items-center border-b border-[var(--color-border)] pb-2 overflow-x-auto scrollbar-none gap-2 select-none justify-between w-full mb-4 ${isEditingTabs ? 'border-dashed border-teal-500/50' : ''}`}>
+      {currentViewMode === 'tabs' ? (
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none flex-grow">
+          {tabOrder.map((tab) => {
+            const isActive = activeTab === tab;
+            const isBeingDragged = draggedTab === tab;
+            const label = tabNames[tab] || tab;
 
-          return (
-            <div
-              key={tab}
-              draggable={isEditingTabs}
-              onDragStart={(e) => handleTabDragStart(e, tab)}
-              onDragOver={handleTabDragOver}
-              onDrop={(e) => handleTabDrop(e, tab)}
-              onDragEnd={handleTabDragEnd}
-              className={`relative flex items-center group transition-all duration-200 ${
-                isEditingTabs ? 'cursor-grab active:cursor-grabbing' : ''
-              }`}
-            >
-              <button
-                onClick={() => setActiveTab(tab)}
-                disabled={isEditingTabs}
-                className={`tab-btn flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap shadow-sm ${
-                  isActive && currentViewMode === 'tabs'
-                    ? 'bg-[var(--color-accent-primary)] text-white shadow-teal-500/20 scale-[1.02]'
-                    : 'bg-[var(--color-surface-well)] text-[var(--color-text-medium)] hover:text-[var(--color-text-base)] hover:bg-[var(--color-surface-raised)] border border-slate-700/30'
-                } ${isBeingDragged ? 'opacity-40 border-dashed border-teal-400' : ''} ${
-                  isEditingTabs ? 'pointer-events-none ring-1 ring-teal-500/50 animate-pulse' : ''
-                }`}
+            return (
+              <div
+                key={tab}
+                draggable={isEditingTabs}
+                onDragStart={(e) => handleTabDragStart(e, tab)}
+                onDragOver={handleTabDragOver}
+                onDrop={(e) => handleTabDrop(e, tab)}
+                onDragEnd={handleTabDragEnd}
+                className={`flex items-center gap-1.5 transition-all duration-200 rounded-lg ${
+                  isEditingTabs 
+                    ? 'border border-dashed border-[var(--color-border)] px-2 py-1 bg-[var(--color-surface-well)]/30 hover:bg-[var(--color-surface-well)]/65' 
+                    : ''
+                } ${isBeingDragged ? 'opacity-40' : ''}`}
               >
-                <span className="w-4 h-4 flex items-center justify-center">{tabIcons[tab]}</span>
-                <span>{tabNames[tab]}</span>
-              </button>
+                {isEditingTabs && (
+                  <div 
+                    className="cursor-grab active:cursor-grabbing p-0.5 text-[var(--color-text-muted)] hover:text-teal-400"
+                    data-tooltip="Перетащите для изменения порядка"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M7 6a1 1 0 100-2 1 1 0 000 2zM7 11a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 100-2 1 1 0 000 2zM13 6a1 1 0 100-2 1 1 0 000 2zM13 11a1 1 0 100-2 1 1 0 000 2zM13 16a1 1 0 100-2 1 1 0 000 2z" />
+                    </svg>
+                  </div>
+                )}
 
-              {isEditingTabs && (
-                <div className="absolute -top-1 -right-1 bg-teal-500 text-white rounded-full p-0.5 shadow-md">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                  </svg>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </nav>
+                <button
+                  onClick={() => {
+                    if (!isEditingTabs) {
+                      setActiveTab(tab);
+                    }
+                  }}
+                  disabled={isEditingTabs}
+                  className={`tab-button px-3 py-1.5 text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
+                    isEditingTabs 
+                      ? 'text-[var(--color-text-base)] cursor-default' 
+                      : isActive
+                        ? 'border-b-2 border-[var(--color-accent-primary)] text-[var(--color-accent-primary)] drop-shadow-[0_0_8px_var(--color-accent-primary-light)]'
+                        : 'border-b-2 border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-medium)]'
+                  }`}
+                >
+                  {label}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 flex-grow">
+          <span className="text-sm font-bold uppercase tracking-wider text-[var(--color-accent-primary)]">Разделы листа персонажа</span>
+          {isEditingTabs && (
+            <span className="text-[10px] text-[var(--color-text-muted)] italic font-semibold ml-2">
+              (Перетаскивайте заголовки для изменения порядка)
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Controls Bar */}
       <div className="flex items-center gap-1.5 flex-shrink-0">

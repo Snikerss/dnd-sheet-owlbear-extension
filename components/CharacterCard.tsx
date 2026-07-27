@@ -14,9 +14,10 @@ interface CharacterCardProps {
   isSyncing?: boolean;
   pendingImagesCount?: number;
   currentUserId?: string | null;
+  isGM?: boolean;
 }
 
-export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ character, onSelect, onDuplicate, onDelete, onExport, onOpenStandalone, onSync, onClearCache, isSyncing = false, pendingImagesCount = 0, currentUserId }) => {
+export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ character, onSelect, onDuplicate, onDelete, onExport, onOpenStandalone, onSync, onClearCache, isSyncing = false, pendingImagesCount = 0, currentUserId, isGM = true }) => {
   const { addNotification } = useNotifier();
 
   const handleOpenClick = () => {
@@ -101,10 +102,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
                 </svg>
               </button>
             )}
-            {onClearCache && (
+            {isGM && onClearCache && (
               <button
                 onClick={onClearCache}
-                data-tooltip="Сбросить локальный кэш"
+                data-tooltip="Удалить локальную копию персонажа"
                 className="p-2 ml-1 rounded-full text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-amber-400 transition-colors"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -130,7 +131,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
         >
           Выбрать
         </button>
-        {(!character.ownerId || !currentUserId || character.ownerId === currentUserId) && (
+        {(!character.ownerId || !currentUserId || character.ownerId === currentUserId || isGM) && (
           <button
             onClick={onDelete}
             data-tooltip="Удалить персонажа"

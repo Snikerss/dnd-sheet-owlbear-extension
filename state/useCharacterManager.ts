@@ -934,7 +934,7 @@ export const useCharacterManager = (): CharacterManager => {
 
   const clearLocalCache = useCallback(async (id: string) => {
     try {
-      console.log(`[DND Sheet] Clearing local cache for character ${id}...`);
+      console.log(`[DND Sheet] Clearing local copy for character ${id}...`);
       
       // 1. Delete images from IndexedDB
       await imageDb.delete(`char-images/${id}`);
@@ -947,15 +947,15 @@ export const useCharacterManager = (): CharacterManager => {
       // 3. Clear serialization cache
       delete lastSerializedRef.current[id];
 
-      addNotification('Локальный кэш персонажа очищен. Запрашиваем свежие данные...', 'info');
+      // 4. Remove from local React state
+      dispatch({ type: 'DELETE_CHARACTER', payload: { id } });
 
-      // 4. Trigger fresh sync request
-      await syncCharacter(id);
+      addNotification('Локальная копия персонажа очищена.', 'info');
     } catch (e) {
-      console.error('[DND Sheet] Failed to clear local cache:', e);
-      addNotification('Ошибка при очистке локального кэша.', 'error');
+      console.error('[DND Sheet] Failed to clear local copy:', e);
+      addNotification('Ошибка при очистке локальной копии.', 'error');
     }
-  }, [syncCharacter, addNotification]);
+  }, [addNotification]);
 
   return {
     characters,

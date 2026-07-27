@@ -47,6 +47,7 @@ interface CharacterSheetProps {
     isReadOnly?: boolean;
     onSyncCharacter?: () => void;
     onClearLocalCache?: () => void;
+    isGM?: boolean;
 }
 
 export const CharacterSheet: React.FC<CharacterSheetProps> = ({
@@ -59,6 +60,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
     isReadOnly = false,
     onSyncCharacter,
     onClearLocalCache,
+    isGM = true,
 }) => {
     // --- CONTEXT HOOKS ---
     const { character, dispatch } = useCharacter();
@@ -912,6 +914,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                     onOpenHistoryLog={onOpenHistoryLog}
                     onSync={onSyncCharacter}
                     onClearCache={onClearLocalCache}
+                    isGM={isGM}
                 />
 
                 {/* Top Dashboard Grid (Horizontal Panel) */}
@@ -1219,17 +1222,10 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                         setIsEditingTabs={setIsEditingTabs}
                         tabNames={{
                             stats: 'Характеристики',
-                            combat: 'Бой',
+                            combat: 'Бой и Здоровье',
                             inventory: 'Инвентарь',
-                            features: 'Умения',
+                            features: 'Умения и Способности',
                             notes: 'Заметки'
-                        }}
-                        tabIcons={{
-                            stats: <span>📊</span>,
-                            combat: <span>⚔️</span>,
-                            inventory: <span>🎒</span>,
-                            features: <span>✨</span>,
-                            notes: <span>📜</span>
                         }}
                         draggedTab={draggedTabIndex !== null && tabOrder[draggedTabIndex] ? tabOrder[draggedTabIndex]! : null}
                         handleTabDragStart={(e, tab) => {

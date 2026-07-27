@@ -333,6 +333,8 @@ const AppContent: React.FC = () => {
   const canUndo = !isReadOnly && (activeCharacterState?.history.past.length ?? 0) > 0;
   const canRedo = !isReadOnly && (activeCharacterState?.history.future.length ?? 0) > 0;
   
+  const isGM = userRole === 'GM' || !isOwlbear();
+
   return (
     <>
       <ConfirmationModal
@@ -364,6 +366,7 @@ const AppContent: React.FC = () => {
               isReadOnly={!!isReadOnly}
               onSyncCharacter={() => syncCharacter(activeCharacterId)}
               onClearLocalCache={() => clearLocalCache(activeCharacterId)}
+              isGM={isGM}
             />
         </CharacterProvider>
       ) : (
@@ -379,6 +382,7 @@ const AppContent: React.FC = () => {
           onOpenStandalone={handleOpenStandalone}
           onSyncCharacter={syncCharacter}
           onClearLocalCache={clearLocalCache}
+          isGM={isGM}
         />
       )}
     </>

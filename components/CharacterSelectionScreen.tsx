@@ -18,6 +18,7 @@ interface CharacterSelectionScreenProps {
   onOpenStandalone: (id: string) => void;
   onSyncCharacter?: (id: string) => void;
   onClearLocalCache?: (id: string) => void;
+  isGM?: boolean;
 }
 
 export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> = ({
@@ -32,6 +33,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
   onOpenStandalone,
   onSyncCharacter,
   onClearLocalCache,
+  isGM = true,
 }) => {
   const characterEntries = Object.entries(characters);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -143,6 +145,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
                   isSyncing={!!syncState}
                   pendingImagesCount={syncState?.pendingImages.length || 0}
                   currentUserId={currentUserId}
+                  isGM={isGM}
                 />
               );
             })}

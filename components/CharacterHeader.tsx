@@ -14,6 +14,7 @@ interface CharacterHeaderProps {
   onOpenHistoryLog: () => void;
   onSync?: () => void;
   onClearCache?: () => void;
+  isGM?: boolean;
 }
 
 const EditableField: React.FC<{ value: string; onChange: (newValue: string) => void; label: string; placeholder: string; isReadOnly?: boolean }> = ({ value, onChange, label, placeholder, isReadOnly = false }) => (
@@ -136,6 +137,7 @@ export const CharacterHeader: React.FC<CharacterHeaderProps> = React.memo(({
   onOpenHistoryLog,
   onSync,
   onClearCache,
+  isGM = true,
 }) => {
   const { character, dispatch } = useCharacter();
 
@@ -186,18 +188,18 @@ export const CharacterHeader: React.FC<CharacterHeaderProps> = React.memo(({
                        </svg>
                    </button>
                  )}
-                 {onClearCache && (
-                   <button 
-                     onClick={onClearCache} 
-                     className="h-[50px] w-12 flex items-center justify-center bg-[var(--color-surface-raised)] text-[var(--color-text-medium)] hover:text-amber-400 rounded-lg hover:bg-[var(--color-surface-raised-hover)] transition-colors active:scale-95" 
-                     data-tooltip="Сбросить локальный кэш персонажа" 
-                     aria-label="Сбросить локальный кэш"
-                   >
-                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                       </svg>
-                   </button>
-                 )}
+                  {isGM && onClearCache && (
+                    <button 
+                      onClick={onClearCache} 
+                      className="h-[50px] w-12 flex items-center justify-center bg-[var(--color-surface-raised)] text-[var(--color-text-medium)] hover:text-amber-400 rounded-lg hover:bg-[var(--color-surface-raised-hover)] transition-colors active:scale-95" 
+                      data-tooltip="Удалить локальную копию персонажа" 
+                      aria-label="Удалить локальную копию"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                  )}
                  <button
                     onClick={onOpenCharacterManager}
                     className="close-button h-[50px] w-14 flex items-center justify-center bg-[var(--color-surface-raised)] text-[var(--color-text-medium)] rounded-lg hover:bg-[var(--color-surface-raised-hover)] hover:text-[var(--color-text-base)] transition-colors active:scale-95"
