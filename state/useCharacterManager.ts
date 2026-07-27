@@ -445,8 +445,21 @@ export const useCharacterManager = (): CharacterManager => {
               const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
               const isGM = isOwlbear() && typeof OBR !== 'undefined' ? ((await OBR.player.getRole()) === 'GM') : true;
 
-              if (!isGM && !isCharacterOwner(fullChar, myId)) {
+              const existingEntry = charactersStateRef.current[charId];
+              const existingChar = existingEntry?.history.present;
+              const targetOwnerId = existingChar?.ownerId || fullChar?.ownerId;
+              const senderPlayerId = (incomingData as any).senderPlayerId || (payload as any).senderPlayerId || '';
+
+              // RECEIVER-SIDE VERIFICATION FOR UPDATES:
+              // 1. Recipient check: If recipient is a player (not GM) and does not own this character, discard sync.
+              if (!isGM && !isCharacterOwner(targetOwnerId ? { ownerId: targetOwnerId } : fullChar, myId)) {
                 console.log(`[DND Sheet] Discarding incoming P2P sync for character ${charId} (recipient is a player, not GM or owner).`);
+                return;
+              }
+
+              // 2. Sender check: If sender is a player (not GM) and is NOT the owner of this character, reject unauthorized update.
+              if (senderPlayerId && targetOwnerId && senderPlayerId !== targetOwnerId && !isGM) {
+                console.warn(`[DND Sheet] Rejected unauthorized P2P character update for ${charId} from non-owner sender ${senderPlayerId}.`);
                 return;
               }
 
@@ -632,7 +645,27 @@ export const useCharacterManager = (): CharacterManager => {
           if ((payload as any).senderClientId === SESSION_CLIENT_ID) {
             return;
           }
-          console.log(`[DND Sheet] Received remote deletion sync via P2P for ${charId}. Removing...`);
+
+          const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
+          const isGM = isOwlbear() && typeof OBR !== 'undefined' ? ((await OBR.player.getRole()) === 'GM') : true;
+          const senderPlayerId = (payload as any).senderPlayerId || '';
+          
+          const existingEntry = charactersStateRef.current[charId];
+          const existingChar = existingEntry?.history.present;
+          const targetOwnerId = existingChar?.ownerId;
+
+          // RECEIVER-SIDE AUTHORIZATION CHECK FOR DELETION:
+          // A deletion signal via OBR network broadcast is authorized ONLY if:
+          // - The receiver is GM (GM processes legitimate player deletion requests).
+          // - OR the sender is the owner of the character (senderPlayerId === targetOwnerId).
+          // - OR the character has no owner (!targetOwnerId).
+          const isAuthorizedDelete = isGM || !targetOwnerId || (senderPlayerId && targetOwnerId === senderPlayerId);
+          if (!isAuthorizedDelete) {
+            console.warn(`[DND Sheet] Rejected unauthorized DELETE_CHARACTER_SYNC for character ${charId} from non-owner sender ${senderPlayerId}.`);
+            return;
+          }
+
+          console.log(`[DND Sheet] Received authorized remote deletion sync via P2P for ${charId}. Removing...`);
           dispatch({ type: 'DELETE_CHARACTER', payload: { id: charId } });
           
           try {
@@ -796,7 +829,8 @@ export const useCharacterManager = (): CharacterManager => {
         OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
           type: 'DELETE_CHARACTER_SYNC',
           id,
-          senderClientId: SESSION_CLIENT_ID
+          senderClientId: SESSION_CLIENT_ID,
+          senderPlayerId: OBR.player?.id || ''
         }).catch(err => console.warn('[DND Sheet] Delete broadcast failed:', err));
       }
 

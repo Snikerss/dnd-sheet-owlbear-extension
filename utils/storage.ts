@@ -709,6 +709,7 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
         type: 'CHARACTER_CHUNK_SYNC',
         id,
         senderClientId: SESSION_CLIENT_ID,
+        senderPlayerId: isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '',
         chunkIndex: i,
         totalChunks: chunkCount,
         chunkData: chunkStr
