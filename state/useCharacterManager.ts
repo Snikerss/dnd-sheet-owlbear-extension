@@ -155,6 +155,8 @@ interface CharacterManager {
   updateCharacter: (id: string, action: CharacterAction) => void;
   undo: (id: string) => void;
   redo: (id: string) => void;
+  syncCharacter: (id: string) => Promise<void>;
+  clearLocalCache: (id: string) => Promise<void>;
 }
 
 const restoreFromMemory = (cloudData: any, memoryBackup: CharactersState) => {
@@ -1003,6 +1005,68 @@ export const useCharacterManager = (): CharacterManager => {
     };
   }, []);
 
+  const syncCharacter = useCallback(async (id: string) => {
+    try {
+      if (isOwlbear()) {
+        const state = charactersStateRef.current;
+        const entry = state[id];
+        const fullChar = entry?.history.present;
+        const myId = typeof OBR !== 'undefined' ? OBR.player?.id : '';
+        const isOwner = fullChar && fullChar.ownerId && myId ? fullChar.ownerId === myId : true;
+
+        if (isOwner && entry) {
+          console.log(`[DND Sheet] Manual sync triggered by owner for character ${id}...`);
+          const localData = loadFromLocalStorage();
+          const charData = localData[id];
+          if (charData) {
+            await broadcastCharacterSync(id, charData, true);
+            addNotification('Данные персонажа принудительно отправлены в комнату.', 'info');
+            return;
+          }
+        }
+
+        console.log(`[DND Sheet] Requesting fresh sync for character ${id} from room...`);
+        await OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
+          type: 'REQUEST_FULL_CHARACTERS',
+          cachedVersions: {},
+          requestedCharId: id,
+          senderClientId: SESSION_CLIENT_ID
+        });
+        addNotification('Отправлен запрос на повторную синхронизацию персонажа.', 'info');
+      } else {
+        addNotification('Синхронизация доступна в среде Owlbear Rodeo.', 'info');
+      }
+    } catch (e) {
+      console.error('[DND Sheet] Failed to trigger syncCharacter:', e);
+      addNotification('Не удалось запросить синхронизацию.', 'error');
+    }
+  }, [addNotification]);
+
+  const clearLocalCache = useCallback(async (id: string) => {
+    try {
+      console.log(`[DND Sheet] Clearing local cache for character ${id}...`);
+      
+      // 1. Delete images from IndexedDB
+      await imageDb.delete(`char-images/${id}`);
+
+      // 2. Delete from LocalStorage
+      const localData = loadFromLocalStorage();
+      delete localData[id];
+      saveToLocalStorage(localData);
+
+      // 3. Clear serialization cache
+      delete lastSerializedRef.current[id];
+
+      addNotification('Локальный кэш персонажа очищен. Запрашиваем свежие данные...', 'info');
+
+      // 4. Trigger fresh sync request
+      await syncCharacter(id);
+    } catch (e) {
+      console.error('[DND Sheet] Failed to clear local cache:', e);
+      addNotification('Ошибка при очистке локального кэша.', 'error');
+    }
+  }, [syncCharacter, addNotification]);
+
   return {
     characters,
     isLoading,
@@ -1012,5 +1076,7 @@ export const useCharacterManager = (): CharacterManager => {
     updateCharacter,
     undo,
     redo,
+    syncCharacter,
+    clearLocalCache,
   };
 };

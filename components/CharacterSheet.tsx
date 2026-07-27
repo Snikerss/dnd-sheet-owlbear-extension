@@ -43,6 +43,8 @@ interface CharacterSheetProps {
     canRedo: boolean;
     onOpenHistoryLog: () => void;
     isReadOnly?: boolean;
+    onSyncCharacter?: () => void;
+    onClearLocalCache?: () => void;
 }
 
 export const CharacterSheet: React.FC<CharacterSheetProps> = ({
@@ -53,6 +55,8 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
     canRedo,
     onOpenHistoryLog,
     isReadOnly = false,
+    onSyncCharacter,
+    onClearLocalCache,
 }) => {
     // --- CONTEXT HOOKS ---
     const { character, dispatch } = useCharacter();
@@ -951,6 +955,8 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                     onUndo={onUndo}
                     onRedo={onRedo}
                     onOpenHistoryLog={onOpenHistoryLog}
+                    onSync={onSyncCharacter}
+                    onClearCache={onClearLocalCache}
                 />
 
                 {/* Top Dashboard Grid (Horizontal Panel) */}

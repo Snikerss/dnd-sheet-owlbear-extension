@@ -13,7 +13,7 @@ import { generateUUID } from './utils/uuid';
 import { isOwlbear, encodeBase64Sync } from './utils/storage';
 
 const AppContent: React.FC = () => {
-  const { characters, isLoading, syncingCharacters, addCharacter, deleteCharacter, updateCharacter, undo, redo } = useCharacterManager();
+  const { characters, isLoading, syncingCharacters, addCharacter, deleteCharacter, updateCharacter, undo, redo, syncCharacter, clearLocalCache } = useCharacterManager();
   
   const [activeCharacterId, setActiveCharacterId] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
@@ -362,6 +362,8 @@ const AppContent: React.FC = () => {
               canRedo={canRedo}
               onOpenHistoryLog={() => setIsHistoryLogOpen(true)}
               isReadOnly={!!isReadOnly}
+              onSyncCharacter={() => syncCharacter(activeCharacterId)}
+              onClearLocalCache={() => clearLocalCache(activeCharacterId)}
             />
         </CharacterProvider>
       ) : (
@@ -375,6 +377,8 @@ const AppContent: React.FC = () => {
           onDuplicateCharacter={handleDuplicateCharacter}
           onAddCharacter={handleAddCharacter}
           onOpenStandalone={handleOpenStandalone}
+          onSyncCharacter={syncCharacter}
+          onClearLocalCache={clearLocalCache}
         />
       )}
     </>
