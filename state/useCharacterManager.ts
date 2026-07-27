@@ -434,13 +434,21 @@ export const useCharacterManager = (): CharacterManager => {
             
             try {
               const incomingData = JSON.parse(assembledVal);
-              const fullChar = incomingData.character ? unminifyCharacter(incomingData.character) : null;
+              const rawChar = incomingData.character ? unminifyCharacter(incomingData.character) : incomingData;
+              const isRawValid = isCharacter(rawChar);
+              const fullChar = rawChar;
+              const charName = fullChar?.name || incomingData.name || charId;
               const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
               const isGM = isOwlbear() && typeof OBR !== 'undefined' ? ((await OBR.player.getRole()) === 'GM') : true;
 
               if (!isGM && !isCharacterOwner(fullChar, myId)) {
                 console.log(`[DND Sheet] Discarding incoming P2P sync for character ${charId} (recipient is a player, not GM or owner).`);
                 return;
+              }
+
+              if (!isRawValid && isGM) {
+                console.warn(`[DND Sheet] Received corrupted character sheet structure for "${charName}". Auto-repairing...`);
+                addNotification(`[Синхронизация] Внимание: Полученные сетевые данные персонажа "${charName}" повреждены и были автоматически восстановлены.`, 'warning');
               }
 
               const localData = loadFromLocalStorage();
@@ -491,6 +499,8 @@ export const useCharacterManager = (): CharacterManager => {
                   },
                   senderId: SESSION_CLIENT_ID
                 };
+                
+                // Try sending to BroadcastChannel safely
                 try {
                   const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
                   channel.postMessage(syncPayload);
@@ -521,9 +531,12 @@ export const useCharacterManager = (): CharacterManager => {
                   imageCache: entry.imageCache ? Array.from(entry.imageCache.entries()) : []
                 };
                 lastSerializedRef.current[charId] = serializeForCache(obrCharData);
+              } else if (isGM) {
+                addNotification(`[Синхронизация] Ошибка: Не удалось загрузить персонажа (${charName}). Данные не прошли валидацию.`, 'error');
               }
             } catch (err) {
               console.error('[DND Sheet] Failed to parse unified character sync JSON:', err);
+              addNotification(`[Синхронизация] Ошибка: Получены поврежденные данные персонажа (${charId}). Синхронизация отменена.`, 'error');
             }
           }
         } else if (payload.type === 'IMAGE_CHUNK_SYNC' && payload.id && (payload as any).imgId && (payload as any).chunkData !== undefined) {
