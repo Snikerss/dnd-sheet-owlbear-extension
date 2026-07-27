@@ -154,7 +154,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
           {canDelete && (
             <button
               onClick={onDelete}
-              data-tooltip="Удалить персонажа навсегда"
+              data-tooltip={isGM ? "Удалить локальную копию у ГМа" : "Удалить персонажа навсегда"}
               className="w-full bg-red-500/15 text-red-400 border border-red-500/40 hover:bg-red-600 hover:text-white font-bold py-2 px-2 rounded-lg transition-all shadow active:scale-95 text-xs sm:text-sm truncate flex items-center justify-center gap-1"
               aria-label="Удалить персонажа"
             >
