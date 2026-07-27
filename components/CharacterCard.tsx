@@ -70,12 +70,13 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
           </p>
         </div>
       </div>
-      <div className="p-3 bg-[var(--color-surface-inset)] flex items-center justify-between mt-auto">
-        <div className="flex items-center">
+      <div className="p-3 bg-[var(--color-surface-inset)] flex flex-col gap-2.5 mt-auto border-t border-[var(--color-border-subtle)]">
+        {/* Row 1: Small utility buttons */}
+        <div className="flex items-center justify-around w-full">
             <button
                 onClick={onExport}
                 data-tooltip="Экспортировать персонажа"
-                className="p-2 rounded-full text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-base)] transition-colors"
+                className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-base)] transition-colors"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -84,7 +85,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
             <button
               onClick={onDuplicate}
               data-tooltip="Дублировать персонажа"
-              className="p-2 ml-1 rounded-full text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-base)] transition-colors"
+              className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-base)] transition-colors"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z" />
@@ -95,7 +96,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
               <button
                 onClick={onSync}
                 data-tooltip="Повторно синхронизировать"
-                className="p-2 ml-1 rounded-full text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-teal-400 transition-colors"
+                className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-teal-400 transition-colors"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -106,7 +107,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
               <button
                 onClick={onClearCache}
                 data-tooltip="Удалить локальную копию персонажа"
-                className="p-2 ml-1 rounded-full text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-amber-400 transition-colors"
+                className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-amber-400 transition-colors"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -117,7 +118,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
               <button
                 onClick={handleOpenClick}
                 data-tooltip="Открыть в новой вкладке"
-                className="p-2 ml-1 rounded-full text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-base)] transition-colors flex items-center justify-center"
+                className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-base)] transition-colors flex items-center justify-center"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -125,21 +126,26 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
               </button>
             )}
         </div>
-        <button
-          onClick={onSelect}
-          className="flex-1 mx-2 bg-[var(--color-accent-primary)] text-white font-bold py-2 px-4 rounded-lg hover:bg-[var(--color-accent-primary-hover)] transition-all shadow active:scale-95"
-        >
-          Выбрать
-        </button>
-        <button
-          onClick={onDelete}
-          data-tooltip="Удалить персонажа навсегда"
-          className="p-2 ml-1 rounded-lg text-red-400 bg-red-500/10 hover:bg-red-600 hover:text-white border border-red-500/30 transition-all duration-150 active:scale-95 flex items-center justify-center flex-shrink-0"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
-        </button>
+
+        {/* Row 2: Select & Delete buttons */}
+        <div className="flex items-center gap-2 w-full">
+          <button
+            onClick={onSelect}
+            className="flex-1 bg-[var(--color-accent-primary)] text-white font-bold py-2 px-3 rounded-lg hover:bg-[var(--color-accent-primary-hover)] transition-all shadow active:scale-95 text-sm truncate"
+          >
+            Выбрать
+          </button>
+          <button
+            onClick={onDelete}
+            data-tooltip="Удалить персонажа навсегда"
+            className="p-2 rounded-lg text-red-400 bg-red-500/10 hover:bg-red-600 hover:text-white border border-red-500/30 transition-all duration-150 active:scale-95 flex items-center justify-center flex-shrink-0"
+            aria-label="Удалить персонажа"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   );
