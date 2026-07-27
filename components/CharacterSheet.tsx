@@ -550,10 +550,11 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                                             <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold">Знач:</span>
                                             <div className="flex items-center bg-[var(--color-surface-well)] p-1 rounded-xl border border-slate-700/50 gap-1.5 h-8">
                                                 <button 
-                                                    onClick={() => dispatch({ type: 'SET_SCORE', payload: { ability, score: character.scores[ability] - 1 } })}
-                                                    className="bg-[var(--color-surface-raised)] hover:bg-[var(--color-accent-primary)]/20 hover:text-[var(--color-accent-primary-light)] w-6 h-6 rounded-lg text-sm font-bold flex items-center justify-center transition-all duration-150 active:scale-90 border border-slate-700/30 hover:border-teal-500/30"
+                                                    onClick={() => !isReadOnly && dispatch({ type: 'SET_SCORE', payload: { ability, score: character.scores[ability] - 1 } })}
+                                                    disabled={isReadOnly}
+                                                    className="bg-[var(--color-surface-raised)] hover:bg-[var(--color-accent-primary)]/20 hover:text-[var(--color-accent-primary-light)] w-6 h-6 rounded-lg text-sm font-bold flex items-center justify-center transition-all duration-150 active:scale-90 border border-slate-700/30 hover:border-teal-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                                                     aria-label={`Уменьшить ${abilityName}`}
-                                                    data-tooltip="Уменьшить характеристику"
+                                                    data-tooltip={isReadOnly ? "Только чтение" : "Уменьшить характеристику"}
                                                 >
                                                     -
                                                 </button>
@@ -564,10 +565,11 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                                                     {effectiveScore}
                                                 </span>
                                                 <button 
-                                                    onClick={() => dispatch({ type: 'SET_SCORE', payload: { ability, score: character.scores[ability] + 1 } })}
-                                                    className="bg-[var(--color-surface-raised)] hover:bg-[var(--color-accent-primary)]/20 hover:text-[var(--color-accent-primary-light)] w-6 h-6 rounded-lg text-sm font-bold flex items-center justify-center transition-all duration-150 active:scale-90 border border-slate-700/30 hover:border-teal-500/30"
+                                                    onClick={() => !isReadOnly && dispatch({ type: 'SET_SCORE', payload: { ability, score: character.scores[ability] + 1 } })}
+                                                    disabled={isReadOnly}
+                                                    className="bg-[var(--color-surface-raised)] hover:bg-[var(--color-accent-primary)]/20 hover:text-[var(--color-accent-primary-light)] w-6 h-6 rounded-lg text-sm font-bold flex items-center justify-center transition-all duration-150 active:scale-90 border border-slate-700/30 hover:border-teal-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                                                     aria-label={`Увеличить ${abilityName}`}
-                                                    data-tooltip="Увеличить характеристику"
+                                                    data-tooltip={isReadOnly ? "Только чтение" : "Увеличить характеристику"}
                                                 >
                                                     +
                                                 </button>
@@ -578,6 +580,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                                             <EditableBonus
                                                 value={character.abilityBonuses[ability] || 0}
                                                 onChange={(bonus) => dispatch({ type: 'SET_ABILITY_BONUS', payload: { ability, bonus }})}
+                                                isReadOnly={isReadOnly}
                                             />
                                         </div>
                                     </div>
@@ -595,6 +598,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                                             onSavingThrowBonusChange={(_, bonus) => dispatch({ type: 'SET_SAVING_THROW_BONUS', payload: { ability, bonus }})}
                                             level={character.level}
                                             proficiencyBonusBonus={character.proficiencyBonusBonus}
+                                            isReadOnly={isReadOnly}
                                         />
                                         {skillsForAbility.map(skill => (
                                             <SkillCheck 
@@ -609,6 +613,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                                                 onSkillBonusChange={(name, bonus) => dispatch({ type: 'SET_SKILL_BONUS', payload: { skillName: name, bonus }})}
                                                 level={character.level}
                                                 proficiencyBonusBonus={character.proficiencyBonusBonus}
+                                                isReadOnly={isReadOnly}
                                             />
                                         ))}
                                     </div>

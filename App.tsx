@@ -172,7 +172,7 @@ const AppContent: React.FC = () => {
 
   const handleSelectCharacter = useCallback((id: string) => {
     const character = characters[id]?.history.present;
-    if (character && isOwlbear() && !character.ownerId && OBR.player.id) {
+    if (character && isOwlbear() && !character.ownerId && OBR.player.id && userRole !== 'GM') {
       console.log(`[DND Sheet] Assigning ownership of unclaimed character "${character.name}" to player:`, OBR.player.id);
       updateCharacter(id, { 
         type: 'SET_FIELD', 
@@ -186,7 +186,7 @@ const AppContent: React.FC = () => {
       }
     }
     setActiveCharacterId(id);
-  }, [characters, updateCharacter, playerName]);
+  }, [characters, updateCharacter, playerName, userRole]);
 
   const handleCreateCharacter = useCallback(() => {
     const newId = generateUUID();

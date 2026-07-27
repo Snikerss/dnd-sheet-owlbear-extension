@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { Ability, RollType } from '../types';
 import { EditableBonus } from './EditableBonus';
 import { ABILITY_NAMES } from '../constants';
-import { useCharacter } from '../context/CharacterContext';
 import { calculateProficiencyBonus } from '../utils/characterCalculations';
 
 interface SavingThrowCheckProps {
@@ -17,6 +16,7 @@ interface SavingThrowCheckProps {
   onSavingThrowBonusChange: (ability: Ability, bonus: number) => void;
   level: number;
   proficiencyBonusBonus: number;
+  isReadOnly?: boolean;
 }
 
 export const SavingThrowCheck: React.FC<SavingThrowCheckProps> = React.memo(({
@@ -31,6 +31,7 @@ export const SavingThrowCheck: React.FC<SavingThrowCheckProps> = React.memo(({
   onSavingThrowBonusChange,
   level,
   proficiencyBonusBonus,
+  isReadOnly = false,
 }) => {
   const proficiencyBonus = useMemo(() => calculateProficiencyBonus(level) + proficiencyBonusBonus, [level, proficiencyBonusBonus]);
   
@@ -42,13 +43,14 @@ export const SavingThrowCheck: React.FC<SavingThrowCheckProps> = React.memo(({
   return (
     <div className="flex items-center justify-between bg-[var(--color-surface-inset)] p-2 rounded-lg border border-transparent hover:border-[var(--color-border)] transition-colors group">
       <label 
-        className="flex items-center cursor-pointer flex-grow min-w-0 pl-3"
+        className={`flex items-center flex-grow min-w-0 pl-3 ${isReadOnly ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
         data-tooltip={isProficient ? "Есть владение спасброском (добавляет бонус мастерства)" : "Нет владения спасброском"}
       >
         <input
           type="checkbox"
           checked={isProficient}
-          onChange={() => onProficiencyToggle(ability)}
+          disabled={isReadOnly}
+          onChange={() => !isReadOnly && onProficiencyToggle(ability)}
           className="sr-only peer"
           aria-label={`Владение спасброском ${abilityName}`}
         />
@@ -68,6 +70,7 @@ export const SavingThrowCheck: React.FC<SavingThrowCheckProps> = React.memo(({
         <EditableBonus
             value={savingThrowBonus}
             onChange={(bonus) => onSavingThrowBonusChange(ability, bonus)}
+            isReadOnly={isReadOnly}
         />
         {itemSavingThrowBonus !== 0 && (
             <span className="text-[10px] text-teal-400 font-semibold" data-tooltip="Бонус от экипированных предметов">

@@ -3,9 +3,10 @@ import React, { useState, useEffect } from 'react';
 interface EditableBonusProps {
   value: number;
   onChange: (newValue: number) => void;
+  isReadOnly?: boolean;
 }
 
-export const EditableBonus: React.FC<EditableBonusProps> = React.memo(({ value, onChange }) => {
+export const EditableBonus: React.FC<EditableBonusProps> = React.memo(({ value, onChange, isReadOnly = false }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [currentValue, setCurrentValue] = useState(value);
 
@@ -34,7 +35,7 @@ export const EditableBonus: React.FC<EditableBonusProps> = React.memo(({ value, 
     }
   };
 
-  if (isEditing) {
+  if (isEditing && !isReadOnly) {
     return (
       <input
         type="number"
@@ -56,9 +57,10 @@ export const EditableBonus: React.FC<EditableBonusProps> = React.memo(({ value, 
      return (
         <button
             type="button"
-            className="w-16 h-8 flex items-center justify-center text-[var(--color-text-subtle)] hover:text-[var(--color-accent-primary-light)] bg-[var(--color-surface-well)] border border-slate-700/50 hover:border-teal-500/30 rounded-xl cursor-pointer hover:bg-[var(--color-surface-raised)] transition-all duration-200 text-xs font-medium" 
-            onClick={() => setIsEditing(true)}
-            data-tooltip="Добавить бонус/штраф"
+            disabled={isReadOnly}
+            className={`w-16 h-8 flex items-center justify-center text-[var(--color-text-subtle)] bg-[var(--color-surface-well)] border border-slate-700/50 rounded-xl text-xs font-medium ${isReadOnly ? 'opacity-50 cursor-not-allowed' : 'hover:text-[var(--color-accent-primary-light)] hover:border-teal-500/30 cursor-pointer hover:bg-[var(--color-surface-raised)] transition-all duration-200'}`} 
+            onClick={() => !isReadOnly && setIsEditing(true)}
+            data-tooltip={isReadOnly ? "Только чтение" : "Добавить бонус/штраф"}
             aria-label="Добавить бонус или штраф"
         >
             +/-
@@ -69,9 +71,10 @@ export const EditableBonus: React.FC<EditableBonusProps> = React.memo(({ value, 
   return (
     <button
       type="button"
-      className="w-16 h-8 flex items-center justify-center bg-[var(--color-surface-well)] border border-slate-700/50 hover:border-teal-500/30 rounded-xl cursor-pointer hover:bg-[var(--color-surface-raised)] transition-all duration-200 text-xs font-extrabold text-[var(--color-text-base)]"
-      onClick={() => setIsEditing(true)}
-      data-tooltip="Изменить бонус/штраф"
+      disabled={isReadOnly}
+      className={`w-16 h-8 flex items-center justify-center bg-[var(--color-surface-well)] border border-slate-700/50 rounded-xl text-xs font-extrabold text-[var(--color-text-base)] ${isReadOnly ? 'opacity-70 cursor-not-allowed' : 'hover:border-teal-500/30 cursor-pointer hover:bg-[var(--color-surface-raised)] transition-all duration-200'}`}
+      onClick={() => !isReadOnly && setIsEditing(true)}
+      data-tooltip={isReadOnly ? "Только чтение" : "Изменить бонус/штраф"}
       aria-label={`Изменить бонус или штраф. Текущее значение: ${displayValue}`}
     >
       <span>{displayValue}</span>

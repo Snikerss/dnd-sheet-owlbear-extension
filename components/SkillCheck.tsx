@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import { Skill, ProficiencyLevel, RollType } from '../types';
 import { EditableBonus } from './EditableBonus';
-import { useCharacter } from '../context/CharacterContext';
 import { calculateProficiencyBonus } from '../utils/characterCalculations';
 
 interface SkillCheckProps {
@@ -15,6 +14,7 @@ interface SkillCheckProps {
   onSkillBonusChange: (skillName: string, bonus: number) => void;
   level: number;
   proficiencyBonusBonus: number;
+  isReadOnly?: boolean;
 }
 
 export const SkillCheck: React.FC<SkillCheckProps> = React.memo(({
@@ -28,6 +28,7 @@ export const SkillCheck: React.FC<SkillCheckProps> = React.memo(({
   onSkillBonusChange,
   level,
   proficiencyBonusBonus,
+  isReadOnly = false,
 }) => {
   const proficiencyBonus = useMemo(() => calculateProficiencyBonus(level) + proficiencyBonusBonus, [level, proficiencyBonusBonus]);
 
@@ -60,7 +61,7 @@ export const SkillCheck: React.FC<SkillCheckProps> = React.memo(({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
-      if (e.key === 'Enter' || e.key === ' ') {
+      if (!isReadOnly && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
           onProficiencyChange(skill.name);
       }
@@ -74,16 +75,19 @@ export const SkillCheck: React.FC<SkillCheckProps> = React.memo(({
     <div className="flex items-center justify-between bg-[var(--color-surface-inset)] p-2 rounded-lg border border-transparent hover:border-[var(--color-border)] transition-colors group">
       <button 
         type="button"
-        className="flex items-center cursor-pointer flex-grow min-w-0 text-left p-0 pl-3"
-        onClick={() => onProficiencyChange(skill.name)}
+        disabled={isReadOnly}
+        className={`flex items-center flex-grow min-w-0 text-left p-0 pl-3 ${isReadOnly ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
+        onClick={() => !isReadOnly && onProficiencyChange(skill.name)}
         onKeyDown={handleKeyDown}
         aria-label={proficiencyLabel}
         data-tooltip={
-          skill.proficiency === ProficiencyLevel.None 
-            ? "Нет владения (нажмите для переключения)" 
-            : skill.proficiency === ProficiencyLevel.Proficient 
-              ? "Владение (нажмите для переключения)" 
-              : "Экспертиза (нажмите для переключения)"
+          isReadOnly 
+            ? "Только чтение"
+            : skill.proficiency === ProficiencyLevel.None 
+              ? "Нет владения (нажмите для переключения)" 
+              : skill.proficiency === ProficiencyLevel.Proficient 
+                ? "Владение (нажмите для переключения)" 
+                : "Экспертиза (нажмите для переключения)"
         }
       >
         {getProficiencyIndicator()}
@@ -99,6 +103,7 @@ export const SkillCheck: React.FC<SkillCheckProps> = React.memo(({
         <EditableBonus
             value={skillBonus}
             onChange={(bonus) => onSkillBonusChange(skill.name, bonus)}
+            isReadOnly={isReadOnly}
         />
         {itemSkillBonus !== 0 && (
             <span className="text-[10px] text-teal-400 font-semibold" data-tooltip="Бонус от экипированных предметов">
