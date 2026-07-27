@@ -3,6 +3,7 @@ import OBR from '@owlbear-rodeo/sdk';
 import { NotificationToast, NotificationType } from '../components/NotificationToast';
 import { generateUUID } from '../utils/uuid';
 import { isOwlbear, SESSION_CLIENT_ID } from '../utils/storage';
+import { localBridge } from '../utils/bridgeService';
 import { RollResult, RollType } from '../types';
 
 interface Notification {
@@ -176,41 +177,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, [addNotification]);
 
-  // Listen to BroadcastChannel and window messages for standalone/iframe communication
+  // Listen to local bridge events for standalone/iframe communication
   useEffect(() => {
-    let channel: BroadcastChannel | null = null;
-    try {
-      if (typeof BroadcastChannel !== 'undefined') {
-        channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
-      }
-    } catch (e) {
-      console.warn('[DND Sheet] NotificationContext: BroadcastChannel unavailable or blocked:', e);
-    }
-    
-    const handleSyncMessage = (payload: any) => {
-      if (!payload || payload.senderId === SESSION_CLIENT_ID) return;
+    const unsubscribe = localBridge.subscribe((event) => {
+      const payload = event.data;
+      if (!payload) return;
 
-      // De-duplicate messages using msgId or event-signature fallback (for caching client versions)
       const msgId = payload.msgId || `${payload.type}-${JSON.stringify(payload.result || payload.message)}`;
-      if (msgId) {
-        const now = Date.now();
-        const processed = (window as any).__dndProcessedMsgTimes || new Map();
-        if (processed.has(msgId)) {
-          const lastTime = processed.get(msgId);
-          if (now - lastTime < 500) {
-            console.log('[DND Sheet] Bridge Sync: Duplicate event message ignored (dedup):', msgId);
-            return;
-          }
-        }
-        processed.set(msgId, now);
-        if (processed.size > 100) {
-          for (const [key, time] of processed.entries()) {
-            if (now - time > 5000) {
-              processed.delete(key);
-            }
-          }
-        }
-        (window as any).__dndProcessedMsgTimes = processed;
+      if (localBridge.isDuplicateMessage(msgId, 500)) {
+        return;
       }
 
       if (payload.type === 'ROLL_DICE' && isOwlbear()) {
@@ -220,32 +195,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         console.log('[DND Sheet] Bridge Sync: Showing notification toast:', payload.message);
         addNotification(payload.message, payload.notificationType);
       }
-    };
+    });
 
-    const handleLocalBridgeMessage = (event: MessageEvent) => {
-      handleSyncMessage(event.data);
-    };
-
-    const handleWindowMessage = (event: MessageEvent) => {
-      handleSyncMessage(event.data);
-    };
-
-    if (channel) {
-      try {
-        channel.addEventListener('message', handleLocalBridgeMessage);
-      } catch (e) {}
-    }
-    window.addEventListener('message', handleWindowMessage);
-
-    return () => {
-      if (channel) {
-        try {
-          channel.removeEventListener('message', handleLocalBridgeMessage);
-          channel.close();
-        } catch (e) {}
-      }
-      window.removeEventListener('message', handleWindowMessage);
-    };
+    return unsubscribe;
   }, [broadcastRoll, addNotification]);
 
   const contextValue = useMemo(() => ({ addNotification, broadcastRoll }), [addNotification, broadcastRoll]);

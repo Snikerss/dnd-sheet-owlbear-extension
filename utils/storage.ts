@@ -4,6 +4,7 @@ import { defaultCharacterState } from '../state/defaultCharacterState';
 import { compressBase64Image } from './imageCompress';
 import { extractImages } from './imageStore';
 import { imageDb } from './indexedDbStore';
+import { CHARACTER_BASIC_FIELDS } from './characterSchema';
 
 const inMemoryCharactersCache: Record<string, any> = {};
 
@@ -33,20 +34,7 @@ export function minifyCharacter(char: Character): any {
 
   const min: any = {};
 
-  const basicFields = [
-    'name', 'race', 'characterClass', 'level', 'experience', 'portraitUrl',
-    'hitDie', 'maxHitPoints', 'currentHitPoints', 'temporaryHitPoints', 'speed',
-    'baseAC', 'acBonus', 'initiativeBonus', 'proficiencyBonusBonus', 'speedBonus',
-    'attunementSlots', 'inventoryRows', 'totalHitDice', 'currentHitDice',
-    'longJumpBonus', 'highJumpBonus', 'size',
-    'passivePerceptionBonus', 'passiveInvestigationBonus', 'passiveInsightBonus',
-    'maxHpBonus', 'carryCapacityBonus',
-    'globalAttackDiceBonusToHitDice', 'globalAttackDiceBonusToDamageDice',
-    'spellcastingAbility', 'maxPreparedSpells', 'spellSaveDcBonus',
-    'spellAttackBonusBonus', 'activeNoteId', 'attunementMaxBonus', 'ownerId', 'ownerName', 'viewMode'
-  ];
-
-  for (const field of basicFields) {
+  for (const field of CHARACTER_BASIC_FIELDS) {
     if ((char as any)[field] !== undefined) {
       min[field] = (char as any)[field];
     }
@@ -151,20 +139,7 @@ export function unminifyCharacter(min: any): Character {
   
   const char: Character = structuredClone(defaultCharacterState);
 
-  const basicFields = [
-    'name', 'race', 'characterClass', 'level', 'experience', 'portraitUrl',
-    'hitDie', 'maxHitPoints', 'currentHitPoints', 'temporaryHitPoints', 'speed',
-    'baseAC', 'acBonus', 'initiativeBonus', 'proficiencyBonusBonus', 'speedBonus',
-    'attunementSlots', 'inventoryRows', 'totalHitDice', 'currentHitDice',
-    'longJumpBonus', 'highJumpBonus', 'size',
-    'passivePerceptionBonus', 'passiveInvestigationBonus', 'passiveInsightBonus',
-    'maxHpBonus', 'carryCapacityBonus',
-    'globalAttackDiceBonusToHitDice', 'globalAttackDiceBonusToDamageDice',
-    'spellcastingAbility', 'maxPreparedSpells', 'spellSaveDcBonus',
-    'spellAttackBonusBonus', 'activeNoteId', 'attunementMaxBonus', 'ownerId', 'ownerName', 'viewMode'
-  ];
-
-  for (const field of basicFields) {
+  for (const field of CHARACTER_BASIC_FIELDS) {
     if (min[field] !== undefined) {
       (char as any)[field] = min[field];
     }

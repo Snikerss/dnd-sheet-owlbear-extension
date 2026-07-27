@@ -532,7 +532,7 @@ export const isCharacter = (data: any): data is Character => {
 
     if (!isInventoryValid || !areFeaturesValid || !areAttacksValid || !areSpellsValid || !areNotesValid) {
         console.warn('[DND Sheet] isCharacter failed arrays content validations.', {
-            isInventoryValid, isAttunementValid, areFeaturesValid, areAttacksValid, areSpellsValid, areNotesValid
+            isInventoryValid, areFeaturesValid, areAttacksValid, areSpellsValid, areNotesValid
         });
         return false;
     }

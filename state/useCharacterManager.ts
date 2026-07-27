@@ -9,6 +9,7 @@ import { generateActionDescription } from '../utils/history';
 import { useNotifier } from '../context/NotificationContext';
 import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter, loadFromLocalStorage, saveToLocalStorage, stripLargeTexts, decompressData, decodeBase64Sync, restoreLocalData, mergeCharacter, SESSION_CLIENT_ID, broadcastCharacterSync } from '../utils/storage';
 import { imageDb } from '../utils/indexedDbStore';
+import { localBridge } from '../utils/bridgeService';
 
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/v2/character/';
 
@@ -814,40 +815,15 @@ export const useCharacterManager = (): CharacterManager => {
 
   // Local bridge for multi-tab synchronization
   useEffect(() => {
-    let channel: BroadcastChannel | null = null;
-    try {
-      if (typeof BroadcastChannel !== 'undefined') {
-        channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
-      }
-    } catch (e) {
-      console.warn('[DND Sheet] BroadcastChannel unavailable or blocked:', e);
-    }
-    
-    const handleSyncMessage = (payload: any, sourceWindow?: Window) => {
-      if (!payload || payload.senderId === SESSION_CLIENT_ID) return;
+    const unsubscribe = localBridge.subscribe((event) => {
+      const payload = event.data;
+      const sourceWindow = event.source as Window | undefined;
+      if (!payload) return;
 
       if (payload.type === 'CHARACTER_ACTION' && payload.charId && payload.action) {
-        // De-duplicate actions using actionId or action-signature fallback (for caching client versions)
         const actId = payload.action.actionId || `${payload.action.type}-${JSON.stringify(payload.action.payload)}`;
-        if (actId) {
-          const now = Date.now();
-          const processed = (window as any).__dndProcessedActionTimes || new Map();
-          if (processed.has(actId)) {
-            const lastTime = processed.get(actId);
-            if (now - lastTime < 300) {
-              console.log('[DND Sheet] Bridge Sync: Duplicate action ignored (dedup):', actId);
-              return;
-            }
-          }
-          processed.set(actId, now);
-          if (processed.size > 100) {
-            for (const [key, time] of processed.entries()) {
-              if (now - time > 5000) {
-                processed.delete(key);
-              }
-            }
-          }
-          (window as any).__dndProcessedActionTimes = processed;
+        if (localBridge.isDuplicateMessage(actId, 300)) {
+          return;
         }
 
         console.log('[DND Sheet] Bridge Sync: Syncing action:', payload.action);
@@ -858,7 +834,6 @@ export const useCharacterManager = (): CharacterManager => {
       } else if (payload.type === 'CHARACTER_SYNC' && payload.charId && payload.entry) {
         console.log('[DND Sheet] Bridge Sync: Syncing full character:', payload.charId);
         
-        // Convert imageCache back to Map if it's an array
         const entryWithMap = {
           ...payload.entry,
           imageCache: Array.isArray(payload.entry.imageCache) 
@@ -871,7 +846,6 @@ export const useCharacterManager = (): CharacterManager => {
           payload: { id: payload.charId, entry: entryWithMap }
         });
 
-        // If we are waiting for this character to load, stop loading!
         const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         const urlCharId = urlParams?.get('charId');
         if (payload.charId === urlCharId && isLoadingRef.current) {
@@ -888,18 +862,12 @@ export const useCharacterManager = (): CharacterManager => {
           (window as any).__dndParentReady = true;
         }
 
-        // Save the source window for future updates & expose direct return bridge
         if (sourceWindow && typeof window !== 'undefined') {
           const opened = (window as any).__dndOpenedWindows || [];
           if (!opened.includes(sourceWindow)) {
             opened.push(sourceWindow);
             (window as any).__dndOpenedWindows = opened;
           }
-          try {
-            (sourceWindow as any).sendDndMessageToOpener = (msg: any) => {
-              window.postMessage(msg, '*');
-            };
-          } catch (e) {}
         }
 
         const state = charactersStateRef.current;
@@ -914,104 +882,16 @@ export const useCharacterManager = (): CharacterManager => {
             entry: {
               ...entry,
               imageCache: imageCacheArray
-            },
-            senderId: SESSION_CLIENT_ID
+            }
           };
 
           console.log('[DND Sheet] Bridge Sync: Sending character data back:', payload.charId);
-          // Send to BroadcastChannel
-          if (channel) {
-            try {
-              channel.postMessage(responsePayload);
-            } catch (e) {}
-          }
-          
-          // Send to source window directly
-          if (sourceWindow) {
-            sourceWindow.postMessage(responsePayload, '*');
-          }
+          localBridge.postMessage(responsePayload);
         }
       }
-    };
+    });
 
-    const handleLocalBridgeMessage = (event: MessageEvent) => {
-      handleSyncMessage(event.data);
-    };
-
-    const handleWindowMessage = (event: MessageEvent) => {
-      handleSyncMessage(event.data, event.source as Window);
-    };
-    
-    if (channel) {
-      try {
-        channel.addEventListener('message', handleLocalBridgeMessage);
-      } catch (e) {}
-    }
-    window.addEventListener('message', handleWindowMessage);
-
-    // Polling interval to bridge child windows in same-origin environments (bypassing window.opener null restriction)
-    let intervalId: any = null;
-    if (isOwlbear()) {
-      intervalId = setInterval(() => {
-        const opened = (window as any).__dndOpenedWindows || [];
-        opened.forEach((win: any) => {
-          try {
-            if (win && !win.closed && win.__dndChildReady) {
-              console.log('[DND Sheet] Direct Bridge: Exposing callback and syncing with child window.');
-              
-              // Expose parent callback on child window
-              win.sendDndMessageToOpener = (payload: any) => {
-                window.postMessage(payload, '*');
-              };
-              
-              // Sync latest character data
-              const urlParams = new URLSearchParams(win.location.search);
-              const childCharId = urlParams.get('charId');
-              if (childCharId) {
-                const state = charactersStateRef.current;
-                const entry = state[childCharId];
-                if (entry) {
-                  const imageCacheArray = entry.imageCache 
-                    ? Array.from(entry.imageCache.entries()) 
-                    : [];
-                  win.postMessage({
-                    type: 'CHARACTER_SYNC',
-                    charId: childCharId,
-                    entry: {
-                      ...entry,
-                      imageCache: imageCacheArray
-                    },
-                    senderId: SESSION_CLIENT_ID
-                  }, '*');
-                }
-              }
-              
-              // Clear child ready flag so we don't repeat
-              delete win.__dndChildReady;
-            }
-          } catch (e) {
-            // Ignore cross-origin errors (e.g. if the window navigated elsewhere)
-          }
-        });
-      }, 200);
-    }
-
-    return () => {
-      if (channel) {
-        try {
-          channel.removeEventListener('message', handleLocalBridgeMessage);
-          channel.close();
-        } catch (e) {}
-      }
-      window.removeEventListener('message', handleWindowMessage);
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-      if ((window as any).__handshakeTimeoutId) {
-        clearTimeout((window as any).__handshakeTimeoutId);
-        delete (window as any).__handshakeTimeoutId;
-      }
-    };
+    return unsubscribe;
   }, []);
 
   const syncCharacter = useCallback(async (id: string) => {
