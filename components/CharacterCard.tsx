@@ -119,10 +119,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
                 </svg>
               </button>
             )}
-            {isGM && onClearCache && (
+            {onClearCache && (isGM || !canDelete) && (
               <button
                 onClick={onClearCache}
-                data-tooltip="Удалить локальную копию персонажа"
+                data-tooltip={isGM ? "Удалить локальную копию у ГМа" : "Удалить чужую локальную копию"}
                 className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-amber-400 transition-colors"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

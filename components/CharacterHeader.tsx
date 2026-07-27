@@ -190,11 +190,11 @@ export const CharacterHeader: React.FC<CharacterHeaderProps> = React.memo(({
                        </svg>
                    </button>
                  )}
-                  {isGM && onClearCache && (
+                  {onClearCache && (isGM || isReadOnly) && (
                     <button 
                       onClick={onClearCache} 
                       className="h-[50px] w-12 flex items-center justify-center bg-[var(--color-surface-raised)] text-[var(--color-text-medium)] hover:text-amber-400 rounded-lg hover:bg-[var(--color-surface-raised-hover)] transition-colors active:scale-95" 
-                      data-tooltip="Удалить локальную копию персонажа" 
+                      data-tooltip={isGM ? "Удалить локальную копию у ГМа" : "Удалить чужую локальную копию"} 
                       aria-label="Удалить локальную копию"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
