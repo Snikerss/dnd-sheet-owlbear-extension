@@ -547,6 +547,15 @@ export const useCharacterManager = (): CharacterManager => {
           if ((payload as any).senderClientId === SESSION_CLIENT_ID) {
             return;
           }
+
+          const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
+          const isGM = isOwlbear() && typeof OBR !== 'undefined' ? ((await OBR.player.getRole()) === 'GM') : true;
+          const charEntry = charactersStateRef.current[charId];
+          const fullChar = charEntry?.history.present;
+
+          if (!isGM && !isCharacterOwner(fullChar, myId)) {
+            return; // Discard incoming image chunk if recipient is a player and not owner!
+          }
           
           const key = `img-${charId}/${imgId}`;
           console.log(`[DND Sheet] Received chunk ${chunkIndex + 1}/${totalChunks} for image ${imgId} of character ${charId}.`);
