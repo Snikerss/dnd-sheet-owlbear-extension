@@ -100,6 +100,26 @@ class ImageIndexedDB {
       return;
     }
   }
+
+  async keys(): Promise<string[]> {
+    try {
+      const db = await this.init();
+      if (!db) return Array.from(this.memoryFallback.keys());
+      return new Promise((resolve) => {
+        try {
+          const transaction = db.transaction(this.storeName, 'readonly');
+          const store = transaction.objectStore(this.storeName);
+          const request = store.getAllKeys();
+          request.onsuccess = () => resolve((request.result || []).map(String));
+          request.onerror = () => resolve(Array.from(this.memoryFallback.keys()));
+        } catch (e) {
+          resolve(Array.from(this.memoryFallback.keys()));
+        }
+      });
+    } catch (e) {
+      return Array.from(this.memoryFallback.keys());
+    }
+  }
 }
 
 export const imageDb = new ImageIndexedDB();

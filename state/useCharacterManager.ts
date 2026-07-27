@@ -10,6 +10,7 @@ import { useNotifier } from '../context/NotificationContext';
 import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unminifyCharacter, stripBase64, minifyCharacter, loadFromLocalStorage, saveToLocalStorage, stripLargeTexts, decompressData, decodeBase64Sync, restoreLocalData, mergeCharacter, SESSION_CLIENT_ID, broadcastCharacterSync } from '../utils/storage';
 import { imageDb } from '../utils/indexedDbStore';
 import { localBridge } from '../utils/bridgeService';
+import { storageRepository } from '../utils/storageRepository';
 
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/v2/character/';
 
@@ -293,7 +294,7 @@ export const useCharacterManager = (): CharacterManager => {
 
   // 1. Initial Load of character data
   useEffect(() => {
-    loadCharactersApi()
+    storageRepository.loadCharacters()
       .then(data => {
         if (data) {
           const parsedState = parseCharactersData(data);
