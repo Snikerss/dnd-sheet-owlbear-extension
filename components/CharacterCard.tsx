@@ -28,7 +28,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
     }
   };
   return (
-    <div className="relative aspect-[4/5] bg-[var(--color-surface-opaque)] rounded-xl shadow-lg border border-[var(--color-border)] overflow-hidden transition-all duration-300 hover:shadow-2xl hover:border-[var(--color-border-hover)] flex flex-col">
+    <div className="relative min-h-[380px] h-full bg-[var(--color-surface-opaque)] rounded-xl shadow-lg border border-[var(--color-border)] overflow-hidden transition-all duration-300 hover:shadow-2xl hover:border-[var(--color-border-hover)] flex flex-col justify-between">
       {isSyncing && (
         <div 
           className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-30 p-4 text-center select-none"
@@ -45,7 +45,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
         </div>
       )}
       <div className="relative flex-1 cursor-pointer group overflow-hidden flex flex-col min-h-0" onClick={onSelect}>
-        <div className="flex-1 w-full bg-[var(--color-surface-well)] flex items-center justify-center overflow-hidden relative">
+        <div className="flex-1 w-full min-h-[160px] bg-[var(--color-surface-well)] flex items-center justify-center overflow-hidden relative">
           {character.portraitUrl ? (
             <img src={character.portraitUrl} alt={character.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
           ) : (
@@ -127,23 +127,24 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
             )}
         </div>
 
-        {/* Row 2: Select & Delete buttons */}
-        <div className="flex items-center gap-2 w-full">
+        {/* Row 2: Equal 50/50 split Select & Delete buttons */}
+        <div className="grid grid-cols-2 gap-2 w-full pt-1">
           <button
             onClick={onSelect}
-            className="flex-1 bg-[var(--color-accent-primary)] text-white font-bold py-2 px-3 rounded-lg hover:bg-[var(--color-accent-primary-hover)] transition-all shadow active:scale-95 text-sm truncate"
+            className="w-full bg-[var(--color-accent-primary)] text-white font-bold py-2 px-2 rounded-lg hover:bg-[var(--color-accent-primary-hover)] transition-all shadow active:scale-95 text-xs sm:text-sm truncate flex items-center justify-center gap-1"
           >
-            Выбрать
+            <span>Выбрать</span>
           </button>
           <button
             onClick={onDelete}
             data-tooltip="Удалить персонажа навсегда"
-            className="p-2 rounded-lg text-red-400 bg-red-500/10 hover:bg-red-600 hover:text-white border border-red-500/30 transition-all duration-150 active:scale-95 flex items-center justify-center flex-shrink-0"
+            className="w-full bg-red-500/15 text-red-400 border border-red-500/40 hover:bg-red-600 hover:text-white font-bold py-2 px-2 rounded-lg transition-all shadow active:scale-95 text-xs sm:text-sm truncate flex items-center justify-center gap-1"
             aria-label="Удалить персонажа"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
             </svg>
+            <span>Удалить</span>
           </button>
         </div>
       </div>

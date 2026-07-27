@@ -151,7 +151,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
             })}
              <button
               onClick={onCreateCharacter}
-              className="group aspect-[4/5] bg-[var(--color-surface-opaque)] rounded-xl shadow-lg border-2 border-dashed border-[var(--color-border)] flex flex-col items-center justify-center text-[var(--color-text-muted)] hover:border-[var(--color-accent-primary)] hover:text-[var(--color-accent-primary)] transition-all duration-300"
+              className="group min-h-[380px] h-full bg-[var(--color-surface-opaque)] rounded-xl shadow-lg border-2 border-dashed border-[var(--color-border)] flex flex-col items-center justify-center text-[var(--color-text-muted)] hover:border-[var(--color-accent-primary)] hover:text-[var(--color-accent-primary)] transition-all duration-300"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
