@@ -737,25 +737,68 @@ export const useCharacterManager = (): CharacterManager => {
     dispatch({ type: 'ADD_CHARACTER', payload: { id, character } });
   }, []);
 
-  const deleteCharacter = useCallback((id: string) => {
+  const deleteCharacter = useCallback(async (id: string) => {
+    // 1. Delete from local React state
     dispatch({ type: 'DELETE_CHARACTER', payload: { id } });
-    deleteCharacterApi(id).catch(console.error);
 
-    if (isOwlbear()) {
-      OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
-        type: 'DELETE_CHARACTER_SYNC',
-        id,
-        senderClientId: SESSION_CLIENT_ID
-      }).catch(err => console.warn('[DND Sheet] Delete broadcast failed:', err));
+    // 2. Clear IndexedDB images & LocalStorage for this character
+    try {
+      await imageDb.delete(`char-images/${id}`);
+      const localData = loadFromLocalStorage();
+      delete localData[id];
+      saveToLocalStorage(localData);
+    } catch (err) {
+      console.error('[DND Sheet] Failed to clean local storage on delete:', err);
     }
-    
-    // Explicitly remove from serialization cache
+
+    // 3. Explicitly remove from serialization cache
     if (lastSerializedRef.current[id]) {
       const newCache = { ...lastSerializedRef.current };
       delete newCache[id];
       lastSerializedRef.current = newCache;
     }
-  }, []);
+
+    // 4. Check user role
+    let isGM = false;
+    if (isOwlbear() && typeof OBR !== 'undefined') {
+      try {
+        const role = await OBR.player.getRole();
+        isGM = role === 'GM';
+      } catch (e) {}
+    } else if (typeof window !== 'undefined') {
+      const urlRole = new URLSearchParams(window.location.search).get('userRole');
+      if (urlRole === 'GM') isGM = true;
+    }
+
+    if (isGM) {
+      // IF GM: Deletes ONLY locally on GM's machine. Do NOT broadcast deletion or delete room metadata!
+      console.log(`[DND Sheet] GM deleted character ${id} locally. Room sync & broadcast skipped.`);
+      addNotification('Локальная копия персонажа удалена у ГМа.', 'info');
+    } else {
+      // IF PLAYER: Delete from room metadata and broadcast deletion to GM/room!
+      console.log(`[DND Sheet] Player deleted character ${id}. Deleting room metadata & broadcasting sync to GM...`);
+      deleteCharacterApi(id).catch(console.error);
+
+      if (isOwlbear() && typeof OBR !== 'undefined') {
+        OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
+          type: 'DELETE_CHARACTER_SYNC',
+          id,
+          senderClientId: SESSION_CLIENT_ID
+        }).catch(err => console.warn('[DND Sheet] Delete broadcast failed:', err));
+      }
+
+      // Also send over local bridge for sibling tabs
+      try {
+        localBridge.postMessage({
+          type: 'DELETE_CHARACTER_SYNC',
+          id,
+          senderClientId: SESSION_CLIENT_ID
+        });
+      } catch (e) {}
+
+      addNotification('Персонаж полностью удален.', 'info');
+    }
+  }, [addNotification]);
 
   const updateCharacter = useCallback((id: string, action: CharacterAction) => {
     const actionWithId = {
