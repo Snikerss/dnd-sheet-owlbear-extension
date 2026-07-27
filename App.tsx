@@ -206,12 +206,9 @@ const AppContent: React.FC = () => {
   const handleDeleteCharacter = useCallback((id: string) => {
     const characterToDelete = characters[id]?.history.present;
     if (characterToDelete) {
-      if (characterToDelete.ownerId && userId && characterToDelete.ownerId !== userId) {
-        return;
-      }
       setCharacterPendingDeletion({ id, name: characterToDelete.name });
     }
-  }, [characters, userId]);
+  }, [characters]);
 
   const handleDuplicateCharacter = useCallback((id: string) => {
     const characterToCopy = characters[id]?.history.present;
@@ -366,6 +363,7 @@ const AppContent: React.FC = () => {
               isReadOnly={!!isReadOnly}
               onSyncCharacter={() => syncCharacter(activeCharacterId)}
               onClearLocalCache={() => clearLocalCache(activeCharacterId)}
+              onDeleteCharacter={() => handleDeleteCharacter(activeCharacterId)}
               isGM={isGM}
             />
         </CharacterProvider>

@@ -47,6 +47,7 @@ interface CharacterSheetProps {
     isReadOnly?: boolean;
     onSyncCharacter?: () => void;
     onClearLocalCache?: () => void;
+    onDeleteCharacter?: () => void;
     isGM?: boolean;
 }
 
@@ -60,6 +61,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
     isReadOnly = false,
     onSyncCharacter,
     onClearLocalCache,
+    onDeleteCharacter,
     isGM = true,
 }) => {
     // --- CONTEXT HOOKS ---
@@ -914,6 +916,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                     onOpenHistoryLog={onOpenHistoryLog}
                     onSync={onSyncCharacter}
                     onClearCache={onClearLocalCache}
+                    onDeleteCharacter={onDeleteCharacter}
                     isGM={isGM}
                 />
 
@@ -1222,9 +1225,9 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                         setIsEditingTabs={setIsEditingTabs}
                         tabNames={{
                             stats: 'Характеристики',
-                            combat: 'Бой и Здоровье',
+                            combat: 'Бой',
                             inventory: 'Инвентарь',
-                            features: 'Умения и Способности',
+                            features: 'Умения',
                             notes: 'Заметки'
                         }}
                         draggedTab={draggedTabIndex !== null && tabOrder[draggedTabIndex] ? tabOrder[draggedTabIndex]! : null}
