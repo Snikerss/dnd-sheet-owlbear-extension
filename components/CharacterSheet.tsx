@@ -7,6 +7,8 @@ import { ExperienceBar } from './ExperienceBar';
 import { RollToast } from './RollToast';
 import { LevelUpModal } from './LevelUpModal';
 import { DiceRollerModal } from './DiceRollerModal';
+import { SheetModalManager } from './SheetModalManager';
+import { SheetTabNavigation } from './SheetTabNavigation';
 
 import { Inventory } from './Inventory';
 import { ItemDetailModal } from './ItemDetailModal';
@@ -826,94 +828,47 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                 hitDie={character.hitDie}
                 conModifier={abilityModifiers[Ability.CON]}
             />
-            <div className={isReadOnly ? 'is-readonly' : ''}>
-                {editingSlot && (
-                    <ItemDetailModal
-                        character={character}
-                        isOpen={!!editingSlot}
-                        onClose={() => setEditingSlot(null)}
-                        item={itemToEdit}
-                        onSave={handleSaveItem}
-                        onDelete={handleDeleteItem}
-                        customIcons={customIcons}
-                        onAddCustomIcon={handleAddCustomIcon}
-                        onDeleteCustomIcon={handleDeleteCustomIcon}
-                    />
-                )}
-                {isFeatureModalOpen && (
-                    <FeatureDetailModal
-                        isOpen={isFeatureModalOpen}
-                        onClose={() => { setEditingFeature(null); setIsNewFeature(false); setTargetGroupId(null); }}
-                        feature={featureToEdit}
-                        onSave={handleSaveFeature}
-                        onDelete={handleDeleteFeature}
-                        groups={character.featureGroups || []}
-                        initialGroupId={featureToEdit ? (character.featureGroups || []).find(g => g.featureIds.includes(featureToEdit.id))?.id || 'default' : targetGroupId || (character.featureGroups && character.featureGroups[0]?.id) || 'default'}
-                    />
-                )}
-                {isAttackModalOpen && (
-                    <AttackDetailModal
-                        isOpen={isAttackModalOpen}
-                        onClose={() => { setEditingAttack(null); setIsNewAttack(false); }}
-                        attack={attackToEdit}
-                        onSave={handleSaveAttack}
-                        onDelete={handleDeleteAttack}
-                        customIcons={customIcons}
-                        onAddCustomIcon={handleAddCustomIcon}
-                        onDeleteCustomIcon={handleDeleteCustomIcon}
-                    />
-                )}
-                {isSpellModalOpen && (
-                    <SpellDetailModal
-                        isOpen={isSpellModalOpen}
-                        onClose={() => { setEditingSpell(null); setIsNewSpell(false); }}
-                        spell={spellToEdit}
-                        onSave={handleSaveSpell}
-                        onDelete={handleDeleteSpell}
-                        customIcons={customIcons}
-                        onAddCustomIcon={handleAddCustomIcon}
-                        onDeleteCustomIcon={handleDeleteCustomIcon}
-                    />
-                )}
-                {viewingChestItem && (
-                    <ChestViewModal
-                        isOpen={!!viewingChestItem}
-                        onClose={() => setViewingChestId(null)}
-                        chestItem={viewingChestItem}
-                        onSlotClick={(index) => setEditingSlot({ container: 'chest', index, chestId: viewingChestItem.id })}
-                        draggedItemInfo={draggedItemInfo}
-                        onItemDragStart={(index) => setDraggedItemInfo({ container: 'chest', index, chestId: viewingChestItem.id })}
-                        onItemDrop={handleItemDrop}
-                        onItemDragEnd={handleDragEnd}
-                    />
-                )}
-            </div>
-
-            {overAttunedItem && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-fade-in">
-                    <div className="bg-[var(--color-surface-opaque)] rounded-xl shadow-2xl p-6 m-4 w-full max-w-md border border-[var(--color-border)] text-center">
-                        <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 mb-4">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                        </div>
-                        <h3 className="text-lg font-bold text-[var(--color-text-base)] mb-2">Превышен лимит настройки!</h3>
-                        <p className="text-sm text-[var(--color-text-medium)] mb-4">
-                            Максимальное количество настроенных предметов снизилось. Настройка с предмета <strong>{overAttunedItem.name}</strong> будет снята.
-                        </p>
-                        {overAttunedItem.imageUrl && (
-                            <div className="w-20 h-20 mx-auto mb-4 rounded-lg overflow-hidden border border-[var(--color-border-subtle)] shadow-inner">
-                                <img src={overAttunedItem.imageUrl} alt={overAttunedItem.name} className="w-full h-full object-cover" />
-                            </div>
-                        )}
-                        <button
-                            onClick={handleConfirmOverAttunementRemoval}
-                            className="w-full justify-center rounded-lg border border-transparent shadow-md px-4 py-2 bg-[var(--color-health)] text-base font-semibold text-white hover:bg-red-600 focus:outline-none transition-all duration-150 active:scale-95"
-                        >
-                            Хорошо (Снять настройку)
-                        </button>
-                    </div>
-                </div>
+            <SheetModalManager
+                character={character}
+                editingItem={itemToEdit}
+                editingSlot={editingSlot}
+                setEditingSlot={setEditingSlot}
+                handleSaveItem={handleSaveItem}
+                handleDeleteItem={handleDeleteItem}
+                editingAttack={editingAttack}
+                setEditingAttack={setEditingAttack}
+                isNewAttack={isNewAttack}
+                setIsNewAttack={setIsNewAttack}
+                handleSaveAttack={handleSaveAttack}
+                handleDeleteAttack={handleDeleteAttack}
+                editingSpell={editingSpell}
+                setEditingSpell={setEditingSpell}
+                isNewSpell={isNewSpell}
+                setIsNewSpell={setIsNewSpell}
+                handleSaveSpell={handleSaveSpell}
+                handleDeleteSpell={handleDeleteSpell}
+                viewingChestItem={viewingChestItem}
+                setViewingChestId={setViewingChestId}
+                draggedItemInfo={draggedItemInfo}
+                setDraggedItemInfo={setDraggedItemInfo}
+                handleItemDrop={handleItemDrop}
+                handleDragEnd={handleDragEnd}
+                overAttunedItem={overAttunedItem}
+                handleConfirmOverAttunementRemoval={handleConfirmOverAttunementRemoval}
+                customIcons={customIcons}
+                handleAddCustomIcon={handleAddCustomIcon}
+                handleDeleteCustomIcon={handleDeleteCustomIcon}
+            />
+            {isFeatureModalOpen && (
+                <FeatureDetailModal
+                    isOpen={isFeatureModalOpen}
+                    onClose={() => { setEditingFeature(null); setIsNewFeature(false); setTargetGroupId(null); }}
+                    feature={featureToEdit}
+                    onSave={handleSaveFeature}
+                    onDelete={handleDeleteFeature}
+                    groups={character.featureGroups || []}
+                    initialGroupId={featureToEdit ? (character.featureGroups || []).find(g => g.featureIds.includes(featureToEdit.id))?.id || 'default' : targetGroupId || (character.featureGroups && character.featureGroups[0]?.id) || 'default'}
+                />
             )}
 
             {/* Global Dice Roller FAB */}
@@ -1256,133 +1211,44 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
 
                 {/* Bottom Tabs Section (Full Width) */}
                 <div className="space-y-6 min-w-0">
-                        {/* Tabs Selector / Header Toolbar */}
-                        {currentViewMode === 'tabs' ? (
-                            <div className={`flex items-center border-b border-[var(--color-border)] pb-2 overflow-x-auto scrollbar-none gap-2 select-none justify-between w-full ${isEditingTabs ? 'border-dashed border-teal-500/50' : ''}`}>
-                                <div className="flex items-center gap-2 overflow-x-auto scrollbar-none flex-grow">
-                                    {tabOrder.map((tabId, index) => {
-                                        const label = tabLabels[tabId];
-                                        const isDragOver = dragOverTabIndex === index;
-                                        const isDragged = draggedTabIndex === index;
-                                        
-                                        return (
-                                            <div
-                                                key={tabId}
-                                                draggable={isEditingTabs}
-                                                onDragStart={(e) => {
-                                                    if (!isEditingTabs) return;
-                                                    setDraggedTabIndex(index);
-                                                    e.dataTransfer.effectAllowed = 'move';
-                                                    e.dataTransfer.setData('text/plain', index.toString());
-                                                }}
-                                                onDragEnd={() => {
-                                                    setDraggedTabIndex(null);
-                                                    setDragOverTabIndex(null);
-                                                }}
-                                                onDragOver={(e) => {
-                                                    if (!isEditingTabs) return;
-                                                    e.preventDefault();
-                                                }}
-                                                onDragEnter={() => {
-                                                    if (!isEditingTabs) return;
-                                                    setDragOverTabIndex(index);
-                                                }}
-                                                onDrop={(e) => {
-                                                    if (!isEditingTabs) return;
-                                                    e.preventDefault();
-                                                    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
-                                                    if (!isNaN(fromIndex)) {
-                                                        handleTabReorder(fromIndex, index);
-                                                    }
-                                                }}
-                                                className={`flex items-center gap-1.5 transition-all duration-200 rounded-lg ${
-                                                    isEditingTabs 
-                                                        ? 'border border-dashed border-[var(--color-border)] px-2 py-1 bg-[var(--color-surface-well)]/30 hover:bg-[var(--color-surface-well)]/65' 
-                                                        : ''
-                                                } ${isDragOver ? 'border-teal-500 bg-teal-500/10 scale-105' : ''} ${
-                                                    isDragged ? 'opacity-40' : ''
-                                                }`}
-                                            >
-                                                {isEditingTabs && (
-                                                    <div 
-                                                        className="cursor-grab active:cursor-grabbing p-0.5 text-[var(--color-text-muted)] hover:text-teal-400"
-                                                        data-tooltip="Перетащите для изменения порядка"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                                                            <path d="M7 6a1 1 0 100-2 1 1 0 000 2zM7 11a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 100-2 1 1 0 000 2zM13 6a1 1 0 100-2 1 1 0 000 2zM13 11a1 1 0 100-2 1 1 0 000 2zM13 16a1 1 0 100-2 1 1 0 000 2z" />
-                                                        </svg>
-                                                    </div>
-                                                )}
-
-                                                {isEditingTabs && (
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); moveTab(index, 'left'); }}
-                                                        disabled={index === 0}
-                                                        className="p-0.5 rounded text-[var(--color-text-muted)] hover:text-teal-400 disabled:opacity-20 disabled:hover:text-[var(--color-text-muted)] transition-colors"
-                                                        data-tooltip="Переместить влево"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-                                                        </svg>
-                                                    </button>
-                                                )}
-
-                                                <button
-                                                    onClick={() => {
-                                                        if (!isEditingTabs) {
-                                                            setActiveTab(tabId as any);
-                                                        }
-                                                    }}
-                                                    disabled={isEditingTabs}
-                                                    data-tooltip={
-                                                        tabId === 'stats' ? "Раздел: Характеристики" :
-                                                        tabId === 'combat' ? "Раздел: Бой и Здоровье" :
-                                                        tabId === 'inventory' ? "Раздел: Инвентарь" :
-                                                        tabId === 'features' ? "Раздел: Умения и Способности" :
-                                                        tabId === 'notes' ? "Раздел: Заметки" : undefined
-                                                    }
-                                                    className={`tab-button px-3 py-1.5 text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
-                                                        isEditingTabs 
-                                                            ? 'text-[var(--color-text-base)] cursor-default' 
-                                                            : activeTab === tabId
-                                                                ? 'border-b-2 border-[var(--color-accent-primary)] text-[var(--color-accent-primary)] drop-shadow-[0_0_8px_var(--color-accent-primary-light)]'
-                                                                : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-medium)]'
-                                                    }`}
-                                                >
-                                                    {label}
-                                                </button>
-
-                                                {isEditingTabs && (
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); moveTab(index, 'right'); }}
-                                                        disabled={index === tabOrder.length - 1}
-                                                        className="p-0.5 rounded text-[var(--color-text-muted)] hover:text-teal-400 disabled:opacity-20 disabled:hover:text-[var(--color-text-muted)] transition-colors"
-                                                        data-tooltip="Переместить вправо"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                                                        </svg>
-                                                    </button>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                                {renderControlsBarRight()}
-                            </div>
-                        ) : (
-                            <div className={`flex items-center border-b border-[var(--color-border)] pb-2 select-none justify-between w-full ${isEditingTabs ? 'border-dashed border-teal-500/50' : ''}`}>
-                                <div className="flex items-center gap-2 flex-grow">
-                                    <span className="text-sm font-bold uppercase tracking-wider text-[var(--color-accent-primary)]">Разделы листа персонажа</span>
-                                    {isEditingTabs && (
-                                        <span className="text-[10px] text-[var(--color-text-muted)] italic font-semibold ml-2">
-                                            (Перетаскивайте заголовки или используйте ▲ / ▼ для изменения порядка)
-                                        </span>
-                                    )}
-                                </div>
-                                {renderControlsBarRight()}
-                            </div>
-                        )}
+                    <SheetTabNavigation
+                        character={character}
+                        activeTab={activeTab}
+                        setActiveTab={(t) => setActiveTab(t as any)}
+                        isEditingTabs={isEditingTabs}
+                        setIsEditingTabs={setIsEditingTabs}
+                        tabNames={{
+                            stats: 'Характеристики',
+                            combat: 'Бой',
+                            inventory: 'Инвентарь',
+                            features: 'Умения',
+                            notes: 'Заметки'
+                        }}
+                        tabIcons={{
+                            stats: <span>📊</span>,
+                            combat: <span>⚔️</span>,
+                            inventory: <span>🎒</span>,
+                            features: <span>✨</span>,
+                            notes: <span>📜</span>
+                        }}
+                        draggedTab={draggedTabIndex !== null && tabOrder[draggedTabIndex] ? tabOrder[draggedTabIndex]! : null}
+                        handleTabDragStart={(e, tab) => {
+                            const idx = tabOrder.indexOf(tab as any);
+                            if (idx !== -1) setDraggedTabIndex(idx);
+                        }}
+                        handleTabDragOver={(e) => e.preventDefault()}
+                        handleTabDrop={(e, targetTab) => {
+                            const targetIdx = tabOrder.indexOf(targetTab as any);
+                            if (draggedTabIndex !== null && targetIdx !== -1) {
+                                handleTabReorder(draggedTabIndex, targetIdx);
+                            }
+                        }}
+                        handleTabDragEnd={() => {
+                            setDraggedTabIndex(null);
+                            setDragOverTabIndex(null);
+                        }}
+                        dispatch={dispatch}
+                    />
 
                         {/* Tabs Layout Rendering */}
                         {currentViewMode === 'tabs' && renderTabContent(activeTab)}
