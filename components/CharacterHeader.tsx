@@ -202,7 +202,7 @@ export const CharacterHeader: React.FC<CharacterHeaderProps> = React.memo(({
                         </svg>
                     </button>
                   )}
-                  {onDeleteCharacter && (
+                  {onDeleteCharacter && (isGM || !character.ownerId || !myPlayerId || character.ownerId === myPlayerId) && (
                     <button 
                       onClick={onDeleteCharacter} 
                       className="h-[50px] w-12 flex items-center justify-center bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-600 hover:text-white rounded-lg transition-colors active:scale-95" 

@@ -7,12 +7,13 @@ import { HistoryLogModal } from './components/HistoryLogModal';
 import { CharacterAction, Character, LogEntry } from './types';
 import { useCharacterManager } from './state/useCharacterManager';
 import { defaultCharacterState } from './state/defaultCharacterState';
-import { NotificationProvider } from './context/NotificationContext';
+import { NotificationProvider, useNotifier } from './context/NotificationContext';
 import { CharacterProvider } from './context/CharacterContext';
 import { generateUUID } from './utils/uuid';
 import { isOwlbear, encodeBase64Sync } from './utils/storage';
 
 const AppContent: React.FC = () => {
+  const { addNotification } = useNotifier();
   const { characters, isLoading, syncingCharacters, addCharacter, deleteCharacter, updateCharacter, undo, redo, syncCharacter, clearLocalCache } = useCharacterManager();
   
   const [activeCharacterId, setActiveCharacterId] = useState<string | null>(() => {
@@ -205,10 +206,19 @@ const AppContent: React.FC = () => {
 
   const handleDeleteCharacter = useCallback((id: string) => {
     const characterToDelete = characters[id]?.history.present;
-    if (characterToDelete) {
-      setCharacterPendingDeletion({ id, name: characterToDelete.name });
+    if (!characterToDelete) return;
+
+    const myId = userId || (isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '');
+    const isGM = userRole === 'GM' || !isOwlbear();
+    const isOwner = isGM || !characterToDelete.ownerId || !myId || characterToDelete.ownerId === myId;
+
+    if (!isOwner) {
+      addNotification('Вы не можете удалить персонажа, принадлежащего другому игроку.', 'error');
+      return;
     }
-  }, [characters]);
+
+    setCharacterPendingDeletion({ id, name: characterToDelete.name });
+  }, [characters, userId, userRole, addNotification]);
 
   const handleDuplicateCharacter = useCallback((id: string) => {
     const characterToCopy = characters[id]?.history.present;

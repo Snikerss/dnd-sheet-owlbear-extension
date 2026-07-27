@@ -738,6 +738,31 @@ export const useCharacterManager = (): CharacterManager => {
   }, []);
 
   const deleteCharacter = useCallback(async (id: string) => {
+    const charEntry = charactersStateRef.current[id];
+    const fullChar = charEntry?.history.present;
+    
+    // Check user role & player ID
+    let isGM = false;
+    let myId = '';
+    if (isOwlbear() && typeof OBR !== 'undefined') {
+      try {
+        const role = await OBR.player.getRole();
+        isGM = role === 'GM';
+        myId = OBR.player.id;
+      } catch (e) {}
+    } else if (typeof window !== 'undefined') {
+      const urlRole = new URLSearchParams(window.location.search).get('userRole');
+      if (urlRole === 'GM') isGM = true;
+      myId = new URLSearchParams(window.location.search).get('userId') || '';
+    }
+
+    const isOwner = isGM || !fullChar?.ownerId || !myId || fullChar.ownerId === myId;
+    if (!isOwner) {
+      console.warn('[DND Sheet] Blocked deleteCharacter for unowned character:', id);
+      addNotification('Вы не можете удалить персонажа, принадлежащего другому игроку.', 'error');
+      return;
+    }
+
     // 1. Delete from local React state
     dispatch({ type: 'DELETE_CHARACTER', payload: { id } });
 
@@ -756,18 +781,6 @@ export const useCharacterManager = (): CharacterManager => {
       const newCache = { ...lastSerializedRef.current };
       delete newCache[id];
       lastSerializedRef.current = newCache;
-    }
-
-    // 4. Check user role
-    let isGM = false;
-    if (isOwlbear() && typeof OBR !== 'undefined') {
-      try {
-        const role = await OBR.player.getRole();
-        isGM = role === 'GM';
-      } catch (e) {}
-    } else if (typeof window !== 'undefined') {
-      const urlRole = new URLSearchParams(window.location.search).get('userRole');
-      if (urlRole === 'GM') isGM = true;
     }
 
     if (isGM) {

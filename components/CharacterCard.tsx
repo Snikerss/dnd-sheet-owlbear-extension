@@ -17,8 +17,23 @@ interface CharacterCardProps {
   isGM?: boolean;
 }
 
-export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ character, onSelect, onDuplicate, onDelete, onExport, onOpenStandalone, onSync, onClearCache, isSyncing = false, pendingImagesCount = 0, currentUserId, isGM = true }) => {
+export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
+  character,
+  onSelect,
+  onDuplicate,
+  onDelete,
+  onExport,
+  onOpenStandalone,
+  onSync,
+  onClearCache,
+  isSyncing = false,
+  pendingImagesCount = 0,
+  currentUserId,
+  isGM = true
+}) => {
   const { addNotification } = useNotifier();
+
+  const canDelete = isGM || !character.ownerId || !currentUserId || character.ownerId === currentUserId;
 
   const handleOpenClick = () => {
     if (onOpenStandalone) {
@@ -27,6 +42,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
       addNotification("Открываем лист персонажа в новой вкладке. Если окно заблокировано, разрешите всплывающие окна для сайта.", 'info');
     }
   };
+
   return (
     <div className="relative min-h-[380px] h-full bg-[var(--color-surface-opaque)] rounded-xl shadow-lg border border-[var(--color-border)] overflow-hidden transition-all duration-300 hover:shadow-2xl hover:border-[var(--color-border-hover)] flex flex-col justify-between">
       {isSyncing && (
@@ -127,25 +143,27 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({ charact
             )}
         </div>
 
-        {/* Row 2: Equal 50/50 split Select & Delete buttons */}
-        <div className="grid grid-cols-2 gap-2 w-full pt-1">
+        {/* Row 2: Select & Delete buttons */}
+        <div className={`w-full pt-1 ${canDelete ? 'grid grid-cols-2 gap-2' : 'flex items-center'}`}>
           <button
             onClick={onSelect}
             className="w-full bg-[var(--color-accent-primary)] text-white font-bold py-2 px-2 rounded-lg hover:bg-[var(--color-accent-primary-hover)] transition-all shadow active:scale-95 text-xs sm:text-sm truncate flex items-center justify-center gap-1"
           >
             <span>Выбрать</span>
           </button>
-          <button
-            onClick={onDelete}
-            data-tooltip="Удалить персонажа навсегда"
-            className="w-full bg-red-500/15 text-red-400 border border-red-500/40 hover:bg-red-600 hover:text-white font-bold py-2 px-2 rounded-lg transition-all shadow active:scale-95 text-xs sm:text-sm truncate flex items-center justify-center gap-1"
-            aria-label="Удалить персонажа"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-            <span>Удалить</span>
-          </button>
+          {canDelete && (
+            <button
+              onClick={onDelete}
+              data-tooltip="Удалить персонажа навсегда"
+              className="w-full bg-red-500/15 text-red-400 border border-red-500/40 hover:bg-red-600 hover:text-white font-bold py-2 px-2 rounded-lg transition-all shadow active:scale-95 text-xs sm:text-sm truncate flex items-center justify-center gap-1"
+              aria-label="Удалить персонажа"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <span>Удалить</span>
+            </button>
+          )}
         </div>
       </div>
     </div>
