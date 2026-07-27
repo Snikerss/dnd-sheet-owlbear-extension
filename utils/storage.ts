@@ -109,13 +109,6 @@ export function minifyCharacter(char: Character): any {
   });
   if (inv.length > 0) min.inv = inv;
 
-  // Attunement items: store only non-null items with index
-  const att: any[] = [];
-  char.attunementItems.forEach((item, index) => {
-    if (item) att.push({ index, item });
-  });
-  if (att.length > 0) min.att = att;
-
   // Currency: only non-zero
   const cur: Record<string, number> = {};
   for (const [coin, amount] of Object.entries(char.currency)) {
@@ -251,16 +244,6 @@ export function unminifyCharacter(min: any): Character {
     for (const entry of min.inv) {
       if (entry && entry.index >= 0 && entry.index < invSize) {
         char.inventory[entry.index] = entry.item;
-      }
-    }
-  }
-
-  // Attunement items
-  char.attunementItems = Array(char.attunementSlots).fill(null);
-  if (Array.isArray(min.att)) {
-    for (const entry of min.att) {
-      if (entry && entry.index >= 0 && entry.index < char.attunementSlots) {
-        char.attunementItems[entry.index] = entry.item;
       }
     }
   }

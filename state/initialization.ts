@@ -276,7 +276,7 @@ export const migrateCharacterData = (characterData: any): any => {
                 }
             });
         }
-        migrated.attunementItems = [];
+        delete migrated.attunementItems;
     }
 
     return migrated;
@@ -514,7 +514,6 @@ export const isCharacter = (data: any): data is Character => {
 
     const hasValidArrays = 
         Array.isArray(data.inventory) &&
-        Array.isArray(data.attunementItems) &&
         Array.isArray(data.features) &&
         Array.isArray(data.attacks) &&
         Array.isArray(data.spells) &&
@@ -526,13 +525,12 @@ export const isCharacter = (data: any): data is Character => {
     }
 
     const isInventoryValid = data.inventory.every((item: any) => item === null || isInventoryItem(item));
-    const isAttunementValid = data.attunementItems.every((item: any) => item === null || isInventoryItem(item));
     const areFeaturesValid = data.features.every(isFeature);
     const areAttacksValid = data.attacks.every(isAttack);
     const areSpellsValid = data.spells.every(isSpell);
     const areNotesValid = data.notes.every(isNote);
 
-    if (!isInventoryValid || !isAttunementValid || !areFeaturesValid || !areAttacksValid || !areSpellsValid || !areNotesValid) {
+    if (!isInventoryValid || !areFeaturesValid || !areAttacksValid || !areSpellsValid || !areNotesValid) {
         console.warn('[DND Sheet] isCharacter failed arrays content validations.', {
             isInventoryValid, isAttunementValid, areFeaturesValid, areAttacksValid, areSpellsValid, areNotesValid
         });

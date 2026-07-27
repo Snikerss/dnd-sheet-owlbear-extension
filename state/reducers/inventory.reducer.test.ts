@@ -20,15 +20,14 @@ const makeItem = (id: string, overrides: Partial<InventoryItem> = {}): Inventory
 
 describe('inventoryReducer — SET_ATTUNEMENT_SLOTS', () => {
     it('уменьшает количество слотов настроек', () => {
-        const char = makeTestCharacter({ attunementSlots: 3, attunementItems: [null, null, null] });
+        const char = makeTestCharacter({ attunementSlots: 3 });
         const action: CharacterAction = { type: 'SET_ATTUNEMENT_SLOTS', payload: 1 };
         const result = inventoryReducer(char, action);
         expect(result.attunementSlots).toBe(1);
-        expect(result.attunementItems).toHaveLength(1);
     });
 
     it('не уходит в минус', () => {
-        const char = makeTestCharacter({ attunementSlots: 3, attunementItems: [null, null, null] });
+        const char = makeTestCharacter({ attunementSlots: 3 });
         const action: CharacterAction = { type: 'SET_ATTUNEMENT_SLOTS', payload: -5 };
         const result = inventoryReducer(char, action);
         expect(result.attunementSlots).toBe(0);

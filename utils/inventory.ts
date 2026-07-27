@@ -49,11 +49,14 @@ export const getEquippedItemBonuses = (character: Character) => {
     attunementMax: 0,
   };
 
-  const processItem = (item: InventoryItem | null) => {
-    if (item && item.isEquipped && item.bonuses) {
+  const processItem = (item: InventoryItem | null, isImplicitlyEquipped = false) => {
+    if (item && (item.isEquipped || isImplicitlyEquipped) && item.bonuses) {
       if (item.bonuses.ac) bonuses.ac += parseInt(item.bonuses.ac as any, 10) || 0;
       if (item.bonuses.initiative) bonuses.initiative += parseInt(item.bonuses.initiative as any, 10) || 0;
-      if (item.bonuses.attackHit) bonuses.attackHit += parseInt(item.bonuses.attackHit as any, 10) || 0;
+      if (item.bonuses.attackHit) {
+        const val = parseInt(item.bonuses.attackHit as any, 10);
+        if (!isNaN(val)) bonuses.attackHit += val;
+      }
       if (item.bonuses.speed) bonuses.speed += parseInt(item.bonuses.speed as any, 10) || 0;
       if (item.bonuses.longJump) bonuses.longJump += parseInt(item.bonuses.longJump as any, 10) || 0;
       if (item.bonuses.highJump) bonuses.highJump += parseInt(item.bonuses.highJump as any, 10) || 0;
@@ -87,11 +90,11 @@ export const getEquippedItemBonuses = (character: Character) => {
   };
 
   if (character.inventory) {
-    character.inventory.forEach(processItem);
+    character.inventory.forEach(item => processItem(item, false));
   }
 
   if (character.equippedItems) {
-    character.equippedItems.forEach(processItem);
+    character.equippedItems.forEach(item => processItem(item, true));
   }
 
   return bonuses;

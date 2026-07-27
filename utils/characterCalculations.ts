@@ -15,10 +15,10 @@ export const calculateModifier = (score: number): number => Math.floor((score - 
 export const calculateProficiencyBonus = (level: number): number => Math.floor((level - 1) / 4) + 2;
 
 /**
- * Пересчитывает максимальное количество очков здоровья на основе уровня, кости здоровья и телосложения.
+ * Пересчитывает максимальное количество очков здоровья на основе уровня, кости здоровья и эффективного телосложения.
  * @param level Уровень персонажа.
  * @param hitDie Кость здоровья класса (d6, d8, d10, d12).
- * @param conScore Значение характеристики Телосложение.
+ * @param conScore Эффективное значение характеристики Телосложение (с учетом бонусов предметов и умений).
  * @returns Рассчитанное максимальное количество ОЗ.
  */
 export const recalculateMaxHp = (level: number, hitDie: HitDie, conScore: number): number => {

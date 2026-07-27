@@ -59,7 +59,6 @@ export const defaultCharacterState: Character = {
     [Ability.INT]: 0, [Ability.WIS]: 0, [Ability.CHA]: 0,
   },
   attunementSlots: 3,
-  attunementItems: [null, null, null],
   inventoryRows: 5,
   inventory: Array(50).fill(null),
   equippedItems: [],

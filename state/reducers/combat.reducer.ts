@@ -72,7 +72,6 @@ export const combatReducer = (state: Character, action: CharacterAction): Charac
                     return feature;
                 }),
                 inventory: recoverItemCharges(state.inventory, [RecoveryType.ShortRest, RecoveryType.ShortOrLongRest]),
-                attunementItems: recoverItemCharges(state.attunementItems, [RecoveryType.ShortRest, RecoveryType.ShortOrLongRest]),
             };
         }
 
@@ -97,7 +96,6 @@ export const combatReducer = (state: Character, action: CharacterAction): Charac
                     return feature;
                 }),
                 inventory: recoverItemCharges(state.inventory, [RecoveryType.LongRest, RecoveryType.ShortOrLongRest]),
-                attunementItems: recoverItemCharges(state.attunementItems, [RecoveryType.LongRest, RecoveryType.ShortOrLongRest]),
                 spellSlots: newSpellSlots,
             };
         }

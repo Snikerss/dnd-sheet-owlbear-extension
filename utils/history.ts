@@ -106,9 +106,8 @@ export const generateActionDescription = (action: CharacterAction, oldState: Cha
             
             let oldItem: InventoryItem | null | undefined = null;
             if (location.container === 'inventory') oldItem = oldState.inventory[location.index];
-            else if (location.container === 'attunement') oldItem = oldState.attunementItems[location.index];
             else if (location.container === 'chest' && location.chestId) {
-                const chest = [...oldState.inventory, ...oldState.attunementItems].find(i => i?.id === location.chestId);
+                const chest = oldState.inventory.find(i => i?.id === location.chestId);
                 if (chest?.isChest && chest.chestInventory) {
                     oldItem = chest.chestInventory[location.index];
                 }
@@ -128,9 +127,8 @@ export const generateActionDescription = (action: CharacterAction, oldState: Cha
             const { source } = action.payload;
             let sourceList: (any | null)[] | undefined = undefined;
             if (source.container === 'inventory') sourceList = oldState.inventory;
-            else if (source.container === 'attunement') sourceList = oldState.attunementItems;
             else if (source.container === 'chest' && source.chestId) {
-                const chest = [...oldState.inventory, ...oldState.attunementItems].find(i => i?.id === source.chestId);
+                const chest = oldState.inventory.find(i => i?.id === source.chestId);
                 sourceList = chest?.chestInventory;
             }
             const item = sourceList?.[source.index];

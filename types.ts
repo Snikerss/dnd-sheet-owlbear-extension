@@ -168,7 +168,6 @@ export interface Character {
   speedBonus: number;
   savingThrowBonuses: Record<Ability, number>;
   attunementSlots: number;
-  attunementItems: (InventoryItem | null)[];
   inventoryRows: number;
   inventory: (InventoryItem | null)[];
   equippedItems: InventoryItem[];

@@ -82,7 +82,6 @@ export const extractImages = (character: Character): { light: Character; images:
     const hasAnyDataUrl =
         isDataUrl(character.portraitUrl) ||
         character.inventory.some((i) => isDataUrl(i?.imageUrl)) ||
-        character.attunementItems.some((i) => isDataUrl(i?.imageUrl)) ||
         (character.equippedItems || []).some((i) => isDataUrl(i?.imageUrl)) ||
         character.attacks.some((a) => isDataUrl(a.imageUrl)) ||
         character.spells.some((s) => isDataUrl(s.imageUrl));
@@ -102,9 +101,6 @@ export const extractImages = (character: Character): { light: Character; images:
 
     // inventory
     light.inventory = character.inventory.map((item) => processItem(item, images));
-
-    // attunementItems
-    light.attunementItems = character.attunementItems.map((item) => processItem(item, images));
 
     // equippedItems
     light.equippedItems = (character.equippedItems || []).map((item) => processItem(item, images)) as InventoryItem[];
@@ -152,7 +148,6 @@ export const applyImages = (character: Character, images: ImageMap): Character =
     }
 
     full.inventory = character.inventory.map((item) => restoreItem(item, images));
-    full.attunementItems = character.attunementItems.map((item) => restoreItem(item, images));
     full.equippedItems = (character.equippedItems || [])
         .map((item) => restoreItem(item, images))
         .filter((i): i is InventoryItem => i !== null);

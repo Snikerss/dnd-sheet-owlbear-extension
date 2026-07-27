@@ -9,13 +9,14 @@ export const abilitiesReducer = (state: Character, action: CharacterAction): Cha
             const { ability, score } = action.payload;
             const newScores = { ...state.scores, [ability]: score };
             if (ability === Ability.CON) {
-                const oldModifier = Math.floor((state.scores[Ability.CON] - 10) / 2);
-                const newModifier = Math.floor((score - 10) / 2);
+                const equippedBonuses = selectEquippedBonuses(state);
+                const itemConBonus = (equippedBonuses.abilityScores[Ability.CON] || 0) + (state.abilityBonuses[Ability.CON] || 0);
+                const oldModifier = Math.floor(((state.scores[Ability.CON] + itemConBonus) - 10) / 2);
+                const newModifier = Math.floor(((score + itemConBonus) - 10) / 2);
                 const modDiff = newModifier - oldModifier;
                 const hpDiff = modDiff * state.level;
                 
                 const newMaxHP = Math.max(1, state.maxHitPoints + hpDiff);
-                const equippedBonuses = selectEquippedBonuses(state);
                 const newEffectiveMaxHP = newMaxHP + (equippedBonuses.maxHp || 0);
                 const newCurrentHP = Math.max(0, Math.min(newEffectiveMaxHP, state.currentHitPoints + hpDiff));
                 return { ...state, scores: newScores, maxHitPoints: newMaxHP, currentHitPoints: newCurrentHP };

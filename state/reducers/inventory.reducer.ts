@@ -17,9 +17,8 @@ const findItemAndList = (state: Character, location: DropLocation): [ (Inventory
         const equippedList = state.equippedItems || [];
         return [equippedList, equippedList[location.index] ?? null, location.index];
     }
-    if (location.container === 'attunement') return [state.attunementItems, state.attunementItems[location.index] ?? null, location.index];
     if (location.container === 'chest' && location.chestId) {
-       const [list, item] = searchInventories([state.inventory, state.attunementItems, state.equippedItems || []]);
+       const [list, item] = searchInventories([state.inventory, state.equippedItems || []]);
        return [list, item, location.index];
     }
     return [null, null, -1];
@@ -82,14 +81,9 @@ const writeItemAtLocation = (
         }
         return { ...state, equippedItems: newEquipped };
     }
-    if (location.container === 'attunement') {
-        const newAttunement = [...state.attunementItems];
-        newAttunement[location.index] = value;
-        return { ...state, attunementItems: newAttunement };
-    }
     if (location.container === 'chest' && location.chestId) {
         // Обновляем вложенный chestInventory у предмета-сундука.
-        // Сундук может находиться в inventory, attunementItems или equippedItems.
+        // Сундук может находиться в inventory или equippedItems.
         const updateChest = (item: InventoryItem | null): InventoryItem | null => {
             if (item && item.id === location.chestId && item.isChest && item.chestInventory) {
                 const newChest = [...item.chestInventory];
@@ -101,7 +95,6 @@ const writeItemAtLocation = (
         return {
             ...state,
             inventory: state.inventory.map(updateChest),
-            attunementItems: state.attunementItems.map(updateChest),
             equippedItems: (state.equippedItems || []).map(updateChest).filter((x): x is InventoryItem => x !== null),
         };
     }
@@ -112,10 +105,7 @@ export const inventoryReducer = (state: Character, action: CharacterAction): Cha
     switch (action.type) {
         case 'SET_ATTUNEMENT_SLOTS': {
             const newCount = Math.max(0, Math.min(10, action.payload));
-            const newItems = [...state.attunementItems];
-            newItems.length = newCount;
-            for (let i = state.attunementItems.length; i < newCount; i++) { newItems[i] = null; }
-            return { ...state, attunementSlots: newCount, attunementItems: newItems };
+            return { ...state, attunementSlots: newCount };
         }
 
         case 'SET_INVENTORY_ROWS': {
@@ -178,22 +168,6 @@ export const inventoryReducer = (state: Character, action: CharacterAction): Cha
                     return { ...state, inventory: newInventory };
                 }
 
-                // Check attunement items
-                let chestFoundInAttunement = false;
-                const newAttunement = updateItemInArray(state.attunementItems, (item) => {
-                    if (item && item.id === location.chestId && item.isChest && item.chestInventory) {
-                        chestFoundInAttunement = true;
-                        const updatedChestItem = { ...item, chestInventory: [...item.chestInventory] };
-                        updatedChestItem.chestInventory[location.index] = itemData;
-                        return updatedChestItem;
-                    }
-                    return item;
-                });
-
-                if (chestFoundInAttunement) {
-                    return { ...state, attunementItems: newAttunement };
-                }
-
                 // Fallback to equipped items (doll)
                 const newEquipped = updateItemInArray(state.equippedItems || [], (item) => {
                     if (item && item.id === location.chestId && item.isChest && item.chestInventory) {
@@ -216,17 +190,6 @@ export const inventoryReducer = (state: Character, action: CharacterAction): Cha
                 const newInventory = [...state.inventory];
                 newInventory[location.index] = finalItemData;
                 return { ...state, inventory: newInventory };
-            }
-
-            if (location.container === 'attunement') {
-                const originalItem = state.attunementItems[location.index];
-                let finalItemData = itemData;
-                if (originalItem && itemData && originalItem.isAttuned && !itemData.isAttuned && itemData.isEquipped) {
-                    finalItemData = { ...itemData, isEquipped: false };
-                }
-                const newAttunement = [...state.attunementItems];
-                newAttunement[location.index] = finalItemData;
-                return { ...state, attunementItems: newAttunement };
             }
 
             return state;
@@ -314,7 +277,6 @@ export const inventoryReducer = (state: Character, action: CharacterAction): Cha
             return { 
                 ...state, 
                 inventory: state.inventory.map(clearIcon), 
-                attunementItems: state.attunementItems.map(clearIcon),
                 equippedItems: (state.equippedItems || []).map(clearIcon).filter((i): i is InventoryItem => i !== null),
                 attacks: state.attacks.map(attack => {
                     if (attack.imageUrl === iconUrlToDelete) {
@@ -346,7 +308,6 @@ export const inventoryReducer = (state: Character, action: CharacterAction): Cha
             return {
                 ...state,
                 inventory: recoverItemCharges(state.inventory, [RecoveryType.Dawn]),
-                attunementItems: recoverItemCharges(state.attunementItems, [RecoveryType.Dawn]),
                 equippedItems: recoverItemCharges(state.equippedItems || [], [RecoveryType.Dawn]) as InventoryItem[],
             };
         }
