@@ -205,7 +205,7 @@ export const CharacterHeader: React.FC<CharacterHeaderProps> = React.memo(({
                   {onDeleteCharacter && (
                     <button 
                       onClick={onDeleteCharacter} 
-                      className="h-[50px] w-12 flex items-center justify-center bg-[var(--color-surface-raised)] text-[var(--color-text-medium)] hover:text-[var(--color-health)] rounded-lg hover:bg-[var(--color-surface-raised-hover)] transition-colors active:scale-95" 
+                      className="h-[50px] w-12 flex items-center justify-center bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-600 hover:text-white rounded-lg transition-colors active:scale-95" 
                       data-tooltip="Удалить персонажа навсегда" 
                       aria-label="Удалить персонажа навсегда"
                     >

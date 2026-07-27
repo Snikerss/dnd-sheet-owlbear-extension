@@ -290,16 +290,10 @@ const AppContent: React.FC = () => {
 
   // Преобразуем полное состояние персонажей в упрощенный Record<string, Character> для экрана выбора.
   const characterList = useMemo(() => {
-    const rawList = Object.entries(characters).map(([id, data]) => [id, data.history.present] as [string, Character]);
-    
-    if (userId && userRole === 'PLAYER') {
-      // Filter: only show characters owned by the current user, or characters with no owner
-      const filtered = rawList.filter(([_, char]) => !char.ownerId || char.ownerId === userId);
-      return Object.fromEntries(filtered);
-    }
-
-    return Object.fromEntries(rawList);
-  }, [characters, userId, userRole]);
+    return Object.fromEntries(
+      Object.entries(characters).map(([id, data]) => [id, data.history.present] as [string, Character])
+    );
+  }, [characters]);
 
   if (isLoading) {
     return (
