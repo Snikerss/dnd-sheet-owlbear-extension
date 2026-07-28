@@ -101,14 +101,15 @@ export const NotesSection: React.FC = React.memo(() => {
         }
     };
 
-    const toggleGroupCollapse = (groupId: string, e: React.MouseEvent) => {
-        // Prevent collapsing when clicking on inputs/buttons
-        const target = e.target as HTMLElement;
-        if (target.closest('button') || target.closest('input')) {
-            return;
+    const toggleGroupCollapse = useCallback((groupId: string, e?: React.MouseEvent) => {
+        if (e) {
+            const target = e.target as HTMLElement;
+            if (target.closest('button') || target.closest('input')) {
+                return;
+            }
         }
         dispatch({ type: 'TOGGLE_NOTE_GROUP_COLLAPSE', payload: groupId });
-    };
+    }, [dispatch]);
 
     // Note handlers
     const handleAddNoteToGroup = useCallback((groupId: string) => {
@@ -332,18 +333,27 @@ export const NotesSection: React.FC = React.memo(() => {
                                                         </svg>
                                                     </span>
 
-                                                    {/* Collapse chevron */}
-                                                    <span className="text-[var(--color-text-subtle)] flex-shrink-0">
+                                                    {/* Collapse chevron button */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            toggleGroupCollapse(group.id);
+                                                        }}
+                                                        className="text-[var(--color-text-subtle)] hover:text-[var(--color-text-medium)] flex-shrink-0 p-0.5 rounded transition-colors"
+                                                        data-tooltip={isGroupCollapsed ? "Развернуть папку" : "Свернуть папку"}
+                                                        data-tooltip-pos="left"
+                                                    >
                                                         <svg
                                                             xmlns="http://www.w3.org/2000/svg"
-                                                            className={`h-3 w-3 transition-transform duration-200 ${isGroupCollapsed ? '-rotate-90' : ''}`}
+                                                            className={`h-3.5 w-3.5 transition-transform duration-200 ${isGroupCollapsed ? '-rotate-90' : ''}`}
                                                             fill="none"
                                                             viewBox="0 0 24 24"
                                                             stroke="currentColor"
                                                         >
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
                                                         </svg>
-                                                    </span>
+                                                    </button>
 
                                                     {/* Group title input / span */}
                                                     {editingGroupId === group.id ? (
@@ -419,8 +429,8 @@ export const NotesSection: React.FC = React.memo(() => {
                                                             : ''
                                                     }`}
                                                 >
-                                                    {group.noteIds.length > 0 ? (
-                                                        group.noteIds.map((noteId, index) => {
+                                                    {Array.from(new Set(group.noteIds)).length > 0 ? (
+                                                        Array.from(new Set(group.noteIds)).map((noteId, index) => {
                                                             const note = notes.find(n => n.id === noteId);
                                                             if (!note) return null;
 

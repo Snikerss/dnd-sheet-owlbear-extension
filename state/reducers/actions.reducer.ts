@@ -273,12 +273,13 @@ export const actionsReducer = (state: Character, action: CharacterAction): Chara
                 newGroups = [defaultNoteGroup([newNote.id])];
             } else {
                 newGroups = newGroups.map((g, i) => i === 0
-                    ? { ...g, noteIds: [...g.noteIds, newNote.id] }
+                    ? { ...g, noteIds: Array.from(new Set([...g.noteIds, newNote.id])) }
                     : g);
             }
+            const existingNotes = state.notes.filter(n => n.id !== newNote.id);
             return {
                 ...state,
-                notes: [...state.notes, newNote],
+                notes: [...existingNotes, newNote],
                 noteGroups: newGroups,
                 activeNoteId: newNote.id,
             };
@@ -290,10 +291,13 @@ export const actionsReducer = (state: Character, action: CharacterAction): Chara
             let newGroups = currentGroups.length === 0
                 ? [defaultNoteGroup(state.notes.map(n => n.id))]
                 : currentGroups;
-            newGroups = newGroups.map(g => g.id === groupId ? { ...g, noteIds: [...g.noteIds, note.id] } : g);
+            newGroups = newGroups.map(g => g.id === groupId 
+                ? { ...g, noteIds: Array.from(new Set([...g.noteIds, note.id])) } 
+                : g);
+            const existingNotes = state.notes.filter(n => n.id !== note.id);
             return {
                 ...state,
-                notes: [...state.notes, note],
+                notes: [...existingNotes, note],
                 noteGroups: newGroups,
                 activeNoteId: note.id,
             };
@@ -374,13 +378,13 @@ export const actionsReducer = (state: Character, action: CharacterAction): Chara
                 const first = remainingGroups[0]!;
                 remainingGroups[0] = {
                     ...first,
-                    noteIds: [...first.noteIds, ...groupToDelete.noteIds]
+                    noteIds: Array.from(new Set([...first.noteIds, ...groupToDelete.noteIds]))
                 };
             } else {
                 remainingGroups.push({
                     id: 'default',
                     name: 'Мои заметки',
-                    noteIds: groupToDelete.noteIds
+                    noteIds: Array.from(new Set(groupToDelete.noteIds))
                 });
             }
 
@@ -415,7 +419,7 @@ export const actionsReducer = (state: Character, action: CharacterAction): Chara
             // Insert into target group
             groupsToUpdate = groupsToUpdate.map(g => {
                 if (g.id === targetGroupId) {
-                    const newIds = [...g.noteIds];
+                    const newIds = g.noteIds.filter(id => id !== noteId);
                     newIds.splice(targetIndex, 0, noteId);
                     return { ...g, noteIds: newIds };
                 }

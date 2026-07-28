@@ -233,6 +233,24 @@ describe('actionsReducer — NOTES', () => {
         const result = actionsReducer(char, action);
         expect(result.activeNoteId).toBe('n2');
     });
+
+    it('ADD_NOTE_TO_GROUP не дублирует заметку при повторном добавлении', () => {
+        const char = makeTestCharacter({ notes: [makeNote('n1')], noteGroups: [{ id: 'g1', name: 'Папка', noteIds: ['n1'] }] });
+        const action: CharacterAction = { type: 'ADD_NOTE_TO_GROUP', payload: { note: makeNote('n1'), groupId: 'g1' } };
+        const result = actionsReducer(char, action);
+        expect(result.notes).toHaveLength(1);
+        expect(result.noteGroups?.[0].noteIds).toEqual(['n1']);
+    });
+
+    it('TOGGLE_NOTE_GROUP_COLLAPSE сворачивает и разворачивает папку заметок', () => {
+        const char = makeTestCharacter({ noteGroups: [{ id: 'g1', name: 'Папка', isCollapsed: false, noteIds: [] }] });
+        const collapseAction: CharacterAction = { type: 'TOGGLE_NOTE_GROUP_COLLAPSE', payload: 'g1' };
+        const collapsedResult = actionsReducer(char, collapseAction);
+        expect(collapsedResult.noteGroups?.[0].isCollapsed).toBe(true);
+
+        const expandResult = actionsReducer(collapsedResult, collapseAction);
+        expect(expandResult.noteGroups?.[0].isCollapsed).toBe(false);
+    });
 });
 
 describe('actionsReducer — CURRENCY', () => {
