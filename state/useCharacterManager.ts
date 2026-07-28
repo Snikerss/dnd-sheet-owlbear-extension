@@ -854,38 +854,28 @@ export const useCharacterManager = (): CharacterManager => {
     };
 
     dispatch({ type: 'DISPATCH_CHARACTER_ACTION', payload: { id, action: actionWithId } });
-    // Broadcast to local channel for standalone tab syncing
+
+    // Broadcast to local channel for standalone tab syncing using localBridge with senderClientId
     const payload = {
       type: 'CHARACTER_ACTION',
       charId: id,
       action: actionWithId,
+      senderClientId: SESSION_CLIENT_ID,
       senderId: SESSION_CLIENT_ID
     };
-    try {
-      const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
-      channel.postMessage(payload);
-      channel.close();
-    } catch (e) {}
 
-    // Post to parent window (if in standalone window)
-    if (typeof window !== 'undefined') {
-      if ((window as any).sendDndMessageToOpener) {
-        try {
-          (window as any).sendDndMessageToOpener(payload);
-        } catch (e) {}
-      } else if (window.opener) {
-        try {
-          window.opener.postMessage(payload, '*');
-        } catch (e) {}
-      }
-    }
+    try {
+      localBridge.postMessage(payload);
+    } catch (e) {}
 
     // Post to child windows if any (if in VTT window)
     if (typeof window !== 'undefined') {
       const opened = (window as any).__dndOpenedWindows || [];
       opened.forEach((win: any) => {
         if (win && !win.closed) {
-          win.postMessage(payload, '*');
+          try {
+            win.postMessage(payload, '*');
+          } catch (e) {}
         }
       });
     }
@@ -909,15 +899,20 @@ export const useCharacterManager = (): CharacterManager => {
     const unsubscribe = localBridge.subscribe((event) => {
       const payload = event.data;
       const sourceWindow = event.source as Window | undefined;
-      if (!payload) return;
+      if (!payload || typeof payload !== 'object') return;
+
+      const senderId = payload.senderClientId || payload.senderId;
+      if (senderId === SESSION_CLIENT_ID) {
+        return; // Always ignore self messages on the same tab
+      }
 
       if (payload.type === 'CHARACTER_ACTION' && payload.charId && payload.action) {
         const actId = payload.action.actionId || `${payload.action.type}-${JSON.stringify(payload.action.payload)}`;
-        if (localBridge.isDuplicateMessage(actId, 300)) {
+        if (localBridge.isDuplicateMessage(actId, 500)) {
           return;
         }
 
-        console.log('[DND Sheet] Bridge Sync: Syncing action:', payload.action);
+        console.log('[DND Sheet] Bridge Sync: Syncing action from remote tab:', payload.action);
         dispatch({
           type: 'DISPATCH_CHARACTER_ACTION',
           payload: { id: payload.charId, action: payload.action }

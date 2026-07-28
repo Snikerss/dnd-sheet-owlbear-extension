@@ -94,7 +94,8 @@ class LocalBridgeService {
     if (!event.data || typeof event.data !== 'object') return;
     
     // Игнорируем собственные сообщения от той же вкладки
-    if (event.data.senderClientId === SESSION_CLIENT_ID) return;
+    const senderId = event.data.senderClientId || event.data.senderId;
+    if (senderId && senderId === SESSION_CLIENT_ID) return;
 
     this.listeners.forEach((listener) => {
       try {
