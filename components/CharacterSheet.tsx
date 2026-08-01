@@ -48,6 +48,7 @@ interface CharacterSheetProps {
     onSyncCharacter?: () => void;
     onClearLocalCache?: () => void;
     onDeleteCharacter?: () => void;
+    onOpenStandalone?: () => void;
     isGM?: boolean;
 }
 
@@ -62,6 +63,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
     onSyncCharacter,
     onClearLocalCache,
     onDeleteCharacter,
+    onOpenStandalone,
     isGM = true,
 }) => {
     // --- CONTEXT HOOKS ---
@@ -922,6 +924,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                     onSync={onSyncCharacter}
                     onClearCache={onClearLocalCache}
                     onDeleteCharacter={onDeleteCharacter}
+                    onOpenStandalone={onOpenStandalone}
                     isGM={isGM}
                 />
 

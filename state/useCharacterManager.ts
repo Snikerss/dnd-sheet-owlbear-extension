@@ -1009,7 +1009,24 @@ export const useCharacterManager = (): CharacterManager => {
         });
         addNotification('Отправлен запрос на повторную синхронизацию персонажа.', 'info');
       } else {
-        addNotification('Синхронизация доступна в среде Owlbear Rodeo.', 'info');
+        console.log(`[DND Sheet] Standalone mode: Manual sync requesting character data for ${id}...`);
+        const payload = {
+          type: 'REQUEST_CHARACTER_DATA',
+          charId: id,
+          senderClientId: SESSION_CLIENT_ID,
+          senderId: SESSION_CLIENT_ID
+        };
+
+        try {
+          localBridge.postMessage(payload);
+        } catch (e) {}
+
+        if (typeof window !== 'undefined' && window.opener) {
+          try {
+            window.opener.postMessage(payload, '*');
+          } catch (e) {}
+        }
+        addNotification('Запрос на синхронизацию отправлен в главное окно Owlbear.', 'info');
       }
     } catch (e) {
       console.error('[DND Sheet] Failed to trigger syncCharacter:', e);

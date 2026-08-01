@@ -46,7 +46,14 @@ const AppContent: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const urlCharId = urlParams?.get('charId');
+
     if (!isLoading && activeCharacterId && !characters[activeCharacterId]) {
+      if (urlCharId && urlCharId === activeCharacterId) {
+        // Do not reset activeCharacterId if it was specified via URL query parameter while waiting for remote sync
+        return;
+      }
       setActiveCharacterId(null);
     }
   }, [characters, activeCharacterId, isLoading]);
@@ -368,6 +375,7 @@ const AppContent: React.FC = () => {
               onSyncCharacter={() => syncCharacter(activeCharacterId)}
               onClearLocalCache={() => clearLocalCache(activeCharacterId)}
               onDeleteCharacter={() => handleDeleteCharacter(activeCharacterId)}
+              onOpenStandalone={() => handleOpenStandalone(activeCharacterId)}
               isGM={isGM}
             />
         </CharacterProvider>
