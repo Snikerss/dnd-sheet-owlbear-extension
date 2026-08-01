@@ -34,7 +34,7 @@ const AppContent: React.FC = () => {
   const [formattingMenuPos, setFormattingMenuPos] = useState<{
     x: number;
     y: number;
-    target: HTMLTextAreaElement | HTMLInputElement;
+    target: HTMLElement;
   } | null>(null);
 
   useEffect(() => {
@@ -42,7 +42,7 @@ const AppContent: React.FC = () => {
       const target = e.target as HTMLElement;
       if (!target) return;
 
-      const inputElement = target.closest('textarea, input[type="text"], input:not([type])') as HTMLTextAreaElement | HTMLInputElement | null;
+      const inputElement = target.closest('textarea, input[type="text"], input:not([type]), [contenteditable="true"]') as HTMLElement | null;
       if (inputElement) {
         e.preventDefault();
         setFormattingMenuPos({

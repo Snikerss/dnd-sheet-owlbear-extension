@@ -10,12 +10,28 @@ export const NotesSection: React.FC = React.memo(() => {
     const groups = character.noteGroups || [];
 
     const activeNote = notes.find(n => n.id === activeNoteId);
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const editorRef = useRef<HTMLDivElement>(null);
     const titleInputRef = useRef<HTMLInputElement>(null);
     const groupRenameInputRef = useRef<HTMLInputElement>(null);
 
-    // Default to preview/view mode (true) so notes render as clean formatted HTML without showing raw tags
-    const [isPreviewMode, setIsPreviewMode] = useState(true);
+    // Sync contentEditable innerHTML with activeNote.content when active note changes
+    useEffect(() => {
+        if (editorRef.current && activeNote) {
+            if (editorRef.current.innerHTML !== (activeNote.content || '')) {
+                editorRef.current.innerHTML = activeNote.content || '';
+            }
+        }
+    }, [activeNote?.id]);
+
+    const handleEditorInput = useCallback(() => {
+        if (editorRef.current && activeNote) {
+            const html = editorRef.current.innerHTML;
+            dispatch({
+                type: 'UPDATE_NOTE',
+                payload: { id: activeNote.id, updates: { content: html } }
+            });
+        }
+    }, [activeNote?.id, dispatch]);
 
     // Editing group title state
     const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
@@ -33,14 +49,6 @@ export const NotesSection: React.FC = React.memo(() => {
     const [draggedNoteInfo, setDraggedNoteInfo] = useState<{ id: string; sourceGroupId: string } | null>(null);
     const [dragOverNoteIndex, setDragOverNoteIndex] = useState<{ groupId: string; index: number } | null>(null);
     const [dragOverGroupForNote, setDragOverGroupForNote] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto';
-            const scrollHeight = textareaRef.current.scrollHeight;
-            textareaRef.current.style.height = `${scrollHeight}px`;
-        }
-    }, [activeNote?.content]);
 
     // Focus helpers
     useEffect(() => {
@@ -531,42 +539,29 @@ export const NotesSection: React.FC = React.memo(() => {
                     </div>
                 </div>
 
-                {/* Right Column: Active Note Editor */}
+                {/* Right Column: Active Note Live WYSIWYG Editor */}
                 <div className="md:col-span-3 pl-0 md:pl-4 pt-4 md:pt-0 flex flex-col h-full min-h-[400px]">
                     {activeNote ? (
                         <div className="flex flex-col h-full">
                             <RichTextToolbar
-                                targetRef={textareaRef}
-                                showPreviewToggle={true}
-                                isPreviewMode={isPreviewMode}
-                                onTogglePreview={() => setIsPreviewMode(!isPreviewMode)}
+                                targetRef={editorRef}
                                 onFormatApplied={(newContent) => {
-                                    dispatch({
-                                        type: 'UPDATE_NOTE',
-                                        payload: { id: activeNote.id, updates: { content: newContent } }
-                                    });
+                                    if (activeNote) {
+                                        dispatch({
+                                            type: 'UPDATE_NOTE',
+                                            payload: { id: activeNote.id, updates: { content: newContent } }
+                                        });
+                                    }
                                 }}
                             />
-                            {isPreviewMode ? (
-                                <div
-                                    onClick={() => setIsPreviewMode(false)}
-                                    className="w-full h-full bg-[var(--color-surface-well)]/40 p-4 rounded-lg border border-[var(--color-border-subtle)] min-h-[350px] overflow-y-auto text-sm leading-relaxed text-[var(--color-text-base)] cursor-text hover:border-[var(--color-border-hover)] transition-colors group relative"
-                                    title="Нажмите, чтобы редактировать заметку"
-                                >
-                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-[10px] bg-[var(--color-surface-raised)] px-2 py-0.5 rounded text-[var(--color-text-muted)] border border-[var(--color-border-subtle)] pointer-events-none transition-opacity">
-                                        ✏️ Нажмите для редактирования
-                                    </div>
-                                    <FormattedText content={activeNote.content} placeholder="Нажмите здесь, чтобы написать заметку..." />
-                                </div>
-                            ) : (
-                                <textarea
-                                    ref={textareaRef}
-                                    value={activeNote.content}
-                                    onChange={handleContentChange}
-                                    className="w-full h-full bg-transparent text-[var(--color-text-base)] placeholder:text-[var(--color-text-subtle)] resize-none focus:outline-none min-h-[350px] text-sm leading-relaxed"
-                                    placeholder="Начните писать вашу заметку здесь... (Выделите текст и нажмите ПКМ для изменения цвета, жирности и выделения маркером)"
-                                />
-                            )}
+                            <div
+                                ref={editorRef}
+                                contentEditable
+                                suppressContentEditableWarning
+                                onInput={handleEditorInput}
+                                onBlur={handleEditorInput}
+                                className="w-full flex-1 bg-[var(--color-surface-well)]/40 p-4 rounded-lg border border-[var(--color-border-subtle)] min-h-[350px] overflow-y-auto text-sm leading-relaxed text-[var(--color-text-base)] outline-none focus:border-[var(--color-accent-primary)] focus:ring-1 focus:ring-[var(--color-accent-primary)] transition-all font-sans"
+                            />
                         </div>
                     ) : (
                         <div className="text-center py-12 text-[var(--color-text-subtle)] my-auto select-none">

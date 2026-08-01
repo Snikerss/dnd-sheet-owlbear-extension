@@ -24,7 +24,7 @@ export interface TextFormattingContextMenuProps {
   x: number;
   y: number;
   onClose: () => void;
-  targetElement: HTMLTextAreaElement | HTMLInputElement | null;
+  targetElement: HTMLElement | null;
   onApplyFormat: (formattedText: string) => void;
 }
 
@@ -37,18 +37,75 @@ export function stripHtmlFormatting(str: string): string {
 }
 
 /**
- * Applies formatting wrapper to target input element's current text selection.
+ * Applies formatting wrapper to target element (input, textarea, or contentEditable).
  */
 export function applyFormattingToTarget(
-  target: HTMLTextAreaElement | HTMLInputElement | null,
+  target: HTMLElement | null,
   formatType: 'bold' | 'italic' | 'underline' | 'strikethrough' | 'color' | 'highlight' | 'heading' | 'clear',
   optionValue?: string | { bg: string; text: string }
 ): string | null {
   if (!target) return null;
 
-  const start = target.selectionStart ?? 0;
-  const end = target.selectionEnd ?? 0;
-  const fullText = target.value || '';
+  // Handle contentEditable elements (WYSIWYG Live Mode)
+  if (target.isContentEditable || target.getAttribute('contenteditable') === 'true' || target.closest('[contenteditable="true"]')) {
+    const editableTarget = target.isContentEditable ? target : (target.closest('[contenteditable="true"]') as HTMLElement) || target;
+    editableTarget.focus();
+    const selection = window.getSelection();
+
+    switch (formatType) {
+      case 'bold':
+        document.execCommand('bold');
+        break;
+      case 'italic':
+        document.execCommand('italic');
+        break;
+      case 'underline':
+        document.execCommand('underline');
+        break;
+      case 'strikethrough':
+        document.execCommand('strikeThrough');
+        break;
+      case 'heading':
+        document.execCommand('formatBlock', false, 'h3');
+        break;
+      case 'color':
+        if (typeof optionValue === 'string') {
+          document.execCommand('foreColor', false, optionValue);
+        }
+        break;
+      case 'highlight':
+        if (optionValue && typeof optionValue === 'object') {
+          if (selection && selection.toString()) {
+            try {
+              const range = selection.getRangeAt(0);
+              const mark = document.createElement('mark');
+              mark.style.backgroundColor = optionValue.bg;
+              mark.style.color = optionValue.text;
+              mark.style.padding = '0 4px';
+              mark.style.borderRadius = '4px';
+              mark.style.fontWeight = '600';
+              range.surroundContents(mark);
+            } catch (e) {
+              document.execCommand('hiliteColor', false, optionValue.bg);
+            }
+          }
+        }
+        break;
+      case 'clear':
+        document.execCommand('removeFormat');
+        break;
+    }
+
+    const event = new Event('input', { bubbles: true });
+    editableTarget.dispatchEvent(event);
+    return editableTarget.innerHTML;
+  }
+
+  // Handle standard HTMLTextAreaElement or HTMLInputElement
+  const inputTarget = target as HTMLTextAreaElement | HTMLInputElement;
+  const start = inputTarget.selectionStart ?? 0;
+  const end = inputTarget.selectionEnd ?? 0;
+  const fullText = inputTarget.value || '';
   const selectedText = fullText.substring(start, end);
 
   const fallbackText = selectedText || 'текст';
@@ -89,16 +146,14 @@ export function applyFormattingToTarget(
 
   const newText = fullText.substring(0, start) + formatted + fullText.substring(end);
   
-  // Set value directly and trigger native input event so React state updates
-  target.value = newText;
+  inputTarget.value = newText;
   const event = new Event('input', { bubbles: true });
-  target.dispatchEvent(event);
+  inputTarget.dispatchEvent(event);
 
-  // Restore cursor selection around formatted segment
   setTimeout(() => {
     try {
-      target.focus();
-      target.setSelectionRange(start, start + formatted.length);
+      inputTarget.focus();
+      inputTarget.setSelectionRange(start, start + formatted.length);
     } catch (e) {}
   }, 10);
 
@@ -268,7 +323,7 @@ export const TextFormattingContextMenu: React.FC<TextFormattingContextMenuProps>
  * Inline Toolbar for Textareas (Notes, Item details, Spell details, etc.)
  */
 export interface RichTextToolbarProps {
-  targetRef: React.RefObject<HTMLTextAreaElement | HTMLInputElement | null>;
+  targetRef: React.RefObject<HTMLElement | null>;
   onFormatApplied?: (newText: string) => void;
   showPreviewToggle?: boolean;
   isPreviewMode?: boolean;
