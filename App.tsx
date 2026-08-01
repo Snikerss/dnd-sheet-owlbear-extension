@@ -12,6 +12,7 @@ import { CharacterProvider } from './context/CharacterContext';
 import { generateUUID } from './utils/uuid';
 import { isOwlbear, encodeBase64Sync } from './utils/storage';
 import { localBridge } from './utils/bridgeService';
+import { TextFormattingContextMenu } from './components/RichTextFormatting';
 
 const AppContent: React.FC = () => {
   const { addNotification } = useNotifier();
@@ -29,6 +30,34 @@ const AppContent: React.FC = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<'GM' | 'PLAYER' | null>(null);
   const [playerName, setPlayerName] = useState<string>('');
+
+  const [formattingMenuPos, setFormattingMenuPos] = useState<{
+    x: number;
+    y: number;
+    target: HTMLTextAreaElement | HTMLInputElement;
+  } | null>(null);
+
+  useEffect(() => {
+    const handleContextMenu = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target) return;
+
+      const inputElement = target.closest('textarea, input[type="text"], input:not([type])') as HTMLTextAreaElement | HTMLInputElement | null;
+      if (inputElement) {
+        e.preventDefault();
+        setFormattingMenuPos({
+          x: e.clientX,
+          y: e.clientY,
+          target: inputElement
+        });
+      }
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+    };
+  }, []);
 
   useEffect(() => {
     if (isOwlbear()) {
@@ -392,6 +421,16 @@ const AppContent: React.FC = () => {
           onSyncCharacter={syncCharacter}
           onClearLocalCache={clearLocalCache}
           isGM={isGM}
+        />
+      )}
+
+      {formattingMenuPos && (
+        <TextFormattingContextMenu
+          x={formattingMenuPos.x}
+          y={formattingMenuPos.y}
+          targetElement={formattingMenuPos.target}
+          onClose={() => setFormattingMenuPos(null)}
+          onApplyFormat={() => setFormattingMenuPos(null)}
         />
       )}
     </>

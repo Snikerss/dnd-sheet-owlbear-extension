@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useCharacter } from '../context/CharacterContext';
 import type { Note, NoteGroup } from '../types';
 import { generateUUID } from '../utils/uuid';
+import { RichTextToolbar, FormattedText } from './RichTextFormatting';
 
 export const NotesSection: React.FC = React.memo(() => {
     const { character, dispatch } = useCharacter();
@@ -12,6 +13,8 @@ export const NotesSection: React.FC = React.memo(() => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const titleInputRef = useRef<HTMLInputElement>(null);
     const groupRenameInputRef = useRef<HTMLInputElement>(null);
+
+    const [isPreviewMode, setIsPreviewMode] = useState(false);
 
     // Editing group title state
     const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
@@ -530,13 +533,33 @@ export const NotesSection: React.FC = React.memo(() => {
                 {/* Right Column: Active Note Editor */}
                 <div className="md:col-span-3 pl-0 md:pl-4 pt-4 md:pt-0 flex flex-col h-full min-h-[400px]">
                     {activeNote ? (
-                        <textarea
-                            ref={textareaRef}
-                            value={activeNote.content}
-                            onChange={handleContentChange}
-                            className="w-full h-full bg-transparent text-[var(--color-text-base)] placeholder:text-[var(--color-text-subtle)] resize-none focus:outline-none min-h-[350px] text-sm leading-relaxed"
-                            placeholder="Начните писать вашу заметку здесь..."
-                        />
+                        <div className="flex flex-col h-full">
+                            <RichTextToolbar
+                                targetRef={textareaRef}
+                                showPreviewToggle={true}
+                                isPreviewMode={isPreviewMode}
+                                onTogglePreview={() => setIsPreviewMode(!isPreviewMode)}
+                                onFormatApplied={(newContent) => {
+                                    dispatch({
+                                        type: 'UPDATE_NOTE',
+                                        payload: { id: activeNote.id, updates: { content: newContent } }
+                                    });
+                                }}
+                            />
+                            {isPreviewMode ? (
+                                <div className="w-full h-full bg-[var(--color-surface-well)]/40 p-4 rounded-lg border border-[var(--color-border-subtle)] min-h-[350px] overflow-y-auto text-sm leading-relaxed text-[var(--color-text-base)]">
+                                    <FormattedText content={activeNote.content} placeholder="Заметка пуста..." />
+                                </div>
+                            ) : (
+                                <textarea
+                                    ref={textareaRef}
+                                    value={activeNote.content}
+                                    onChange={handleContentChange}
+                                    className="w-full h-full bg-transparent text-[var(--color-text-base)] placeholder:text-[var(--color-text-subtle)] resize-none focus:outline-none min-h-[350px] text-sm leading-relaxed"
+                                    placeholder="Начните писать вашу заметку здесь... (Выделите текст и нажмите ПКМ для изменения цвета, жирности и выделения маркером)"
+                                />
+                            )}
+                        </div>
                     ) : (
                         <div className="text-center py-12 text-[var(--color-text-subtle)] my-auto select-none">
                             <p>Нет выбранной заметки.</p>
