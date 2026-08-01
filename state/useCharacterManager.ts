@@ -514,14 +514,12 @@ export const useCharacterManager = (): CharacterManager => {
                     ...entry,
                     imageCache: imageCacheArray
                   },
+                  senderClientId: SESSION_CLIENT_ID,
                   senderId: SESSION_CLIENT_ID
                 };
                 
-                // Try sending to BroadcastChannel safely
                 try {
-                  const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
-                  channel.postMessage(syncPayload);
-                  channel.close();
+                  localBridge.postMessage(syncPayload);
                 } catch (e) {}
 
                 if (typeof window !== 'undefined') {
