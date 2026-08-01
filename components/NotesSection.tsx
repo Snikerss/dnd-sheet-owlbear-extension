@@ -14,7 +14,8 @@ export const NotesSection: React.FC = React.memo(() => {
     const titleInputRef = useRef<HTMLInputElement>(null);
     const groupRenameInputRef = useRef<HTMLInputElement>(null);
 
-    const [isPreviewMode, setIsPreviewMode] = useState(false);
+    // Default to preview/view mode (true) so notes render as clean formatted HTML without showing raw tags
+    const [isPreviewMode, setIsPreviewMode] = useState(true);
 
     // Editing group title state
     const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
@@ -547,8 +548,15 @@ export const NotesSection: React.FC = React.memo(() => {
                                 }}
                             />
                             {isPreviewMode ? (
-                                <div className="w-full h-full bg-[var(--color-surface-well)]/40 p-4 rounded-lg border border-[var(--color-border-subtle)] min-h-[350px] overflow-y-auto text-sm leading-relaxed text-[var(--color-text-base)]">
-                                    <FormattedText content={activeNote.content} placeholder="Заметка пуста..." />
+                                <div
+                                    onClick={() => setIsPreviewMode(false)}
+                                    className="w-full h-full bg-[var(--color-surface-well)]/40 p-4 rounded-lg border border-[var(--color-border-subtle)] min-h-[350px] overflow-y-auto text-sm leading-relaxed text-[var(--color-text-base)] cursor-text hover:border-[var(--color-border-hover)] transition-colors group relative"
+                                    title="Нажмите, чтобы редактировать заметку"
+                                >
+                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-[10px] bg-[var(--color-surface-raised)] px-2 py-0.5 rounded text-[var(--color-text-muted)] border border-[var(--color-border-subtle)] pointer-events-none transition-opacity">
+                                        ✏️ Нажмите для редактирования
+                                    </div>
+                                    <FormattedText content={activeNote.content} placeholder="Нажмите здесь, чтобы написать заметку..." />
                                 </div>
                             ) : (
                                 <textarea

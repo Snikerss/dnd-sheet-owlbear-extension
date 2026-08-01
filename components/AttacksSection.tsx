@@ -4,6 +4,7 @@ import { ATTACK_TYPE_NAMES, DAMAGE_TYPE_COLORS, DAMAGE_TYPE_NAMES } from '../con
 import { useCharacter } from '../context/CharacterContext';
 import { calculateModifier, calculateProficiencyBonus } from '../utils/characterCalculations';
 import { getEquippedItemBonuses } from '../utils/inventory';
+import { FormattedText } from './RichTextFormatting';
 
 interface AttacksSectionProps {
   onAddAttack: () => void;
@@ -124,7 +125,7 @@ const AttackCard: React.FC<AttackCardProps> = ({
             </div>
 
             {attack.notes && (
-                <p className="text-xs text-[var(--color-text-muted)] mt-auto pt-2 border-t border-[var(--color-border)] whitespace-pre-wrap break-words">{attack.notes}</p>
+                <FormattedText content={attack.notes} className="text-xs text-[var(--color-text-muted)] mt-auto pt-2 border-t border-[var(--color-border)] break-words" />
             )}
         </div>
     );

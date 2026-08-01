@@ -6,6 +6,7 @@ import { useCharacter } from '../context/CharacterContext';
 import { useNotifier } from '../context/NotificationContext';
 import { calculateModifier, calculateProficiencyBonus } from '../utils/characterCalculations';
 import { getEquippedItemBonuses } from '../utils/inventory';
+import { FormattedText } from './RichTextFormatting';
 
 interface SpellsSectionProps {
     onAddSpell: () => void;
@@ -126,13 +127,14 @@ const SpellCard: React.FC<{
                     )}
                 </div>
                 {spell.components?.material && spell.components.materialDescription && (
-                    <div className="text-xs text-amber-300/80 mb-2 pl-2 border-l-2 border-amber-400/30 break-words">
-                        <span className="font-semibold">Материалы:</span> {spell.components.materialDescription}
+                    <div className="text-xs text-amber-300/80 mb-2 pl-2 border-l-2 border-amber-400/30 break-words flex items-baseline gap-1">
+                        <span className="font-semibold shrink-0">Материалы:</span>
+                        <FormattedText content={spell.components.materialDescription} className="inline" />
                     </div>
                 )}
                 <div className={`transition-all duration-300 ease-in-out grid ${isExpanded ? 'grid-rows-[1fr] opacity-100 pt-2' : 'grid-rows-[0fr] opacity-0'}`}>
                     <div className="overflow-hidden">
-                        <p className="text-sm text-[var(--color-text-medium)] whitespace-pre-wrap break-words">{spell.description}</p>
+                        <FormattedText content={spell.description} className="text-sm text-[var(--color-text-medium)] break-words" />
                     </div>
                 </div>
             </div>

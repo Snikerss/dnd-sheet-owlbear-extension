@@ -3,6 +3,7 @@ import { Feature, RecoveryType, FeatureGroup } from '../types';
 import { RECOVERY_TYPE_NAMES } from '../constants';
 import { useCharacter } from '../context/CharacterContext';
 import { ConfirmationModal } from './ConfirmationModal';
+import { FormattedText } from './RichTextFormatting';
 
 interface FeaturesSectionProps {
   onAddFeature: (groupId?: string) => void;
@@ -45,7 +46,7 @@ const FeatureCard: React.FC<{ feature: Feature; onEdit: () => void; onDelete: ()
                 </div>
             </div>
             {feature.description && (
-                <p className="text-sm text-[var(--color-text-medium)] mb-3 whitespace-pre-wrap break-words flex-grow">{feature.description}</p>
+                <FormattedText content={feature.description} className="text-sm text-[var(--color-text-medium)] mb-3 break-words flex-grow" />
             )}
             <div className="mt-auto">
                 <div className="flex justify-between items-center mb-2">

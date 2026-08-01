@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { InventoryItem, Rarity, ItemBonuses } from '../types';
 import { RARITY_COLORS, RARITY_NAMES, RECOVERY_TYPE_NAMES } from '../constants';
 import { calculateItemWeight } from '../utils/inventory';
+import { FormattedText } from './RichTextFormatting';
 
 interface InventorySlotProps {
   item: InventoryItem | null;
@@ -292,8 +293,8 @@ export const InventorySlot: React.FC<InventorySlotProps> = ({
                 <div className="border-t border-slate-700/40 my-2" />
 
                 {item.description ? (
-                  <div className="text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto pr-1">
-                    {item.description}
+                  <div className="text-xs text-slate-300 leading-relaxed max-h-48 overflow-y-auto pr-1">
+                    <FormattedText content={item.description} />
                   </div>
                 ) : (
                   <div className="text-xs text-slate-500 italic">Нет описания</div>
