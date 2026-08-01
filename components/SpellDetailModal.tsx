@@ -5,6 +5,7 @@ import { MAGIC_SCHOOL_NAMES } from '../constants';
 import { useFocusTrap } from '../utils/useFocusTrap';
 import { generateUUID } from '../utils/uuid';
 import { useNotifier } from '../context/NotificationContext';
+import { RichTextDescriptionEditor } from './RichTextFormatting';
 import { 
   translateText, 
   translateCastingTime, 
@@ -734,8 +735,13 @@ ${isOfficial ? `
               </div>
             </div>
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-[var(--color-text-medium)]">Описание</label>
-            <textarea name="description" id="description" value={formData.description} onChange={handleInputChange} rows={10} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] resize-none" />
+            <label htmlFor="description" className="block text-sm font-medium text-[var(--color-text-medium)] mb-1">Описание</label>
+            <RichTextDescriptionEditor
+              value={formData.description}
+              onChange={(newVal) => setFormData(prev => ({ ...prev, description: newVal }))}
+              placeholder="Введите описание заклинания... (Выделите текст и нажмите ПКМ для форматирования)"
+              minHeight="160px"
+            />
           </div>
            <div>
             <label className="block text-sm font-medium text-[var(--color-text-medium)] mb-2">Изображение</label>

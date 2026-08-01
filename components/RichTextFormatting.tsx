@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 // Preset Palette Colors
 export const TEXT_COLORS = [
@@ -468,5 +468,59 @@ export const FormattedText: React.FC<{ content: string; className?: string; plac
       className={`formatted-text-content ${className}`}
       dangerouslySetInnerHTML={{ __html: formattedHtml }}
     />
+  );
+};
+
+export interface RichTextDescriptionEditorProps {
+  value: string;
+  onChange: (newValue: string) => void;
+  placeholder?: string;
+  minHeight?: string;
+  className?: string;
+}
+
+export const RichTextDescriptionEditor: React.FC<RichTextDescriptionEditorProps> = ({
+  value,
+  onChange,
+  placeholder = 'Введите описание...',
+  minHeight = '140px',
+  className = '',
+}) => {
+  const editorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (editorRef.current) {
+      if (editorRef.current.innerHTML !== (value || '')) {
+        editorRef.current.innerHTML = value || '';
+      }
+    }
+  }, [value]);
+
+  const handleInput = useCallback(() => {
+    if (editorRef.current) {
+      const html = editorRef.current.innerHTML;
+      onChange(html);
+    }
+  }, [onChange]);
+
+  return (
+    <div className={`flex flex-col rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-background)] overflow-hidden ${className}`}>
+      <RichTextToolbar
+        targetRef={editorRef}
+        onFormatApplied={(newContent) => {
+          onChange(newContent);
+        }}
+      />
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        onBlur={handleInput}
+        style={{ minHeight }}
+        className="w-full p-3 text-sm leading-relaxed text-[var(--color-text-base)] outline-none overflow-y-auto max-h-[300px] focus:bg-[var(--color-surface-well)]/20 transition-all font-sans"
+        data-placeholder={placeholder}
+      />
+    </div>
   );
 };

@@ -4,6 +4,7 @@ import { Rarity, Currency, type InventoryItem, RecoveryType, Ability, EquipSlot 
 import { CustomIconPicker } from './CustomIconPicker';
 import { RARITY_NAMES, CURRENCY_NAMES, RECOVERY_TYPE_NAMES, ABILITY_NAMES, SKILLS } from '../constants';
 import { useNotifier } from '../context/NotificationContext';
+import { RichTextDescriptionEditor } from './RichTextFormatting';
 import { useFocusTrap } from '../utils/useFocusTrap';
 import {
   translateText,
@@ -1026,14 +1027,12 @@ ${isOfficial ? `
             </select>
           </div>
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-[var(--color-text-medium)]">Описание</label>
-            <textarea
-              name="description"
-              id="description"
+            <label htmlFor="description" className="block text-sm font-medium text-[var(--color-text-medium)] mb-1">Описание</label>
+            <RichTextDescriptionEditor
               value={formData.description}
-              onChange={handleInputChange}
-              rows={10}
-              className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] resize-none"
+              onChange={(newVal) => setFormData(prev => ({ ...prev, description: newVal }))}
+              placeholder="Введите описание предмета... (Выделите текст и нажмите ПКМ для форматирования)"
+              minHeight="160px"
             />
           </div>
           <div>

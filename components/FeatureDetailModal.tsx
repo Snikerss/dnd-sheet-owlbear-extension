@@ -3,6 +3,7 @@ import { Feature, RecoveryType, FeatureGroup } from '../types';
 import { RECOVERY_TYPE_NAMES } from '../constants';
 import { useFocusTrap } from '../utils/useFocusTrap';
 import { generateUUID } from '../utils/uuid';
+import { RichTextDescriptionEditor } from './RichTextFormatting';
 
 interface FeatureDetailModalProps {
   isOpen: boolean;
@@ -130,14 +131,12 @@ export const FeatureDetailModal: React.FC<FeatureDetailModalProps> = ({ isOpen, 
             </div>
           </div>
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-[var(--color-text-medium)]">Описание</label>
-            <textarea
-              name="description"
-              id="description"
+            <label htmlFor="description" className="block text-sm font-medium text-[var(--color-text-medium)] mb-1">Описание</label>
+            <RichTextDescriptionEditor
               value={formData.description}
-              onChange={handleInputChange}
-              rows={8}
-              className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] resize-none"
+              onChange={(newVal) => setFormData(prev => ({ ...prev, description: newVal }))}
+              placeholder="Введите описание умения... (Выделите текст и нажмите ПКМ для форматирования)"
+              minHeight="140px"
             />
           </div>
         </div>

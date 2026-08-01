@@ -4,6 +4,7 @@ import { ATTACK_TYPE_NAMES, DAMAGE_TYPE_NAMES, ABILITY_NAMES } from '../constant
 import { CustomIconPicker } from './CustomIconPicker';
 import { useFocusTrap } from '../utils/useFocusTrap';
 import { generateUUID } from '../utils/uuid';
+import { RichTextDescriptionEditor } from './RichTextFormatting';
 
 interface AttackDetailModalProps {
   isOpen: boolean;
@@ -257,8 +258,13 @@ export const AttackDetailModal: React.FC<AttackDetailModalProps> = ({
 
           {/* Notes */}
           <div className="border-t border-[var(--color-border)] pt-4">
-            <label htmlFor="notes" className="block text-sm font-medium text-[var(--color-text-medium)]">Заметки</label>
-            <textarea name="notes" id="notes" value={formData.notes} onChange={handleInputChange} rows={5} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] resize-none" />
+            <label htmlFor="notes" className="block text-sm font-medium text-[var(--color-text-medium)] mb-1">Заметки</label>
+            <RichTextDescriptionEditor
+              value={formData.notes || ''}
+              onChange={(newVal) => setFormData(prev => ({ ...prev, notes: newVal }))}
+              placeholder="Введите заметки к атаке... (Выделите текст и нажмите ПКМ для форматирования)"
+              minHeight="120px"
+            />
           </div>
         </div>
         
