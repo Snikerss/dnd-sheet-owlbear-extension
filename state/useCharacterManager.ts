@@ -313,25 +313,12 @@ export const useCharacterManager = (): CharacterManager => {
         if (!isOwlbear() && charId) {
           console.log(`[DND Sheet] Standalone mode: Requesting latest character data for ${charId}...`);
           
-          if (typeof window !== 'undefined') {
-            (window as any).__dndChildReady = true;
-          }
-
-          const payload = {
-            type: 'REQUEST_CHARACTER_DATA',
-            charId,
-            senderId: SESSION_CLIENT_ID
-          };
-
           try {
-            const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
-            channel.postMessage(payload);
-            channel.close();
+            localBridge.postMessage({
+              type: 'REQUEST_CHARACTER_DATA',
+              charId
+            });
           } catch (e) {}
-
-          if (typeof window !== 'undefined' && window.opener) {
-            window.opener.postMessage(payload, '*');
-          }
 
           // Set a timeout to stop loading if VTT iframe doesn't respond
           const timeoutId = setTimeout(() => {
@@ -853,30 +840,14 @@ export const useCharacterManager = (): CharacterManager => {
 
     dispatch({ type: 'DISPATCH_CHARACTER_ACTION', payload: { id, action: actionWithId } });
 
-    // Broadcast to local channel for standalone tab syncing using localBridge with senderClientId
-    const payload = {
-      type: 'CHARACTER_ACTION',
-      charId: id,
-      action: actionWithId,
-      senderClientId: SESSION_CLIENT_ID,
-      senderId: SESSION_CLIENT_ID
-    };
-
+    // Broadcast to local channel & sibling windows via localBridge
     try {
-      localBridge.postMessage(payload);
-    } catch (e) {}
-
-    // Post to child windows if any (if in VTT window)
-    if (typeof window !== 'undefined') {
-      const opened = (window as any).__dndOpenedWindows || [];
-      opened.forEach((win: any) => {
-        if (win && !win.closed) {
-          try {
-            win.postMessage(payload, '*');
-          } catch (e) {}
-        }
+      localBridge.postMessage({
+        type: 'CHARACTER_ACTION',
+        charId: id,
+        action: actionWithId
       });
-    }
+    } catch (e) {}
   }, []);
 
   const undo = useCallback((id: string) => {
@@ -942,17 +913,6 @@ export const useCharacterManager = (): CharacterManager => {
         }
       } else if (payload.type === 'REQUEST_CHARACTER_DATA' && payload.charId) {
         console.log('[DND Sheet] Bridge Sync: Received request for character data:', payload.charId);
-        if (typeof window !== 'undefined') {
-          (window as any).__dndParentReady = true;
-        }
-
-        if (sourceWindow && typeof window !== 'undefined') {
-          const opened = (window as any).__dndOpenedWindows || [];
-          if (!opened.includes(sourceWindow)) {
-            opened.push(sourceWindow);
-            (window as any).__dndOpenedWindows = opened;
-          }
-        }
 
         const state = charactersStateRef.current;
         const entry = state[payload.charId];
@@ -1008,22 +968,12 @@ export const useCharacterManager = (): CharacterManager => {
         addNotification('Отправлен запрос на повторную синхронизацию персонажа.', 'info');
       } else {
         console.log(`[DND Sheet] Standalone mode: Manual sync requesting character data for ${id}...`);
-        const payload = {
-          type: 'REQUEST_CHARACTER_DATA',
-          charId: id,
-          senderClientId: SESSION_CLIENT_ID,
-          senderId: SESSION_CLIENT_ID
-        };
-
         try {
-          localBridge.postMessage(payload);
+          localBridge.postMessage({
+            type: 'REQUEST_CHARACTER_DATA',
+            charId: id
+          });
         } catch (e) {}
-
-        if (typeof window !== 'undefined' && window.opener) {
-          try {
-            window.opener.postMessage(payload, '*');
-          } catch (e) {}
-        }
         addNotification('Запрос на синхронизацию отправлен в главное окно Owlbear.', 'info');
       }
     } catch (e) {

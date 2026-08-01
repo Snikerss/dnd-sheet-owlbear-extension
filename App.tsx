@@ -11,6 +11,7 @@ import { NotificationProvider, useNotifier } from './context/NotificationContext
 import { CharacterProvider } from './context/CharacterContext';
 import { generateUUID } from './utils/uuid';
 import { isOwlbear, encodeBase64Sync } from './utils/storage';
+import { localBridge } from './utils/bridgeService';
 
 const AppContent: React.FC = () => {
   const { addNotification } = useNotifier();
@@ -265,10 +266,8 @@ const AppContent: React.FC = () => {
     if (playerName) url.searchParams.set('playerName', playerName);
 
     const win = window.open(url.toString(), '_blank');
-    if (win && typeof window !== 'undefined') {
-      const opened = (window as any).__dndOpenedWindows || [];
-      opened.push(win);
-      (window as any).__dndOpenedWindows = opened;
+    if (win) {
+      localBridge.registerChildWindow(win);
     }
   }, [userId, userRole, playerName]);
 

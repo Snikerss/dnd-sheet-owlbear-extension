@@ -13,6 +13,7 @@ class LocalBridgeService {
   private channel: BroadcastChannel | null = null;
   private listeners: Set<BridgeMessageHandler> = new Set();
   private processedMsgTimes: Map<string, number> = new Map();
+  private childWindows: Set<Window> = new Set();
 
   constructor() {
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -26,6 +27,15 @@ class LocalBridgeService {
 
     if (typeof window !== 'undefined') {
       window.addEventListener('message', (event) => this.handleMessage(event));
+    }
+  }
+
+  /**
+   * Регистрирует дочернее окно (открытое через window.open) для прямого обмена сообщениями.
+   */
+  public registerChildWindow(win: Window): void {
+    if (win && !win.closed) {
+      this.childWindows.add(win);
     }
   }
 
@@ -55,14 +65,16 @@ class LocalBridgeService {
   }
 
   /**
-   * Отправляет сообщение во все открытые вкладки браузера.
+   * Отправляет сообщение во все открытые вкладки и дочерние/родительские окна браузера.
    */
   public postMessage(data: any): void {
     const payload = {
       ...data,
       senderClientId: SESSION_CLIENT_ID,
+      senderId: SESSION_CLIENT_ID
     };
 
+    // 1. BroadcastChannel (все вкладки на том же домене)
     if (this.channel) {
       try {
         this.channel.postMessage(payload);
@@ -71,13 +83,30 @@ class LocalBridgeService {
       }
     }
 
+    // 2. Parent window (если находимся в iframe)
     if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
       try {
         window.parent.postMessage(payload, '*');
-      } catch (err) {
-        // Safe fallback
-      }
+      } catch (err) {}
     }
+
+    // 3. Opener window (если открыты из другого окна/вкладки)
+    if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
+      try {
+        window.opener.postMessage(payload, '*');
+      } catch (err) {}
+    }
+
+    // 4. Child windows (окна, открытые из текущего)
+    this.childWindows.forEach((win) => {
+      if (win && !win.closed) {
+        try {
+          win.postMessage(payload, '*');
+        } catch (err) {}
+      } else {
+        this.childWindows.delete(win);
+      }
+    });
   }
 
   /**
@@ -96,6 +125,11 @@ class LocalBridgeService {
     // Игнорируем собственные сообщения от той же вкладки
     const senderId = event.data.senderClientId || event.data.senderId;
     if (senderId && senderId === SESSION_CLIENT_ID) return;
+
+    // Автоматическая регистрация отправителя, если это дочернее окно
+    if (event.source && event.source !== window && 'postMessage' in event.source) {
+      this.registerChildWindow(event.source as Window);
+    }
 
     this.listeners.forEach((listener) => {
       try {
