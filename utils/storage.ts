@@ -886,6 +886,10 @@ async function loadFromLocalDevApi(): Promise<any> {
 }
 
 async function saveToLocalDevApi(characters: any): Promise<any> {
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    saveToLocalStorage(characters);
+    return { success: true };
+  }
   try {
     const res = await fetch('/api/characters', {
       method: 'POST',
@@ -897,7 +901,6 @@ async function saveToLocalDevApi(characters: any): Promise<any> {
     if (!res.ok) throw new Error("Сетевая ошибка при сохранении данных.");
     return res.json();
   } catch (err) {
-    console.warn("Dev server API unavailable, saving to LocalStorage:", err);
     saveToLocalStorage(characters);
     return { success: true };
   }
