@@ -986,7 +986,10 @@ export const useCharacterManager = (): CharacterManager => {
         if (isOwlbear()) {
           const currentState = charactersStateRef.current;
           const currentEntry = currentState[payload.charId];
-          if (currentEntry && currentEntry.history?.present) {
+          if (!currentEntry) {
+            console.log('[DND Sheet] Action received for unknown character. Requesting full sync:', payload.charId);
+            localBridge.postMessage({ type: 'REQUEST_CHARACTER_DATA', charId: payload.charId });
+          } else if (currentEntry.history?.present) {
             const updatedPresent = characterReducer(currentEntry.history.present, payload.action);
             const updatedEntry = {
               ...currentEntry,
@@ -1059,12 +1062,13 @@ export const useCharacterManager = (): CharacterManager => {
         if (isOwlbear()) {
           setSyncStatus('connected_tab');
         }
-      } else if (payload.type === 'VTT_FRAME_READY') {
-        console.log('[DND Sheet] Bridge Sync: VTT frame ready. Re-authenticating handshake...');
+      } else if (payload.type === 'VTT_FRAME_READY' || payload.type === 'P2P_PEER_JOIN') {
+        console.log('[DND Sheet] Bridge Sync: Remote peer joined or VTT frame ready. Re-authenticating handshake...');
         const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         const charId = urlParams?.get('charId');
         if (!isOwlbear() && charId) {
           localBridge.postMessage({ type: 'HANDSHAKE_PING', charId });
+          setSyncStatus('connected_tab');
         }
       } else if (payload.type === 'HANDSHAKE_PING') {
         console.log('[DND Sheet] Bridge Sync: Received HANDSHAKE_PING for character:', payload.charId);
