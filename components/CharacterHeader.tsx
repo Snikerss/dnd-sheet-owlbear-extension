@@ -18,8 +18,6 @@ interface CharacterHeaderProps {
   onClearCache?: () => void;
   onDeleteCharacter?: () => void;
   onOpenStandalone?: () => void;
-  onOpenEmbeddedOwlbear?: () => void;
-  onConnectOwlbearWindow?: () => void;
   isGM?: boolean;
 }
 
@@ -146,8 +144,6 @@ export const CharacterHeader: React.FC<CharacterHeaderProps> = React.memo(({
   onClearCache,
   onDeleteCharacter,
   onOpenStandalone,
-  onOpenEmbeddedOwlbear,
-  onConnectOwlbearWindow,
   isGM = true,
 }) => {
   const { character, dispatch } = useCharacter();
@@ -187,13 +183,7 @@ export const CharacterHeader: React.FC<CharacterHeaderProps> = React.memo(({
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 01-18 0z" /></svg>
                     </button>
                   )}
-                  <SyncStatusIndicator
-                    status={syncStatus || 'synced'}
-                    onReconnect={onSync}
-                    onOpenEmbeddedOwlbear={onOpenEmbeddedOwlbear}
-                    onConnectOwlbearWindow={onConnectOwlbearWindow}
-                    className="h-[50px] my-auto"
-                  />
+                  <SyncStatusIndicator status={syncStatus || 'synced'} onReconnect={onSync} className="h-[50px] my-auto" />
                  {onSync && (
                    <button 
                      onClick={onSync} 

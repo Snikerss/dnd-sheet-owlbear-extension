@@ -52,8 +52,6 @@ interface CharacterSheetProps {
     onClearLocalCache?: () => void;
     onDeleteCharacter?: () => void;
     onOpenStandalone?: () => void;
-    onOpenEmbeddedOwlbear?: () => void;
-    onConnectOwlbearWindow?: () => void;
     isGM?: boolean;
 }
 
@@ -70,8 +68,6 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
     onClearLocalCache,
     onDeleteCharacter,
     onOpenStandalone,
-    onOpenEmbeddedOwlbear,
-    onConnectOwlbearWindow,
     isGM = true,
 }) => {
     // --- CONTEXT HOOKS ---
@@ -934,8 +930,6 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                     onClearCache={onClearLocalCache}
                     onDeleteCharacter={onDeleteCharacter}
                     onOpenStandalone={onOpenStandalone}
-                    onOpenEmbeddedOwlbear={onOpenEmbeddedOwlbear}
-                    onConnectOwlbearWindow={onConnectOwlbearWindow}
                     isGM={isGM}
                 />
 

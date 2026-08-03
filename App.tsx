@@ -13,7 +13,6 @@ import { generateUUID } from './utils/uuid';
 import { isOwlbear, encodeBase64Sync } from './utils/storage';
 import { localBridge } from './utils/bridgeService';
 import { TextFormattingContextMenu } from './components/RichTextFormatting';
-import { EmbeddedOwlbearModal } from './components/EmbeddedOwlbearModal';
 
 const AppContent: React.FC = () => {
   const { addNotification } = useNotifier();
@@ -357,19 +356,6 @@ const AppContent: React.FC = () => {
     );
   }, [characters]);
 
-  const [isEmbeddedOwlbearOpen, setIsEmbeddedOwlbearOpen] = useState(false);
-  const [embeddedOwlbearLayout, setEmbeddedOwlbearLayout] = useState<'split' | 'overlay'>('split');
-  const [embeddedOwlbearUrl, setEmbeddedOwlbearUrl] = useState<string>('https://www.owlbear.rodeo/');
-
-  const handleOpenEmbeddedOwlbear = useCallback(() => {
-    setIsEmbeddedOwlbearOpen(true);
-  }, []);
-
-  const handleConnectOwlbearWindow = useCallback(() => {
-    localBridge.reconnectStandaloneWindows();
-    addNotification('Отправлен прямой сигнал сопряжения с открытыми окнами Owlbear.', 'info');
-  }, [addNotification]);
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center text-[var(--color-text-base)]">
@@ -419,61 +405,46 @@ const AppContent: React.FC = () => {
         log={activeLog}
       />
 
-      <EmbeddedOwlbearModal
-        isOpen={isEmbeddedOwlbearOpen}
-        onClose={() => setIsEmbeddedOwlbearOpen(false)}
-        initialUrl={embeddedOwlbearUrl}
-        onUrlChange={(url: string) => setEmbeddedOwlbearUrl(url)}
-        layoutMode={embeddedOwlbearLayout}
-        onToggleLayoutMode={() => setEmbeddedOwlbearLayout(prev => prev === 'split' ? 'overlay' : 'split')}
-      />
-
-      <div className={`w-full min-h-screen ${isEmbeddedOwlbearOpen && embeddedOwlbearLayout === 'split' ? 'flex flex-row' : ''}`}>
-        <div className={isEmbeddedOwlbearOpen && embeddedOwlbearLayout === 'split' ? 'w-1/2 min-h-screen overflow-y-auto border-r border-slate-800' : 'w-full'}>
-          {activeCharacter && activeCharacterId ? (
-            <CharacterProvider character={activeCharacter} dispatch={handleUpdateCharacter}>
-                <CharacterSheet
-                  key={activeCharacterId}
-                  onOpenCharacterManager={() => setActiveCharacterId(null)}
-                  onUndo={handleUndo}
-                  onRedo={handleRedo}
-                  canUndo={canUndo}
-                  canRedo={canRedo}
-                  onOpenHistoryLog={() => setIsHistoryLogOpen(true)}
-                  isReadOnly={!!isReadOnly}
-                  syncStatus={syncStatus}
-                  onSyncCharacter={() => syncCharacter(activeCharacterId)}
-                  onClearLocalCache={() => clearLocalCache(activeCharacterId)}
-                  onDeleteCharacter={() => handleDeleteCharacter(activeCharacterId)}
-                  onOpenStandalone={() => handleOpenStandalone(activeCharacterId)}
-                  onOpenEmbeddedOwlbear={handleOpenEmbeddedOwlbear}
-                  onConnectOwlbearWindow={handleConnectOwlbearWindow}
-                  isGM={isGM}
-                />
-            </CharacterProvider>
-          ) : (
-            <CharacterSelectionScreen
-              characters={characterList}
-              syncingCharacters={syncingCharacters}
-              currentUserId={userId}
-              onSelectCharacter={handleSelectCharacter}
-              onCreateCharacter={handleCreateCharacter}
-              onDeleteCharacter={handleDeleteCharacter}
-              onDuplicateCharacter={handleDuplicateCharacter}
-              onAddCharacter={handleAddCharacter}
-              onOpenStandalone={handleOpenStandalone}
-              onSyncCharacter={syncCharacter}
-              onClearLocalCache={clearLocalCache}
-              onExportVault={exportVaultData}
-              onImportVault={importVaultData}
-              onBindRoom={(charId, roomId, roomName) => updateCharacter(charId, { type: 'BIND_ROOM', payload: { roomId, roomName } })}
-              onUnbindRoom={(charId, roomId) => updateCharacter(charId, { type: 'UNBIND_ROOM', payload: roomId })}
-              onToggleGlobalRoom={(charId, isGlobal) => updateCharacter(charId, { type: 'TOGGLE_GLOBAL_ROOM', payload: isGlobal })}
+      {activeCharacter && activeCharacterId ? (
+        <CharacterProvider character={activeCharacter} dispatch={handleUpdateCharacter}>
+            <CharacterSheet
+              key={activeCharacterId}
+              onOpenCharacterManager={() => setActiveCharacterId(null)}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
+              canUndo={canUndo}
+              canRedo={canRedo}
+              onOpenHistoryLog={() => setIsHistoryLogOpen(true)}
+              isReadOnly={!!isReadOnly}
+              syncStatus={syncStatus}
+              onSyncCharacter={() => syncCharacter(activeCharacterId)}
+              onClearLocalCache={() => clearLocalCache(activeCharacterId)}
+              onDeleteCharacter={() => handleDeleteCharacter(activeCharacterId)}
+              onOpenStandalone={() => handleOpenStandalone(activeCharacterId)}
               isGM={isGM}
             />
-          )}
-        </div>
-      </div>
+        </CharacterProvider>
+      ) : (
+        <CharacterSelectionScreen
+          characters={characterList}
+          syncingCharacters={syncingCharacters}
+          currentUserId={userId}
+          onSelectCharacter={handleSelectCharacter}
+          onCreateCharacter={handleCreateCharacter}
+          onDeleteCharacter={handleDeleteCharacter}
+          onDuplicateCharacter={handleDuplicateCharacter}
+          onAddCharacter={handleAddCharacter}
+          onOpenStandalone={handleOpenStandalone}
+          onSyncCharacter={syncCharacter}
+          onClearLocalCache={clearLocalCache}
+          onExportVault={exportVaultData}
+          onImportVault={importVaultData}
+          onBindRoom={(charId, roomId, roomName) => updateCharacter(charId, { type: 'BIND_ROOM', payload: { roomId, roomName } })}
+          onUnbindRoom={(charId, roomId) => updateCharacter(charId, { type: 'UNBIND_ROOM', payload: roomId })}
+          onToggleGlobalRoom={(charId, isGlobal) => updateCharacter(charId, { type: 'TOGGLE_GLOBAL_ROOM', payload: isGlobal })}
+          isGM={isGM}
+        />
+      )}
 
       {formattingMenuPos && (
         <TextFormattingContextMenu
