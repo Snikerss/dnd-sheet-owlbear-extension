@@ -61,9 +61,26 @@ class P2PRoomBridgeService {
 
       this.socket.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data);
-          if (data && typeof data === 'object' && data.type !== 'PING') {
-            this.notifyListeners(data);
+          let rawData = JSON.parse(event.data);
+          
+          // Распаковка оболочек сообщений PieSocket/WebSocket ({ event: '...', data: '...' })
+          if (rawData && typeof rawData === 'object') {
+            if (rawData.data) {
+              if (typeof rawData.data === 'string') {
+                try { rawData = JSON.parse(rawData.data); } catch (e) { rawData = rawData.data; }
+              } else if (typeof rawData.data === 'object') {
+                rawData = rawData.data;
+              }
+            } else if (rawData.text) {
+              if (typeof rawData.text === 'string') {
+                try { rawData = JSON.parse(rawData.text); } catch (e) { rawData = rawData.text; }
+              }
+            }
+          }
+
+          if (rawData && typeof rawData === 'object' && rawData.type && rawData.type !== 'PING') {
+            console.log('[DND Sheet P2P] Received unwrapped P2P message:', rawData.type);
+            this.notifyListeners(rawData);
           }
         } catch (e) {}
       };
