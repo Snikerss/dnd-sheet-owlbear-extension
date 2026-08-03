@@ -1175,6 +1175,9 @@ export const useCharacterManager = (): CharacterManager => {
       try {
         const roomId = typeof OBR !== 'undefined' ? OBR.room?.id : '';
         const roomName = (window as any).__currentRoomName || (typeof OBR !== 'undefined' ? (OBR as any).room?.name : '') || 'Owlbear Room';
+        if (roomId) {
+          registerCurrentRoom(roomId, roomName);
+        }
         window.localStorage.setItem('com.antigravity.dnd-sheet/vtt_heartbeat', JSON.stringify({
           roomId,
           roomName,
@@ -1186,7 +1189,10 @@ export const useCharacterManager = (): CharacterManager => {
         const activeIds = Object.keys(charactersStateRef.current);
         localBridge.reconnectStandaloneWindows(activeIds);
         localBridge.postMessage({
-          type: 'VTT_FRAME_READY'
+          type: 'VTT_FRAME_READY',
+          roomId,
+          roomName,
+          knownRooms: getKnownRooms()
         });
       } catch (e) {}
     };
