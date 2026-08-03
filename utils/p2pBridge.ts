@@ -43,8 +43,8 @@ class P2PRoomBridgeService {
 
     const shortRoomId = this.currentRoomId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16);
     const endpoints = [
-      `wss://free.piesocket.com/v3/room_${shortRoomId}?api_key=VC32145&notify_self=1`,
-      `wss://demo.piesocket.com/v3/room_${shortRoomId}?api_key=VC32145&notify_self=1`
+      `wss://demo.piesocket.com/v3/room_${shortRoomId}?api_key=VC32145&notify_self=1`,
+      `wss://free.piesocket.com/v3/room_${shortRoomId}?api_key=VC32145&notify_self=1`
     ];
 
     const endpoint: string = endpoints[this.endpointIndex % endpoints.length] || endpoints[0] || '';
@@ -54,16 +54,16 @@ class P2PRoomBridgeService {
 
       this.socket.onopen = () => {
         this.isConnecting = false;
-        console.log(`[DND Sheet P2P] Connected to room network channel (${this.endpointIndex === 0 ? 'Primary' : 'Backup'}): ${this.currentRoomId}`);
+        console.log(`[DND Sheet P2P] Connected to room network channel: ${this.currentRoomId}`);
         
-        // Поддержание активности сокета (Keep-alive ping каждые 25 секунд)
+        // Поддержание активности сокета (Keep-alive ping каждые 20 секунд)
         this.pingInterval = setInterval(() => {
           if (this.socket && this.socket.readyState === WebSocket.OPEN) {
             try {
-              this.socket.send(JSON.stringify({ type: 'PING' }));
+              this.socket.send(JSON.stringify({ action: 'ping' }));
             } catch (e) {}
           }
-        }, 25000);
+        }, 20000);
 
         // Анонс выходящего на связь клиента
         this.broadcast({
