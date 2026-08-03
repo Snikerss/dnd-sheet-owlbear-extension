@@ -34,7 +34,12 @@ class LocalBridgeService {
       window.addEventListener('storage', (event) => {
         if (!event.key) return;
 
-        if (event.key.startsWith('com.antigravity.dnd-sheet/v2/character/') || event.key === 'com.antigravity.dnd-sheet/characters') {
+        if (event.key === 'com.antigravity.dnd-sheet/bridge_signal' && event.newValue) {
+          try {
+            const parsed = JSON.parse(event.newValue);
+            this.handleMessage(new MessageEvent('message', { data: parsed }));
+          } catch (e) {}
+        } else if (event.key.startsWith('com.antigravity.dnd-sheet/v2/character/') || event.key === 'com.antigravity.dnd-sheet/characters') {
           try {
             this.handleMessage(new MessageEvent('message', {
               data: {
@@ -82,45 +87,12 @@ class LocalBridgeService {
    * Находит и восстанавливает прямые связи с открытыми отдельными вкладками.
    * Проверяет targetName окон в браузерном реестре. Если окно не было открыто и браузер создал blank-окно, мгновенно закрывает его.
    */
-  public reconnectStandaloneWindows(charIds: string[]): void {
-    if (typeof window === 'undefined' || !Array.isArray(charIds)) return;
-    const targetNames = ['dnd_sheet_vault', ...charIds.map(id => `dnd_sheet_standalone_${id}`)];
-
-    for (const targetName of targetNames) {
-      if (!targetName) continue;
-      try {
-        const win = window.open('', targetName);
-        if (win && !win.closed) {
-          try {
-            const isBlank = !win.location || !win.location.href || win.location.href === 'about:blank' || win.location.href.startsWith('about:blank');
-            if (isBlank) {
-              win.close();
-            } else {
-              if (targetName.startsWith('dnd_sheet_standalone_')) {
-                this.trackStandaloneCharacter(targetName.replace('dnd_sheet_standalone_', ''));
-              }
-              this.registerChildWindow(win);
-              p2pRoomBridge.registerWindow(win);
-              win.postMessage({
-                type: 'VTT_FRAME_READY',
-                senderClientId: SESSION_CLIENT_ID
-              }, '*');
-            }
-          } catch (e) {
-            // Cross-origin location access check: if it threw a SecurityError, the tab IS OPEN on snikerss.github.io!
-            if (targetName.startsWith('dnd_sheet_standalone_')) {
-              this.trackStandaloneCharacter(targetName.replace('dnd_sheet_standalone_', ''));
-            }
-            this.registerChildWindow(win);
-            p2pRoomBridge.registerWindow(win);
-            win.postMessage({
-              type: 'VTT_FRAME_READY',
-              senderClientId: SESSION_CLIENT_ID
-            }, '*');
-          }
-        }
-      } catch (e) {}
-    }
+  public reconnectStandaloneWindows(_charIds?: string[]): void {
+    if (typeof window === 'undefined') return;
+    this.postMessage({
+      type: 'VTT_FRAME_READY',
+      senderClientId: SESSION_CLIENT_ID
+    });
   }
 
   /**
@@ -199,6 +171,13 @@ class LocalBridgeService {
     try {
       p2pRoomBridge.broadcast(payload);
     } catch (e) {}
+
+    // 6. LocalStorage Bus Signal for cross-tab sync on same domain
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        window.localStorage.setItem('com.antigravity.dnd-sheet/bridge_signal', JSON.stringify(payload));
+      } catch (e) {}
+    }
   }
 
   /**

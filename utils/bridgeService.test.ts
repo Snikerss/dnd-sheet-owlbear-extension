@@ -55,19 +55,9 @@ describe('LocalBridgeService & Native Window Target Resolution', () => {
     expect(payload.senderClientId).toBe(SESSION_CLIENT_ID);
   });
 
-  it('reconnects standalone windows using targetName window.open lookups', () => {
-    const openSpy = vi.spyOn(window, 'open').mockImplementation((url, name) => {
-      if (name === 'dnd_sheet_standalone_char-777') {
-        return mockWin as unknown as Window;
-      }
-      return null;
-    });
-
-    localBridge.trackStandaloneCharacter('char-777');
+  it('reconnects standalone windows by broadcasting VTT_FRAME_READY over bridge', () => {
+    localBridge.registerChildWindow(mockWin as unknown as Window);
     localBridge.reconnectStandaloneWindows(['char-777']);
-    expect(openSpy).toHaveBeenCalledWith('', 'dnd_sheet_standalone_char-777');
-
-    localBridge.postMessage({ type: 'VTT_FRAME_READY' });
     expect(mockWin.postMessage).toHaveBeenCalled();
   });
 
