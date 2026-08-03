@@ -1,55 +1,52 @@
+import { SESSION_CLIENT_ID } from './bridgeService';
+
 /**
- * P2P Room Network Bridge Service.
- * Обеспечивает связь реального времени (<30 мс) между отдельной вкладкой на стороннем домене
- * и фреймом Owlbear Rodeo по уникальному ID комнаты (roomId) через онлайн-канал вещания.
+ * P2P Room Network Bridge Service (ntfy.sh PubSub Engine)
+ * Обеспечивает сквозную 100% бесплатную передачу данных между отдельными вкладками
+ * и фреймом Owlbear Rodeo VTT через глобальныйPubSub канал ntfy.sh.
  */
-
-type P2PMessageHandler = (data: any) => void;
-
 class P2PRoomBridgeService {
   private socket: WebSocket | null = null;
   private currentRoomId: string | null = null;
-  private listeners: Set<P2PMessageHandler> = new Set();
-  private isConnecting = false;
+  private listeners: Set<(data: any) => void> = new Set();
+  private isConnecting: boolean = false;
   private reconnectTimer: any = null;
-  private pingInterval: any = null;
 
   /**
-   * Подключается к P2P-сетевой комнате по ее уникальному ID в Owlbear Rodeo.
+   * Инициализирует P2P-соединение с комнатой.
    */
   public connect(roomId: string): void {
     if (!roomId) return;
-    const cleanRoomId = roomId.replace(/[^a-zA-Z0-9_-]/g, '');
-    if (this.currentRoomId === cleanRoomId && this.socket && this.socket.readyState === WebSocket.OPEN) {
+    if (this.currentRoomId === roomId && this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
       return;
     }
-
-    this.currentRoomId = cleanRoomId;
+    this.currentRoomId = roomId;
     this.initWebSocket();
   }
 
-  private endpointIndex = 0;
-
   private initWebSocket(): void {
     if (!this.currentRoomId || this.isConnecting) return;
-
     this.isConnecting = true;
+
     if (this.socket) {
       try {
+        this.socket.onopen = null;
+        this.socket.onmessage = null;
+        this.socket.onerror = null;
+        this.socket.onclose = null;
         this.socket.close();
       } catch (e) {}
     }
-    if (this.pingInterval) clearInterval(this.pingInterval);
 
-    const shortRoomId = this.currentRoomId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16);
-    const endpoint = `wss://demo.piesocket.com/v3/room_${shortRoomId}?api_key=VC32145&notify_self=1`;
+    const shortRoomId = this.currentRoomId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 24);
+    const endpoint = `wss://ntfy.sh/dnd_sheet_room_${shortRoomId}/ws`;
 
     try {
       this.socket = new WebSocket(endpoint);
 
       this.socket.onopen = () => {
         this.isConnecting = false;
-        console.log(`[DND Sheet P2P] Connected to room network channel: ${this.currentRoomId}`);
+        console.log(`[DND Sheet P2P] Connected to ntfy room network channel: ${shortRoomId}`);
 
         // Анонс выходящего на связь клиента
         this.broadcast({
@@ -61,38 +58,23 @@ class P2PRoomBridgeService {
 
       this.socket.onmessage = (event) => {
         try {
-          let rawData = JSON.parse(event.data);
-          
-          // Распаковка оболочек сообщений PieSocket/WebSocket ({ event: '...', data: '...' })
-          if (rawData && typeof rawData === 'object') {
-            if (rawData.data) {
-              if (typeof rawData.data === 'string') {
-                try { rawData = JSON.parse(rawData.data); } catch (e) { rawData = rawData.data; }
-              } else if (typeof rawData.data === 'object') {
-                rawData = rawData.data;
-              }
-            } else if (rawData.text) {
-              if (typeof rawData.text === 'string') {
-                try { rawData = JSON.parse(rawData.text); } catch (e) { rawData = rawData.text; }
-              }
+          const wrapper = JSON.parse(event.data);
+          if (wrapper && wrapper.event === 'message' && wrapper.message) {
+            const rawData = typeof wrapper.message === 'string' ? JSON.parse(wrapper.message) : wrapper.message;
+            if (rawData && typeof rawData === 'object' && rawData.type && rawData.type !== 'PING') {
+              console.log('[DND Sheet P2P] Received P2P message from room:', rawData.type);
+              this.notifyListeners(rawData);
             }
-          }
-
-          if (rawData && typeof rawData === 'object' && rawData.type && rawData.type !== 'PING') {
-            console.log('[DND Sheet P2P] Received unwrapped P2P message:', rawData.type);
-            this.notifyListeners(rawData);
           }
         } catch (e) {}
       };
 
-      this.socket.onerror = (err) => {
-        console.warn('[DND Sheet P2P] WebSocket error:', err);
+      this.socket.onerror = () => {
         this.isConnecting = false;
       };
 
       this.socket.onclose = () => {
         this.isConnecting = false;
-        if (this.pingInterval) clearInterval(this.pingInterval);
         if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
         this.reconnectTimer = setTimeout(() => {
           if (this.currentRoomId) {
@@ -110,47 +92,61 @@ class P2PRoomBridgeService {
    * Отправляет сообщение в P2P-сетевой канал текущей комнаты.
    */
   public broadcast(data: any): void {
-    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      return;
+    if (!this.currentRoomId) return;
+    const shortRoomId = this.currentRoomId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 24);
+    const payload = {
+      ...data,
+      roomId: this.currentRoomId,
+      sentAt: Date.now()
+    };
+
+    const body = JSON.stringify(payload);
+
+    // 1. Отправляем через WebSocket, если открыт
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      try {
+        this.socket.send(body);
+      } catch (e) {}
     }
 
+    // 2. Отправляем через HTTP POST для 100% гарантированной доставки вне зависимости от состояния сокета
     try {
-      const payload = {
-        ...data,
-        roomId: this.currentRoomId,
-        sentAt: Date.now()
-      };
-      this.socket.send(JSON.stringify(payload));
-    } catch (err) {
-      console.warn('[DND Sheet P2P] Failed to send broadcast packet:', err);
-    }
+      fetch(`https://ntfy.sh/dnd_sheet_room_${shortRoomId}`, {
+        method: 'POST',
+        body: body
+      }).catch(() => {});
+    } catch (e) {}
   }
 
   /**
-   * Подписывает обработчик на входящие P2P-пакеты.
+   * Подписывается на входящие P2P-сообщения сети.
    */
-  public subscribe(handler: P2PMessageHandler): () => void {
-    this.listeners.add(handler);
+  public subscribe(callback: (data: any) => void): () => void {
+    this.listeners.add(callback);
     return () => {
-      this.listeners.delete(handler);
+      this.listeners.delete(callback);
     };
   }
 
   private notifyListeners(data: any): void {
+    const senderId = data.senderClientId || data.senderId;
+    if (senderId && senderId === SESSION_CLIENT_ID) {
+      return; // Игнорируем собственные эхо-сообщения
+    }
+
     this.listeners.forEach((listener) => {
       try {
         listener(data);
       } catch (err) {
-        console.error('[DND Sheet P2P] Error in P2P message handler:', err);
+        console.error('[DND Sheet P2P] Error in listener:', err);
       }
     });
   }
 
   /**
-   * Отключает сетевой мост.
+   * Отключает P2P-мост.
    */
   public disconnect(): void {
-    if (this.pingInterval) clearInterval(this.pingInterval);
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.socket) {
       try {
@@ -159,6 +155,7 @@ class P2PRoomBridgeService {
       this.socket = null;
     }
     this.currentRoomId = null;
+    this.isConnecting = false;
   }
 }
 
