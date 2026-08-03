@@ -1,3 +1,5 @@
+import { imageDb } from './indexedDbStore';
+
 export interface OwlbearRoomBinding {
   roomId: string;
   roomName: string;
@@ -26,6 +28,33 @@ export const saveKnownRooms = (rooms: OwlbearRoomBinding[]): void => {
   } catch (e) {
     console.error('[DND Sheet] Failed to save known rooms:', e);
   }
+  imageDb.set(KNOWN_ROOMS_KEY, rooms).catch(err => {
+    console.warn('[DND Sheet] Failed to mirror known rooms to IndexedDB:', err);
+  });
+};
+
+export const loadKnownRoomsFromIndexedDB = async (): Promise<OwlbearRoomBinding[]> => {
+  try {
+    const idbRooms = await imageDb.get(KNOWN_ROOMS_KEY);
+    if (Array.isArray(idbRooms) && idbRooms.length > 0) {
+      const localRooms = getKnownRooms();
+      const roomMap = new Map<string, OwlbearRoomBinding>();
+      for (const r of localRooms) {
+        if (r.roomId) roomMap.set(r.roomId, r);
+      }
+      for (const r of idbRooms) {
+        if (r.roomId && !roomMap.has(r.roomId)) {
+          roomMap.set(r.roomId, r);
+        }
+      }
+      const merged = Array.from(roomMap.values()).sort((a, b) => b.lastVisited - a.lastVisited);
+      saveKnownRooms(merged);
+      return merged;
+    }
+  } catch (e) {
+    console.warn('[DND Sheet] Failed to load known rooms from IndexedDB:', e);
+  }
+  return getKnownRooms();
 };
 
 export const registerCurrentRoom = (roomId: string, roomName: string): OwlbearRoomBinding => {

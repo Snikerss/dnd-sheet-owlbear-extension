@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Character } from '../types';
-import { getKnownRooms, updateRoomAlias, OwlbearRoomBinding } from '../utils/roomRegistry';
+import { getKnownRooms, loadKnownRoomsFromIndexedDB, updateRoomAlias, OwlbearRoomBinding } from '../utils/roomRegistry';
 import { isOwlbear } from '../utils/storage';
 import OBR from '@owlbear-rodeo/sdk';
 
@@ -27,29 +27,33 @@ export const RoomBindingModal: React.FC<RoomBindingModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      const roomMap = new Map<string, OwlbearRoomBinding>();
-      for (const r of getKnownRooms()) {
-        roomMap.set(r.roomId, r);
-      }
-      if (Array.isArray(character.boundRooms)) {
-        for (const r of character.boundRooms) {
-          if (r.roomId && !roomMap.has(r.roomId)) {
-            roomMap.set(r.roomId, r);
+      const loadRooms = async () => {
+        const idbRooms = await loadKnownRoomsFromIndexedDB();
+        const roomMap = new Map<string, OwlbearRoomBinding>();
+        for (const r of idbRooms) {
+          if (r.roomId) roomMap.set(r.roomId, r);
+        }
+        if (Array.isArray(character.boundRooms)) {
+          for (const r of character.boundRooms) {
+            if (r.roomId && !roomMap.has(r.roomId)) {
+              roomMap.set(r.roomId, r);
+            }
           }
         }
-      }
-      if (typeof window !== 'undefined') {
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlRoomId = urlParams.get('roomId');
-        if (urlRoomId && !roomMap.has(urlRoomId)) {
-          roomMap.set(urlRoomId, {
-            roomId: urlRoomId,
-            roomName: (window as any).__currentRoomName || 'Текущая доска Owlbear',
-            lastVisited: Date.now()
-          });
+        if (typeof window !== 'undefined') {
+          const urlParams = new URLSearchParams(window.location.search);
+          const urlRoomId = urlParams.get('roomId');
+          if (urlRoomId && !roomMap.has(urlRoomId)) {
+            roomMap.set(urlRoomId, {
+              roomId: urlRoomId,
+              roomName: (window as any).__currentRoomName || 'Текущая доска Owlbear',
+              lastVisited: Date.now()
+            });
+          }
         }
-      }
-      setKnownRooms(Array.from(roomMap.values()));
+        setKnownRooms(Array.from(roomMap.values()));
+      };
+      loadRooms();
     }
   }, [isOpen, character.boundRooms]);
 
