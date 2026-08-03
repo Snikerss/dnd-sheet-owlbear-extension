@@ -28,6 +28,8 @@ class P2PRoomBridgeService {
     this.initWebSocket();
   }
 
+  private endpointIndex = 0;
+
   private initWebSocket(): void {
     if (!this.currentRoomId || this.isConnecting) return;
 
@@ -39,15 +41,19 @@ class P2PRoomBridgeService {
     }
     if (this.pingInterval) clearInterval(this.pingInterval);
 
-    // Высокодоступный бесплатный открытый WebSocket PubSub канал
-    const endpoint = `wss://free.piesocket.com/v3/dnd-room-${this.currentRoomId}?api_key=VC32145&notify_self=1`;
+    const endpoints = [
+      `wss://free.piesocket.com/v3/dnd-room-${this.currentRoomId}?api_key=VC32145&notify_self=1`,
+      `wss://demo.piesocket.com/v3/dnd-room-${this.currentRoomId}?api_key=VC32145&notify_self=1`
+    ];
+
+    const endpoint: string = endpoints[this.endpointIndex % endpoints.length] || endpoints[0] || '';
 
     try {
       this.socket = new WebSocket(endpoint);
 
       this.socket.onopen = () => {
         this.isConnecting = false;
-        console.log(`[DND Sheet P2P] Connected to room network channel: ${this.currentRoomId}`);
+        console.log(`[DND Sheet P2P] Connected to room network channel (${this.endpointIndex === 0 ? 'Primary' : 'Backup'}): ${this.currentRoomId}`);
         
         // Поддержание активности сокета (Keep-alive ping каждые 25 секунд)
         this.pingInterval = setInterval(() => {
@@ -82,11 +88,12 @@ class P2PRoomBridgeService {
 
       this.socket.onclose = () => {
         this.isConnecting = false;
+        this.endpointIndex++;
         if (this.pingInterval) clearInterval(this.pingInterval);
         if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
         this.reconnectTimer = setTimeout(() => {
           if (this.currentRoomId) {
-            console.log('[DND Sheet P2P] Reconnecting to room network...');
+            console.log('[DND Sheet P2P] Reconnecting to room network (switching cluster)...');
             this.initWebSocket();
           }
         }, 3000);
