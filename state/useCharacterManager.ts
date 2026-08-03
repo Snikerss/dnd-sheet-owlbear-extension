@@ -11,6 +11,7 @@ import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, unm
 import { imageDb } from '../utils/indexedDbStore';
 import { localBridge } from '../utils/bridgeService';
 import { storageRepository } from '../utils/storageRepository';
+import { registerCurrentRoom, getKnownRooms, saveKnownRooms } from '../utils/roomRegistry';
 
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/v2/character/';
 
@@ -162,6 +163,8 @@ interface CharacterManager {
   redo: (id: string) => void;
   syncCharacter: (id: string) => Promise<void>;
   clearLocalCache: (id: string) => Promise<void>;
+  exportVaultData: () => void;
+  importVaultData: (fileContent: string) => void;
 }
 
 const restoreFromMemory = (cloudData: any, memoryBackup: CharactersState) => {
@@ -323,7 +326,13 @@ export const useCharacterManager = (): CharacterManager => {
           }
           lastSerializedRef.current = cache;
           dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
+        }
 
+        if (isOwlbear() && typeof OBR !== 'undefined' && (OBR as any).room?.id) {
+          const roomId = (OBR as any).room.id;
+          const roomName = (OBR as any).room?.name || 'Owlbear Room';
+          (window as any).__currentRoomName = roomName;
+          registerCurrentRoom(roomId, roomName);
         }
         
         const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -771,8 +780,60 @@ export const useCharacterManager = (): CharacterManager => {
   // --- MEMOIZED ACTION DISPATCHERS ---
 
   const addCharacter = useCallback((id: string, character: Character) => {
-    dispatch({ type: 'ADD_CHARACTER', payload: { id, character } });
+    let charToAdd = character;
+    if (isOwlbear() && typeof OBR !== 'undefined' && (OBR as any).room?.id) {
+      const roomId = (OBR as any).room.id;
+      const roomName = (window as any).__currentRoomName || (OBR as any).room?.name || 'Owlbear Room';
+      const boundRooms = character.boundRooms || [];
+      if (!boundRooms.some(r => r.roomId === roomId)) {
+        charToAdd = {
+          ...character,
+          boundRooms: [...boundRooms, { roomId, roomName, lastVisited: Date.now() }]
+        };
+      }
+    }
+    dispatch({ type: 'ADD_CHARACTER', payload: { id, character: charToAdd } });
   }, []);
+
+  const exportVaultData = useCallback(() => {
+    const state = charactersStateRef.current;
+    const knownRooms = getKnownRooms();
+    const vaultData = {
+      version: 2,
+      exportedAt: Date.now(),
+      knownRooms,
+      characters: state,
+    };
+    const blob = new Blob([JSON.stringify(vaultData, null, 2)], { type: 'application/json' });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = `Master_Vault_${new Date().toISOString().slice(0, 10)}.dndvault.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(href);
+    addNotification('Хранилище персонажей успешно экспортировано!', 'info');
+  }, [addNotification]);
+
+  const importVaultData = useCallback((fileContent: string) => {
+    try {
+      const parsed = JSON.parse(fileContent);
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('Некорректный формат файла хранилища.');
+      }
+      const incomingState = parsed.characters || parsed;
+      const parsedState = parseCharactersData(incomingState);
+      dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
+      if (Array.isArray(parsed.knownRooms)) {
+        saveKnownRooms(parsed.knownRooms);
+      }
+      addNotification('Хранилище персонажей успешно импортировано!', 'info');
+    } catch (e) {
+      console.error('[DND Sheet] Failed to import vault:', e);
+      addNotification('Ошибка при импорте файла хранилища.', 'error');
+    }
+  }, [addNotification]);
 
   const deleteCharacter = useCallback(async (id: string) => {
     const charEntry = charactersStateRef.current[id];
@@ -1083,5 +1144,7 @@ export const useCharacterManager = (): CharacterManager => {
     redo,
     syncCharacter,
     clearLocalCache,
+    exportVaultData,
+    importVaultData,
   };
 };

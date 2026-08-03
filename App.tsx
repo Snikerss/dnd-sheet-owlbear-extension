@@ -16,7 +16,7 @@ import { TextFormattingContextMenu } from './components/RichTextFormatting';
 
 const AppContent: React.FC = () => {
   const { addNotification } = useNotifier();
-  const { characters, isLoading, syncStatus, syncingCharacters, addCharacter, deleteCharacter, updateCharacter, undo, redo, syncCharacter, clearLocalCache } = useCharacterManager();
+  const { characters, isLoading, syncStatus, syncingCharacters, addCharacter, deleteCharacter, updateCharacter, undo, redo, syncCharacter, clearLocalCache, exportVaultData, importVaultData } = useCharacterManager();
   
   const [activeCharacterId, setActiveCharacterId] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
@@ -421,6 +421,11 @@ const AppContent: React.FC = () => {
           onOpenStandalone={handleOpenStandalone}
           onSyncCharacter={syncCharacter}
           onClearLocalCache={clearLocalCache}
+          onExportVault={exportVaultData}
+          onImportVault={importVaultData}
+          onBindRoom={(charId, roomId, roomName) => updateCharacter(charId, { type: 'BIND_ROOM', payload: { roomId, roomName } })}
+          onUnbindRoom={(charId, roomId) => updateCharacter(charId, { type: 'UNBIND_ROOM', payload: roomId })}
+          onToggleGlobalRoom={(charId, isGlobal) => updateCharacter(charId, { type: 'TOGGLE_GLOBAL_ROOM', payload: isGlobal })}
           isGM={isGM}
         />
       )}

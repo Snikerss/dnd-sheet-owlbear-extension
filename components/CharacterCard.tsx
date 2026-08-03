@@ -11,6 +11,7 @@ interface CharacterCardProps {
   onOpenStandalone?: () => void;
   onSync?: () => void;
   onClearCache?: () => void;
+  onOpenRoomBinding?: () => void;
   isSyncing?: boolean;
   pendingImagesCount?: number;
   currentUserId?: string | null;
@@ -26,6 +27,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
   onOpenStandalone,
   onSync,
   onClearCache,
+  onOpenRoomBinding,
   isSyncing = false,
   pendingImagesCount = 0,
   currentUserId,
@@ -70,6 +72,20 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
             </svg>
           )}
         </div>
+        {character.isGlobal ? (
+          <div className="absolute top-2 left-2 z-10">
+            <span className="bg-emerald-500/80 text-white text-[10px] px-2 py-0.5 rounded-md backdrop-blur-sm border border-emerald-400/40 font-bold">
+              🌐 Глобальный
+            </span>
+          </div>
+        ) : (character.boundRooms && character.boundRooms.length > 0) ? (
+          <div className="absolute top-2 left-2 z-10 flex flex-wrap gap-1">
+            <span className="bg-teal-600/80 text-white text-[10px] px-2 py-0.5 rounded-md backdrop-blur-sm border border-teal-400/40 font-bold" title={character.boundRooms.map(r => r.roomName).join(', ')}>
+              🎯 {character.boundRooms?.[0]?.roomName || 'Доска'}
+              {character.boundRooms.length > 1 && ` +${character.boundRooms.length - 1}`}
+            </span>
+          </div>
+        ) : null}
         {character.ownerName && (
           <div className="absolute top-2 right-2 z-10">
             <span className="bg-black/60 text-white/90 text-xs px-2 py-1 rounded-md backdrop-blur-sm border border-white/10 font-medium">
@@ -128,6 +144,15 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
+              </button>
+            )}
+            {onOpenRoomBinding && (
+              <button
+                onClick={onOpenRoomBinding}
+                data-tooltip="Привязка к доскам Owlbear"
+                className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-cyan-400 transition-colors flex items-center justify-center"
+              >
+                <span className="text-sm">🎯</span>
               </button>
             )}
             {onOpenStandalone && (

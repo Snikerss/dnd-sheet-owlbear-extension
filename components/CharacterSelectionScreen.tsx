@@ -1,10 +1,14 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { CharacterCard } from './CharacterCard';
+import { RoomBindingModal } from './RoomBindingModal';
 import type { Character } from '../types';
 import { isCharacter, migrateCharacterData } from '../state/initialization';
 import { useNotifier } from '../context/NotificationContext';
 import { generateUUID } from '../utils/uuid';
 import { compressCharacterImages } from '../utils/imageCompress';
+import { getKnownRooms, OwlbearRoomBinding } from '../utils/roomRegistry';
+import { isOwlbear } from '../utils/storage';
+import OBR from '@owlbear-rodeo/sdk';
 
 interface CharacterSelectionScreenProps {
   characters: Record<string, Character>;
@@ -18,6 +22,11 @@ interface CharacterSelectionScreenProps {
   onOpenStandalone: (id: string) => void;
   onSyncCharacter?: (id: string) => void;
   onClearLocalCache?: (id: string) => void;
+  onExportVault?: () => void;
+  onImportVault?: (fileContent: string) => void;
+  onBindRoom?: (charId: string, roomId: string, roomName: string) => void;
+  onUnbindRoom?: (charId: string, roomId: string) => void;
+  onToggleGlobalRoom?: (charId: string, isGlobal: boolean) => void;
   isGM?: boolean;
 }
 
@@ -33,11 +42,38 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
   onOpenStandalone,
   onSyncCharacter,
   onClearLocalCache,
+  onExportVault,
+  onImportVault,
+  onBindRoom,
+  onUnbindRoom,
+  onToggleGlobalRoom,
   isGM = true,
 }) => {
-  const characterEntries = Object.entries(characters);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const vaultInputRef = useRef<HTMLInputElement>(null);
   const { addNotification } = useNotifier();
+
+  const [selectedRoomFilter, setSelectedRoomFilter] = useState<string>('all');
+  const [bindingModalCharId, setBindingModalCharId] = useState<string | null>(null);
+
+  const knownRooms = useMemo(() => getKnownRooms(), []);
+  const currentRoomId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.room?.id : '';
+
+  const characterEntries = useMemo(() => {
+    const all = Object.entries(characters);
+    if (selectedRoomFilter === 'all') return all;
+    if (selectedRoomFilter === 'current' && currentRoomId) {
+      return all.filter(([_, char]) => {
+        if (char.isGlobal) return true;
+        if (!char.boundRooms || char.boundRooms.length === 0) return true;
+        return char.boundRooms.some(r => r.roomId === currentRoomId);
+      });
+    }
+    return all.filter(([_, char]) => {
+      if (char.isGlobal) return true;
+      return char.boundRooms?.some(r => r.roomId === selectedRoomFilter);
+    });
+  }, [characters, selectedRoomFilter, currentRoomId]);
 
   const handleExportCharacter = (id: string) => {
     const character = characters[id];
@@ -52,57 +88,54 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(href);
+    addNotification(`Персонаж "${character.name}" успешно экспортирован.`, 'info');
   };
 
-  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.dndchar.json') && !file.name.endsWith('.json')) {
-        addNotification("Неверный тип файла. Пожалуйста, выберите файл '.dndchar.json' или '.json'.", 'error');
-        return;
-    }
+    const resetInput = () => {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
 
     const reader = new FileReader();
-    reader.onload = async (e) => {
+    reader.onload = async (event) => {
       try {
-        const text = e.target?.result;
-        if (typeof text !== 'string') throw new Error("Не удалось прочитать файл.");
-        
-        const imported = JSON.parse(text);
-        
-        // Extract the character object if it's wrapped in a { character: ... } structure (standard desktop app DB format)
-        const characterData = (imported && typeof imported === 'object' && imported.character)
-          ? imported.character
-          : imported;
+        const content = event.target?.result as string;
+        if (!content) return;
+        const parsed = JSON.parse(content);
 
-        // Asynchronously compress any large base64 images inside characterData
-        const compressedCharacterData = await compressCharacterImages(characterData);
+        if (parsed.knownRooms || parsed.version === 2) {
+          if (onImportVault) {
+            onImportVault(content);
+          }
+          resetInput();
+          return;
+        }
 
-        const migratedCharacter = migrateCharacterData(compressedCharacterData);
+        const rawCharData = parsed.character || parsed;
+        const migrated = migrateCharacterData(rawCharData);
 
-        if (isCharacter(migratedCharacter)) {
+        if (isCharacter(migrated)) {
+          const compressed = await compressCharacterImages(migrated);
           const newId = generateUUID();
-          onAddCharacter(newId, migratedCharacter as Character);
-          addNotification(`Персонаж "${migratedCharacter.name}" успешно импортирован!`, 'success');
+          onAddCharacter(newId, compressed);
+          addNotification(`Персонаж "${compressed.name}" успешно импортирован!`, 'info');
         } else {
-          throw new Error("Файл поврежден или имеет неверный формат.");
+          addNotification('Некорректная структура файла персонажа.', 'error');
         }
-      } catch (error) {
-        console.error("Ошибка импорта персонажа:", error);
-        addNotification(`Не удалось импортировать персонажа. ${error instanceof Error ? error.message : 'Неизвестная ошибка.'}`, 'error');
+      } catch (err) {
+        console.error('Failed to parse JSON file:', err);
+        addNotification(' Ошибка при чтении файла. Убедитесь, что это валидный JSON файл.', 'error');
       } finally {
-        if (event.target) {
-            event.target.value = '';
-        }
+        resetInput();
       }
     };
     reader.readAsText(file);
   };
 
-  const triggerImport = () => {
-    fileInputRef.current?.click();
-  };
+  const bindingCharacter = bindingModalCharId ? characters[bindingModalCharId] : null;
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] p-4 md:p-8 flex flex-col">
@@ -110,19 +143,87 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
         type="file"
         ref={fileInputRef}
         className="hidden"
-        accept=".json,application/json"
+        accept=".json,.dndchar.json,.dndvault.json,application/json"
         onChange={handleFileImport}
       />
-      <header className="text-center mb-8">
-        <h1 className="text-4xl md:text-5xl font-bold text-[var(--color-text-base)]">Лист персонажа D&D 5e</h1>
-        <p className="text-lg text-[var(--color-text-medium)] mt-2">Выберите персонажа или создайте нового</p>
-        <div className="mt-4">
-             <button
-              onClick={triggerImport}
-              className="bg-[var(--color-surface-raised)] text-[var(--color-text-base)] font-bold py-2 px-6 rounded-lg hover:bg-[var(--color-surface-raised-hover)] transition-all shadow-md active:scale-95"
+
+      {bindingCharacter && bindingModalCharId && (
+        <RoomBindingModal
+          isOpen={true}
+          character={bindingCharacter}
+          onClose={() => setBindingModalCharId(null)}
+          onBindRoom={(roomId, roomName) => onBindRoom?.(bindingModalCharId, roomId, roomName)}
+          onUnbindRoom={(roomId) => onUnbindRoom?.(bindingModalCharId, roomId)}
+          onToggleGlobal={(isGlobal) => onToggleGlobalRoom?.(bindingModalCharId, isGlobal)}
+        />
+      )}
+
+      <header className="text-center mb-6">
+        <h1 className="text-4xl md:text-5xl font-bold text-[var(--color-text-base)]">
+          Мастер-Хранилище Персонажей
+        </h1>
+        <p className="text-lg text-[var(--color-text-medium)] mt-2">
+          Управляйте персонажами и их привязкой к доскам Owlbear Rodeo
+        </p>
+
+        {/* Action Buttons Toolbar */}
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="bg-[var(--color-surface-raised)] text-[var(--color-text-base)] font-bold py-2 px-5 rounded-xl hover:bg-[var(--color-surface-raised-hover)] transition-all shadow-md active:scale-95 text-xs sm:text-sm flex items-center gap-2"
+          >
+            <span>📥</span> Импортировать (.json / .dndvault)
+          </button>
+          
+          {onExportVault && (
+            <button
+              onClick={onExportVault}
+              className="bg-gradient-to-r from-teal-700/60 to-cyan-700/60 text-teal-200 border border-teal-500/30 font-bold py-2 px-5 rounded-xl hover:from-teal-600 hover:to-cyan-600 transition-all shadow-md active:scale-95 text-xs sm:text-sm flex items-center gap-2"
             >
-              Импортировать персонажа
+              <span>💾</span> Экспортировать Хранилище (.dndvault.json)
             </button>
+          )}
+        </div>
+
+        {/* Room Filter Pills */}
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+          <button
+            onClick={() => setSelectedRoomFilter('all')}
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${
+              selectedRoomFilter === 'all'
+                ? 'bg-teal-500 text-white border-teal-400 shadow-md'
+                : 'bg-[var(--color-surface-well)] text-[var(--color-text-medium)] border-slate-700/50 hover:border-slate-500'
+            }`}
+          >
+            Все персонажи ({Object.keys(characters).length})
+          </button>
+
+          {currentRoomId && (
+            <button
+              onClick={() => setSelectedRoomFilter('current')}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${
+                selectedRoomFilter === 'current'
+                  ? 'bg-teal-500 text-white border-teal-400 shadow-md'
+                  : 'bg-[var(--color-surface-well)] text-teal-300 border-teal-500/40 hover:border-teal-400'
+              }`}
+            >
+              🎯 Текущая доска Owlbear
+            </button>
+          )}
+
+          {knownRooms.map(room => (
+            <button
+              key={room.roomId}
+              onClick={() => setSelectedRoomFilter(room.roomId)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
+                selectedRoomFilter === room.roomId
+                  ? 'bg-teal-500 text-white border-teal-400 shadow-md'
+                  : 'bg-[var(--color-surface-well)] text-[var(--color-text-medium)] border-slate-700/50 hover:border-slate-500'
+              }`}
+            >
+              🏰 {room.roomName}
+            </button>
+          ))}
         </div>
       </header>
 
@@ -142,6 +243,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
                   onOpenStandalone={() => onOpenStandalone(id)}
                   onSync={onSyncCharacter ? () => onSyncCharacter(id) : undefined}
                   onClearCache={onClearLocalCache ? () => onClearLocalCache(id) : undefined}
+                  onOpenRoomBinding={() => setBindingModalCharId(id)}
                   isSyncing={!!syncState}
                   pendingImagesCount={syncState?.pendingImages.length || 0}
                   currentUserId={currentUserId}
@@ -149,7 +251,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
                 />
               );
             })}
-             <button
+            <button
               onClick={onCreateCharacter}
               className="group min-h-[380px] h-full bg-[var(--color-surface-opaque)] rounded-xl shadow-lg border-2 border-dashed border-[var(--color-border)] flex flex-col items-center justify-center text-[var(--color-text-muted)] hover:border-[var(--color-accent-primary)] hover:text-[var(--color-accent-primary)] transition-all duration-300"
             >
@@ -160,25 +262,27 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
             </button>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center text-center h-full max-w-md mx-auto">
+          <div className="flex flex-col items-center justify-center text-center h-full max-w-md mx-auto py-12">
             <svg className="w-24 h-24 text-[var(--color-text-subtle)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
-            <h2 className="text-2xl font-bold mt-4">Нет созданных персонажей</h2>
-            <p className="text-[var(--color-text-medium)] mt-2">Нажмите кнопку ниже, чтобы начать свое приключение и создать первого персонажа.</p>
+            <h2 className="text-2xl font-bold mt-4">Нет персонажей в выбранной категории</h2>
+            <p className="text-[var(--color-text-medium)] mt-2">
+              Измените фильтр досок или создайте нового персонажа.
+            </p>
             <button
               onClick={onCreateCharacter}
               className="mt-6 bg-[var(--color-accent-primary-active)] text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-[var(--color-accent-primary-dark)] transition-all shadow-lg active:scale-95"
             >
-              Создать первого персонажа
+              Создать персонажа
             </button>
           </div>
         )}
       </main>
 
-       <footer className="text-center mt-8 text-sm text-[var(--color-text-muted)]">
-            <p>&copy; {new Date().getFullYear()}. Все права защищены... или нет.</p>
-        </footer>
+      <footer className="text-center mt-8 text-sm text-[var(--color-text-muted)]">
+        <p>&copy; {new Date().getFullYear()} D&D 5e Master Vault. Все изменения сохранены локально.</p>
+      </footer>
     </div>
   );
 };

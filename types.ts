@@ -203,6 +203,8 @@ export interface Character {
   collapsedTabs?: Record<string, boolean>;
   ownerId?: string;
   ownerName?: string;
+  boundRooms?: { roomId: string; roomName: string; lastVisited: number }[];
+  isGlobal?: boolean;
 }
 
 export interface RollResult {
@@ -289,7 +291,10 @@ export type CharacterAction =
   | { type: 'UNEQUIP_ITEM_FROM_DOLL'; payload: { itemIndex: number; targetInventoryIndex?: number } }
   | { type: 'REORDER_TABS'; payload: string[] }
   | { type: 'SET_VIEW_MODE'; payload: 'tabs' | 'scroll' }
-  | { type: 'TOGGLE_TAB_COLLAPSE'; payload: string };
+  | { type: 'TOGGLE_TAB_COLLAPSE'; payload: string }
+  | { type: 'BIND_ROOM'; payload: { roomId: string; roomName: string } }
+  | { type: 'UNBIND_ROOM'; payload: string }
+  | { type: 'TOGGLE_GLOBAL_ROOM'; payload: boolean };
 
 // --- HISTORY TYPES ---
 export interface HistoryState<T> {

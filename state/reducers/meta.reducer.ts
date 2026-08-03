@@ -67,6 +67,27 @@ export const metaReducer = (state: Character, action: CharacterAction): Characte
       };
     }
 
+    case 'BIND_ROOM': {
+      const { roomId, roomName } = action.payload;
+      const currentRooms = state.boundRooms || [];
+      if (currentRooms.some(r => r.roomId === roomId)) {
+        return state;
+      }
+      const newRooms = [...currentRooms, { roomId, roomName, lastVisited: Date.now() }];
+      return { ...state, boundRooms: newRooms };
+    }
+
+    case 'UNBIND_ROOM': {
+      const roomId = action.payload;
+      const currentRooms = state.boundRooms || [];
+      const newRooms = currentRooms.filter(r => r.roomId !== roomId);
+      return { ...state, boundRooms: newRooms };
+    }
+
+    case 'TOGGLE_GLOBAL_ROOM': {
+      return { ...state, isGlobal: action.payload };
+    }
+
     default:
       return state;
   }
