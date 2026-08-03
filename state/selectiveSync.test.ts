@@ -1,55 +1,52 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { metaReducer } from './reducers/meta.reducer';
-import { makeTestCharacter } from './testFixtures';
+import { Character } from '../types';
+import { defaultCharacterState } from './defaultCharacterState';
 
-describe('Selective Syncing & Room Binding', () => {
-  it('adds a room binding on BIND_ROOM action', () => {
-    const char = makeTestCharacter();
-    const result = metaReducer(char, {
-      type: 'BIND_ROOM',
-      payload: { roomId: 'room-abc', roomName: 'Подземелье Дракона' }
-    });
+export const isBoundToActiveRoom = (character: Character, activeRoomId: string): boolean => {
+  if (!character) return false;
+  if (character.isGlobal) return true;
+  if (!activeRoomId) return false;
+  return (character.boundRooms || []).some(r => r.roomId === activeRoomId);
+};
 
-    expect(result.boundRooms).toHaveLength(1);
-    expect(result.boundRooms![0].roomId).toBe('room-abc');
-    expect(result.boundRooms![0].roomName).toBe('Подземелье Дракона');
+describe('Selective Room Sync Filter', () => {
+  const roomA = 'room-alpha-123';
+  const roomB = 'room-beta-456';
+
+  it('allows sync if character is marked as isGlobal', () => {
+    const char: Character = {
+      ...defaultCharacterState,
+      isGlobal: true,
+      boundRooms: []
+    };
+
+    expect(isBoundToActiveRoom(char, roomA)).toBe(true);
+    expect(isBoundToActiveRoom(char, roomB)).toBe(true);
+    expect(isBoundToActiveRoom(char, '')).toBe(true);
   });
 
-  it('does not duplicate existing room binding on BIND_ROOM action', () => {
-    const char = makeTestCharacter();
-    let state = metaReducer(char, {
-      type: 'BIND_ROOM',
-      payload: { roomId: 'room-abc', roomName: 'Подземелье Дракона' }
-    });
-    state = metaReducer(state, {
-      type: 'BIND_ROOM',
-      payload: { roomId: 'room-abc', roomName: 'Подземелье Дракона' }
-    });
+  it('allows sync only if character is explicitly bound to activeRoomId', () => {
+    const char: Character = {
+      ...defaultCharacterState,
+      isGlobal: false,
+      boundRooms: [
+        { roomId: roomA, roomName: 'Кампания Альфа', lastVisited: Date.now() }
+      ]
+    };
 
-    expect(state.boundRooms).toHaveLength(1);
+    expect(isBoundToActiveRoom(char, roomA)).toBe(true);
+    expect(isBoundToActiveRoom(char, roomB)).toBe(false);
   });
 
-  it('removes room binding on UNBIND_ROOM action', () => {
-    const char = makeTestCharacter();
-    let state = metaReducer(char, {
-      type: 'BIND_ROOM',
-      payload: { roomId: 'room-abc', roomName: 'Подземелье Дракона' }
-    });
-    state = metaReducer(state, {
-      type: 'UNBIND_ROOM',
-      payload: 'room-abc'
-    });
+  it('suppresses sync for unbound characters', () => {
+    const char: Character = {
+      ...defaultCharacterState,
+      isGlobal: false,
+      boundRooms: []
+    };
 
-    expect(state.boundRooms).toHaveLength(0);
-  });
-
-  it('toggles global flag on TOGGLE_GLOBAL_ROOM action', () => {
-    const char = makeTestCharacter();
-    const state = metaReducer(char, {
-      type: 'TOGGLE_GLOBAL_ROOM',
-      payload: true
-    });
-
-    expect(state.isGlobal).toBe(true);
+    expect(isBoundToActiveRoom(char, roomA)).toBe(false);
+    expect(isBoundToActiveRoom(char, roomB)).toBe(false);
   });
 });

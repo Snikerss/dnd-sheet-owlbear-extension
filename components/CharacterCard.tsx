@@ -85,7 +85,13 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
               {character.boundRooms.length > 1 && ` +${character.boundRooms.length - 1}`}
             </span>
           </div>
-        ) : null}
+        ) : (
+          <div className="absolute top-2 left-2 z-10">
+            <span className="bg-slate-700/80 text-slate-300 text-[10px] px-2 py-0.5 rounded-md backdrop-blur-sm border border-slate-600/40 font-bold">
+              🔒 Локальный
+            </span>
+          </div>
+        )}
         {character.ownerName && (
           <div className="absolute top-2 right-2 z-10">
             <span className="bg-black/60 text-white/90 text-xs px-2 py-1 rounded-md backdrop-blur-sm border border-white/10 font-medium">

@@ -208,6 +208,13 @@ export const CharacterHeader: React.FC<CharacterHeaderProps> = React.memo(({
                         </svg>
                     </button>
                   )}
+                  <button
+                    onClick={onOpenCharacterManager}
+                    className="h-[50px] px-3.5 flex items-center gap-1.5 bg-gradient-to-r from-teal-800/50 to-slate-800/50 border border-teal-500/30 text-teal-200 text-xs font-bold rounded-lg hover:from-teal-700/60 hover:to-slate-700/60 transition-all active:scale-95 shadow-sm"
+                    data-tooltip="Вернуться в Хранилище персонажей"
+                  >
+                    <span>←</span> Хранилище
+                  </button>
                   {onOpenStandalone && (
                     <button 
                       onClick={onOpenStandalone} 
