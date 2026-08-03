@@ -1106,8 +1106,7 @@ export const useCharacterManager = (): CharacterManager => {
         const state = charactersStateRef.current;
         let entry = payload.charId ? state[payload.charId] : null;
 
-        // Если локальное состояние еще пустое (например, сразу после F5), берем переданный слепок от отправителя
-        if (!entry && payload.entry && payload.charId) {
+        if (payload.entry && payload.charId) {
           entry = payload.entry;
           const entryWithMap = {
             ...payload.entry,
@@ -1119,8 +1118,8 @@ export const useCharacterManager = (): CharacterManager => {
             type: 'SYNC_REMOTE_CHARACTER',
             payload: { id: payload.charId, entry: entryWithMap }
           });
+          saveCharacterApi(payload.charId, entryWithMap);
           if (isOwlbear()) {
-            saveCharacterApi(payload.charId, entryWithMap);
             broadcastCharacterSync(payload.charId, entryWithMap);
           }
         }
@@ -1142,25 +1141,24 @@ export const useCharacterManager = (): CharacterManager => {
         if (Array.isArray(payload.knownRooms)) {
           saveKnownRooms(payload.knownRooms);
         }
-        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-        const urlCharId = urlParams?.get('charId');
 
         if (!isOwlbear()) {
           setSyncStatus('connected_tab');
         }
 
-        if (payload.entry && payload.charId && payload.charId === urlCharId) {
+        if (payload.entry && payload.charId) {
+          const entryWithMap = {
+            ...payload.entry,
+            imageCache: Array.isArray(payload.entry.imageCache) 
+              ? new Map(payload.entry.imageCache) 
+              : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
+          };
+          dispatch({
+            type: 'SYNC_REMOTE_CHARACTER',
+            payload: { id: payload.charId, entry: entryWithMap }
+          });
+          saveCharacterApi(payload.charId, entryWithMap);
           if (isLoadingRef.current) {
-            const entryWithMap = {
-              ...payload.entry,
-              imageCache: Array.isArray(payload.entry.imageCache) 
-                ? new Map(payload.entry.imageCache) 
-                : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
-            };
-            dispatch({
-              type: 'SYNC_REMOTE_CHARACTER',
-              payload: { id: payload.charId, entry: entryWithMap }
-            });
             setIsLoading(false);
           }
         }
