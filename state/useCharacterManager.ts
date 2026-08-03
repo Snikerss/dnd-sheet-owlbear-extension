@@ -768,7 +768,7 @@ export const useCharacterManager = (): CharacterManager => {
             future: []
           },
           imageCache: rawChar.imageCache,
-          lastModified: Date.now()
+          lastModified: rawChar.lastModified || (rawChar.log && rawChar.log[0]?.timestamp) || 0
         };
 
         const serialized = serializeForCache(obrCharData);
@@ -1013,6 +1013,12 @@ export const useCharacterManager = (): CharacterManager => {
             : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
         };
 
+        const serialized = serializeForCache(entryWithMap);
+        if (lastSerializedRef.current[payload.charId] === serialized) {
+          return; // Skip no-op duplicate sync
+        }
+        lastSerializedRef.current[payload.charId] = serialized;
+
         dispatch({
           type: 'SYNC_REMOTE_CHARACTER',
           payload: { id: payload.charId, entry: entryWithMap }
@@ -1064,38 +1070,29 @@ export const useCharacterManager = (): CharacterManager => {
         if (isOwlbear()) {
           setSyncStatus('connected_tab');
         }
-      } else if (payload.type === 'VTT_FRAME_READY' || payload.type === 'P2P_PEER_JOIN') {
-        console.log('[DND Sheet] Bridge Sync: Remote peer joined or VTT frame ready. Re-authenticating handshake...');
-        if (payload.roomId) {
-          registerCurrentRoom(payload.roomId, payload.roomName || 'Доска Owlbear');
-        }
-        if (Array.isArray(payload.knownRooms)) {
-          saveKnownRooms(payload.knownRooms);
-        }
-        if (!isOwlbear()) {
-          const stateCharIds = Object.keys(charactersStateRef.current);
-          const localData = loadFromLocalStorage();
-          const allCharIds = Array.from(new Set([...stateCharIds, ...Object.keys(localData)]));
+      } else if (payload.type === 'VTT_FRAME_READY') {
+        console.log('[DND Sheet] Bridge Sync: Received VTT_FRAME_READY broadcast.');
 
-          if (allCharIds.length > 0) {
-            for (const charId of allCharIds) {
-              const myEntry = charactersStateRef.current[charId] || localData[charId];
-              const imageCacheArray = myEntry?.imageCache ? Array.from(myEntry.imageCache.entries()) : [];
-              localBridge.postMessage({
-                type: 'HANDSHAKE_PING',
-                charId,
-                entry: myEntry ? { ...myEntry, imageCache: imageCacheArray } : undefined,
-                knownRooms: getKnownRooms()
-              });
-            }
-          } else {
+        const state = charactersStateRef.current;
+        const localData = loadFromLocalStorage();
+        const combined = { ...localData, ...state };
+
+        for (const [charId, myEntry] of Object.entries(combined)) {
+          if (myEntry) {
+            const entryObj = myEntry as any;
+            const imageCacheArray = Array.isArray(entryObj.imageCache)
+              ? entryObj.imageCache
+              : (entryObj.imageCache instanceof Map ? Array.from(entryObj.imageCache.entries()) : []);
+
             localBridge.postMessage({
               type: 'HANDSHAKE_PING',
+              charId,
+              entry: { ...entryObj, imageCache: imageCacheArray },
               knownRooms: getKnownRooms()
             });
           }
-          setSyncStatus('connected_tab');
         }
+        setSyncStatus('connected_tab');
       } else if (payload.type === 'HANDSHAKE_PING') {
         console.log('[DND Sheet] Bridge Sync: Received HANDSHAKE_PING for character:', payload.charId);
         if (payload.roomId) {
@@ -1130,13 +1127,17 @@ export const useCharacterManager = (): CharacterManager => {
                 ? new Map(payload.entry.imageCache) 
                 : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
             };
-            dispatch({
-              type: 'SYNC_REMOTE_CHARACTER',
-              payload: { id: payload.charId, entry: entryWithMap }
-            });
-            saveCharacterApi(payload.charId, entryWithMap);
-            if (isOwlbear()) {
-              broadcastCharacterSync(payload.charId, entryWithMap);
+            const serialized = serializeForCache(entryWithMap);
+            if (lastSerializedRef.current[payload.charId] !== serialized) {
+              lastSerializedRef.current[payload.charId] = serialized;
+              dispatch({
+                type: 'SYNC_REMOTE_CHARACTER',
+                payload: { id: payload.charId, entry: entryWithMap }
+              });
+              saveCharacterApi(payload.charId, entryWithMap);
+              if (isOwlbear()) {
+                broadcastCharacterSync(payload.charId, entryWithMap);
+              }
             }
           }
         }
@@ -1185,11 +1186,15 @@ export const useCharacterManager = (): CharacterManager => {
                 ? new Map(payload.entry.imageCache) 
                 : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
             };
-            dispatch({
-              type: 'SYNC_REMOTE_CHARACTER',
-              payload: { id: payload.charId, entry: entryWithMap }
-            });
-            saveCharacterApi(payload.charId, entryWithMap);
+            const serialized = serializeForCache(entryWithMap);
+            if (lastSerializedRef.current[payload.charId] !== serialized) {
+              lastSerializedRef.current[payload.charId] = serialized;
+              dispatch({
+                type: 'SYNC_REMOTE_CHARACTER',
+                payload: { id: payload.charId, entry: entryWithMap }
+              });
+              saveCharacterApi(payload.charId, entryWithMap);
+            }
           }
           if (isLoadingRef.current) {
             setIsLoading(false);
