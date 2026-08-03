@@ -50,15 +50,6 @@ class P2PRoomBridgeService {
       this.socket.onopen = () => {
         this.isConnecting = false;
         console.log(`[DND Sheet P2P] Connected to room network channel: ${this.currentRoomId}`);
-        
-        // Поддержание активности сокета (Keep-alive ping каждые 20 секунд)
-        this.pingInterval = setInterval(() => {
-          if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-            try {
-              this.socket.send(JSON.stringify({ action: 'ping' }));
-            } catch (e) {}
-          }
-        }, 20000);
 
         // Анонс выходящего на связь клиента
         this.broadcast({
