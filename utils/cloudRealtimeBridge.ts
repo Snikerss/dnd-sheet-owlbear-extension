@@ -49,6 +49,13 @@ class CloudRealtimeBridgeService {
 
       socket.onopen = () => {
         console.log('[Cloud Discovery Beacon] Connected to global discovery channel.');
+        try {
+          socket.send(JSON.stringify({
+            type: 'DISCOVERY_BEACON_QUERY',
+            senderClientId: SESSION_CLIENT_ID,
+            sentAt: Date.now()
+          }));
+        } catch (e) {}
       };
 
       socket.onmessage = (event) => {
@@ -89,16 +96,31 @@ class CloudRealtimeBridgeService {
   }
 
   public sendBeaconResponse(roomId: string, roomName: string): void {
+    if (!roomId) return;
+    this.currentRoomId = roomId;
+    this.currentRoomName = roomName;
+
+    const payload = {
+      type: 'DISCOVERY_BEACON_RESPONSE',
+      roomId,
+      roomName,
+      senderClientId: SESSION_CLIENT_ID,
+      sentAt: Date.now()
+    };
+
     if (this.beaconWs && this.beaconWs.readyState === WebSocket.OPEN) {
       try {
-        this.beaconWs.send(JSON.stringify({
-          type: 'DISCOVERY_BEACON_RESPONSE',
-          roomId,
-          roomName,
-          senderClientId: SESSION_CLIENT_ID,
-          sentAt: Date.now()
-        }));
+        this.beaconWs.send(JSON.stringify(payload));
       } catch (e) {}
+    } else {
+      this.initDiscoveryBeacon();
+      setTimeout(() => {
+        if (this.beaconWs && this.beaconWs.readyState === WebSocket.OPEN) {
+          try {
+            this.beaconWs.send(JSON.stringify(payload));
+          } catch (e) {}
+        }
+      }, 500);
     }
   }
 

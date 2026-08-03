@@ -1379,8 +1379,14 @@ export const useCharacterManager = (): CharacterManager => {
       });
 
       cloudRealtimeBridge.queryDiscoveryBeacon();
+      const beaconInterval = setInterval(() => {
+        if (lastRemoteP2pTimeRef.current === 0 || Date.now() - lastRemoteP2pTimeRef.current > 10000) {
+          cloudRealtimeBridge.queryDiscoveryBeacon();
+        }
+      }, 4000);
 
       return () => {
+        clearInterval(beaconInterval);
         unsubscribeBeacon();
       };
     }
