@@ -1,7 +1,7 @@
 /**
  * P2P Room Network Bridge Service.
  * Обеспечивает связь реального времени (<30 мс) между отдельной вкладкой на стороннем домене
- * и фреймом Owlbear Rodeo по уникальному ID комнаты (roomId) через публичные WebSocket/P2P сокеты.
+ * и фреймом Owlbear Rodeo по уникальному ID комнаты (roomId) через онлайн-канал вещания.
  */
 
 type P2PMessageHandler = (data: any) => void;
@@ -12,16 +12,19 @@ class P2PRoomBridgeService {
   private listeners: Set<P2PMessageHandler> = new Set();
   private isConnecting = false;
   private reconnectTimer: any = null;
+  private pingInterval: any = null;
 
   /**
    * Подключается к P2P-сетевой комнате по ее уникальному ID в Owlbear Rodeo.
    */
   public connect(roomId: string): void {
-    if (!roomId || (this.currentRoomId === roomId && this.socket && this.socket.readyState === WebSocket.OPEN)) {
+    if (!roomId) return;
+    const cleanRoomId = roomId.replace(/[^a-zA-Z0-9_-]/g, '');
+    if (this.currentRoomId === cleanRoomId && this.socket && this.socket.readyState === WebSocket.OPEN) {
       return;
     }
 
-    this.currentRoomId = roomId;
+    this.currentRoomId = cleanRoomId;
     this.initWebSocket();
   }
 
@@ -34,9 +37,10 @@ class P2PRoomBridgeService {
         this.socket.close();
       } catch (e) {}
     }
+    if (this.pingInterval) clearInterval(this.pingInterval);
 
-    // Использование публичного высокодоступного WebSocket PubSub реле
-    const endpoint = `wss://socketsbay.com/wss/v2/1/dnd-room-${encodeURIComponent(this.currentRoomId)}/`;
+    // Высокодоступный бесплатный открытый WebSocket PubSub канал
+    const endpoint = `wss://free.piesocket.com/v3/dnd-room-${this.currentRoomId}?api_key=VC32145&notify_self=1`;
 
     try {
       this.socket = new WebSocket(endpoint);
@@ -44,7 +48,17 @@ class P2PRoomBridgeService {
       this.socket.onopen = () => {
         this.isConnecting = false;
         console.log(`[DND Sheet P2P] Connected to room network channel: ${this.currentRoomId}`);
-        // Анонс в комнату при выходе на связь
+        
+        // Поддержание активности сокета (Keep-alive ping каждые 25 секунд)
+        this.pingInterval = setInterval(() => {
+          if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            try {
+              this.socket.send(JSON.stringify({ type: 'PING' }));
+            } catch (e) {}
+          }
+        }, 25000);
+
+        // Анонс выходящего на связь клиента
         this.broadcast({
           type: 'P2P_PEER_JOIN',
           roomId: this.currentRoomId,
@@ -55,27 +69,27 @@ class P2PRoomBridgeService {
       this.socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data && typeof data === 'object') {
+          if (data && typeof data === 'object' && data.type !== 'PING') {
             this.notifyListeners(data);
           }
         } catch (e) {}
       };
 
       this.socket.onerror = (err) => {
-        console.warn('[DND Sheet P2P] WebSocket network error:', err);
+        console.warn('[DND Sheet P2P] WebSocket error:', err);
         this.isConnecting = false;
       };
 
       this.socket.onclose = () => {
         this.isConnecting = false;
-        // Автоматическое переподключение через 4 секунды при разрыве сети
+        if (this.pingInterval) clearInterval(this.pingInterval);
         if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
         this.reconnectTimer = setTimeout(() => {
           if (this.currentRoomId) {
             console.log('[DND Sheet P2P] Reconnecting to room network...');
             this.initWebSocket();
           }
-        }, 4000);
+        }, 3000);
       };
     } catch (err) {
       console.warn('[DND Sheet P2P] Failed to initialize WebSocket client:', err);
@@ -127,6 +141,7 @@ class P2PRoomBridgeService {
    * Отключает сетевой мост.
    */
   public disconnect(): void {
+    if (this.pingInterval) clearInterval(this.pingInterval);
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.socket) {
       try {
