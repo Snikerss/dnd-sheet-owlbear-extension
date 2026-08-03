@@ -123,17 +123,39 @@ class LocalBridgeService {
       }
     }
 
-    // 2. Parent window (если находимся в iframe)
+    // 2. Parent window & sibling frames (если находимся в iframe)
     if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
       try {
         window.parent.postMessage(payload, '*');
+        const frames = window.parent.frames;
+        if (frames && frames.length > 0) {
+          for (let i = 0; i < frames.length; i++) {
+            try {
+              const frame = frames[i];
+              if (frame && frame !== window) {
+                frame.postMessage(payload, '*');
+              }
+            } catch (e) {}
+          }
+        }
       } catch (err) {}
     }
 
-    // 3. Opener window (если открыты из другого окна/вкладки)
+    // 3. Opener window & opener child frames (если открыты из другого окна/вкладки)
     if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
       try {
         window.opener.postMessage(payload, '*');
+        const frames = window.opener.frames;
+        if (frames && frames.length > 0) {
+          for (let i = 0; i < frames.length; i++) {
+            try {
+              const frame = frames[i];
+              if (frame) {
+                frame.postMessage(payload, '*');
+              }
+            } catch (e) {}
+          }
+        }
       } catch (err) {}
     }
 

@@ -1129,16 +1129,19 @@ export const useCharacterManager = (): CharacterManager => {
 
     let lastPongTime = Date.now();
 
+    // Immediate ping on mount
+    localBridge.postMessage({ type: 'HANDSHAKE_PING', charId: urlCharId });
+
     const interval = setInterval(() => {
       localBridge.postMessage({ type: 'HANDSHAKE_PING', charId: urlCharId });
-      if (Date.now() - lastPongTime > 9000) {
+      if (Date.now() - lastPongTime > 12000) {
         setSyncStatus('disconnected');
       }
-    }, 4500);
+    }, 3500);
 
     const unsubscribe = localBridge.subscribe((event) => {
       const payload = event.data;
-      if (payload && (payload.type === 'HANDSHAKE_PONG' || payload.type === 'CHARACTER_SYNC' || payload.type === 'CHARACTER_ACTION')) {
+      if (payload && (payload.type === 'HANDSHAKE_PONG' || payload.type === 'CHARACTER_SYNC' || payload.type === 'CHARACTER_ACTION' || payload.type === 'VTT_FRAME_READY')) {
         lastPongTime = Date.now();
         setSyncStatus('connected_tab');
       }
