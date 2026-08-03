@@ -42,10 +42,10 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
       label = 'Сохранение...';
       break;
     case 'connected_tab':
-      badgeColor = 'bg-blue-500/20 text-blue-300 border-blue-500/40';
-      dotColor = 'bg-blue-400';
-      icon = '🔵';
-      label = inOwlbear ? 'Вкладка подключена' : 'P2P Сеть Owlbear';
+      badgeColor = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+      dotColor = 'bg-emerald-400';
+      icon = '🟢';
+      label = inOwlbear ? 'Owlbear VTT' : 'Облачный Шлюз Активен';
       break;
     case 'disconnected':
       badgeColor = 'bg-rose-500/20 text-rose-300 border-rose-500/40 cursor-pointer hover:bg-rose-500/30 transition-colors';

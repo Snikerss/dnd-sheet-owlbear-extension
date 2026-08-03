@@ -1250,17 +1250,45 @@ export const useCharacterManager = (): CharacterManager => {
 
   const lastRemoteP2pTimeRef = useRef<number>(0);
 
-  // 2.7. Periodic Heartbeat Emitter for Owlbear mode to keep standalone tabs connected
+  // 2.7. Periodic Heartbeat Emitter & Presence Responder for Owlbear mode
   useEffect(() => {
     if (!isOwlbear()) return;
     const sendHeartbeat = () => {
       try {
-        localBridge.postMessage({ type: 'HEARTBEAT_PING' });
+        const roomId = typeof OBR !== 'undefined' ? OBR.room?.id : '';
+        const roomName = (typeof OBR !== 'undefined' ? (OBR as any).room?.name : '') || 'Owlbear Room';
+        localBridge.postMessage({
+          type: 'HEARTBEAT_PING',
+          roomId,
+          roomName
+        });
       } catch (e) {}
     };
     sendHeartbeat();
     const interval = setInterval(sendHeartbeat, 3000);
-    return () => clearInterval(interval);
+
+    const unsubscribe = localBridge.subscribe((event) => {
+      const payload = event.data;
+      if (payload && typeof payload === 'object') {
+        const senderId = payload.senderClientId || payload.senderId;
+        if (senderId && senderId !== SESSION_CLIENT_ID && payload.type === 'PRESENCE_QUERY') {
+          const roomId = typeof OBR !== 'undefined' ? OBR.room?.id : '';
+          const roomName = (typeof OBR !== 'undefined' ? (OBR as any).room?.name : '') || 'Owlbear Room';
+          p2pRoomBridge.broadcast({
+            type: 'STATE_RESPONSE',
+            roomId,
+            roomName,
+            activeCharacterId: p2pRoomBridge.getActiveBoardCharacterId(),
+            knownRooms: getKnownRooms()
+          });
+        }
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, []);
 
   // 2.8. Heartbeat monitor for standalone tab to detect connection drops
@@ -1268,8 +1296,8 @@ export const useCharacterManager = (): CharacterManager => {
     if (isOwlbear()) return;
 
     const checkVttHeartbeat = () => {
-      // 1. Если приходило любое сообщение через P2P мост менее 10 секунд назад
-      if (lastRemoteP2pTimeRef.current > 0 && Date.now() - lastRemoteP2pTimeRef.current < 10000) {
+      // 1. Если приходило любое сообщение через P2P мост менее 15 секунд назад
+      if (lastRemoteP2pTimeRef.current > 0 && Date.now() - lastRemoteP2pTimeRef.current < 15000) {
         setSyncStatus('connected_tab');
         return true;
       }
@@ -1297,6 +1325,11 @@ export const useCharacterManager = (): CharacterManager => {
         if (senderId && senderId !== SESSION_CLIENT_ID) {
           lastRemoteP2pTimeRef.current = Date.now();
           setSyncStatus('connected_tab');
+
+          if (payload.type === 'STATE_RESPONSE' && payload.roomId) {
+            registerCurrentRoom(payload.roomId, payload.roomName || 'Owlbear Room');
+            p2pRoomBridge.connect(payload.roomId, payload.roomName);
+          }
         }
       }
     });

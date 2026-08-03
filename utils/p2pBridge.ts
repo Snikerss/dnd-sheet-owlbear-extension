@@ -1,7 +1,8 @@
 import { SESSION_CLIENT_ID } from './bridgeService';
+import { cloudRealtimeBridge, CloudMessagePayload } from './cloudRealtimeBridge';
 
 export interface RoomHandshakePayload {
-  type: 'ROOM_ANNOUNCE' | 'ROOM_PAIR_REQUEST' | 'ROOM_PAIR_ACK' | 'SET_ACTIVE_BOARD_CHAR' | 'CHAR_SYNC';
+  type: 'ROOM_ANNOUNCE' | 'ROOM_PAIR_REQUEST' | 'ROOM_PAIR_ACK' | 'SET_ACTIVE_BOARD_CHAR' | 'CHAR_SYNC' | 'CHAR_UPDATE' | 'DICE_ROLL' | 'PRESENCE_QUERY' | 'STATE_RESPONSE';
   roomId: string;
   roomName?: string;
   activeCharacterId?: string;
@@ -11,9 +12,8 @@ export interface RoomHandshakePayload {
 }
 
 /**
- * Production-Grade HTML5 Browser Window & Room Sync Bridge
- * Надежный локальный мост памяти, работающий по стандартам HTML5 (BroadcastChannel, postMessage, StorageBus).
- * Полностью независим от сторонних серверов и сетевых разрывов.
+ * Production-Grade HTML5 Browser Window & Cloud Realtime P2P Bridge
+ * Единый сервис управления синхронизацией: инкапсулирует браузерный мост памяти HTML5 и облачный сокет-шлюз.
  */
 class P2PRoomBridgeService {
   private currentRoomId: string | null = null;
@@ -22,14 +22,24 @@ class P2PRoomBridgeService {
   private childWindows: Set<Window> = new Set();
   private activeBoardCharacterId: string | null = null;
 
+  constructor() {
+    // Subscribe to incoming cloud realtime messages
+    cloudRealtimeBridge.subscribe((payload) => {
+      this.notifyListeners(payload);
+    });
+  }
+
   public connect(roomId: string, roomName?: string): void {
     if (!roomId) return;
     this.currentRoomId = roomId;
     if (roomName) this.currentRoomName = roomName;
     
-    console.log(`[DND Sheet P2P Bridge] Connected to room: ${roomId} (${this.currentRoomName})`);
+    console.log(`[DND Sheet P2P Bridge] Connecting to room: ${roomId} (${this.currentRoomName})`);
 
-    // Broadcast room announcement to all listening tabs
+    // Connect cloud realtime bridge
+    cloudRealtimeBridge.connect(roomId, this.currentRoomName);
+
+    // Broadcast room announcement to local listening tabs
     this.broadcast({
       type: 'ROOM_ANNOUNCE',
       roomId: this.currentRoomId,
@@ -78,21 +88,26 @@ class P2PRoomBridgeService {
       senderClientId: SESSION_CLIENT_ID
     };
 
-    // 1. Direct window.opener (if launched as popup/tab)
+    // 1. Cloud Realtime Bridge (works across F5 reloads and separate browsers)
+    try {
+      cloudRealtimeBridge.send(payload as CloudMessagePayload);
+    } catch (e) {}
+
+    // 2. Direct window.opener (if launched as popup/tab)
     if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
       try {
         window.opener.postMessage(payload, '*');
       } catch (e) {}
     }
 
-    // 2. Direct window.parent (if inside iframe)
+    // 3. Direct window.parent (if inside iframe)
     if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
       try {
         window.parent.postMessage(payload, '*');
       } catch (e) {}
     }
 
-    // 3. Registered child windows
+    // 4. Registered child windows
     this.childWindows.forEach((win) => {
       if (win && !win.closed) {
         try {
@@ -140,6 +155,7 @@ class P2PRoomBridgeService {
   }
 
   public disconnect(): void {
+    cloudRealtimeBridge.disconnect();
     this.childWindows.clear();
     this.currentRoomId = null;
   }
