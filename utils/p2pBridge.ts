@@ -56,7 +56,7 @@ class P2PRoomBridgeService {
   }
 
   public registerWindow(win: Window): void {
-    if (win && !win.closed && win !== window) {
+    if (win && !win.closed && (typeof window === 'undefined' || win !== window)) {
       this.childWindows.add(win);
     }
   }

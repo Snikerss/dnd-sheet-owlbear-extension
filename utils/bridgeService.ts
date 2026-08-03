@@ -51,22 +51,6 @@ class LocalBridgeService {
         }
       });
 
-      // Periodic polling fallback for localStorage signal bus (every 1000ms)
-      setInterval(() => {
-        try {
-          const raw = window.localStorage.getItem('com.antigravity.dnd-sheet/bridge_signal');
-          if (raw) {
-            const payload = JSON.parse(raw);
-            if (payload && payload.msgId && payload.msgTimestamp && (Date.now() - payload.msgTimestamp < 5000)) {
-              const msgKey = `bus-${payload.msgId}`;
-              if (!this.isDuplicateMessage(msgKey, 5000)) {
-                this.handleMessage(new MessageEvent('message', { data: payload }));
-              }
-            }
-          }
-        } catch (e) {}
-      }, 1000);
-
       // P2P Room Network listener
       p2pRoomBridge.subscribe((data) => {
         if (data && typeof data === 'object') {
@@ -178,14 +162,7 @@ class LocalBridgeService {
       }
     });
 
-    // 5. LocalStorage Signal Bus (гарантированный резервный канал связи для вкладок/iframe)
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.setItem('com.antigravity.dnd-sheet/bridge_signal', JSON.stringify(payload));
-      }
-    } catch (e) {}
-
-    // 6. P2P Room Network Broadcast
+    // 5. P2P Room Network Broadcast
     try {
       p2pRoomBridge.broadcast(payload);
     } catch (e) {}
