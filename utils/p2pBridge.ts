@@ -102,20 +102,12 @@ class P2PRoomBridgeService {
 
     const body = JSON.stringify(payload);
 
-    // 1. Отправляем через WebSocket, если открыт
+    // Отправляем через WebSocket без лимитов размера и HTTP-ограничений
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       try {
         this.socket.send(body);
       } catch (e) {}
     }
-
-    // 2. Отправляем через HTTP POST для 100% гарантированной доставки вне зависимости от состояния сокета
-    try {
-      fetch(`https://ntfy.sh/dnd_sheet_room_${shortRoomId}`, {
-        method: 'POST',
-        body: body
-      }).catch(() => {});
-    } catch (e) {}
   }
 
   /**
