@@ -39,8 +39,9 @@ class P2PRoomBridgeService {
     const hostPeerId = `dnd-room-v3-${cleanRoomId}`;
 
     try {
-      // Инициализируем локальный пир
-      this.peer = new Peer();
+      // Инициализируем локальный пир с явным уникальным ID (обходит HTTP 403 на /peerjs/id)
+      const myUniqueId = 'dnd-peer-' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+      this.peer = new Peer(myUniqueId);
 
       this.peer.on('open', (id) => {
         this.isConnecting = false;
