@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(() => {
     return {
-      base: './',
+      base: '/dnd-sheet-owlbear-extension/',
       clearScreen: false,
       server: {
         port: 3000,
