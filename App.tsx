@@ -293,10 +293,20 @@ const AppContent: React.FC = () => {
     addCharacter(id, charWithNewOwner);
   }, [addCharacter, userId, playerName]);
 
+  useEffect(() => {
+    const unsubscribe = localBridge.subscribe((event: MessageEvent) => {
+      const data = event.data;
+      if (data && typeof data === 'object' && data.type === 'SELECT_CHARACTER' && data.charId) {
+        setActiveCharacterId(data.charId);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   const handleOpenStandalone = useCallback((id: string) => {
     const url = new URL(window.location.href);
     url.searchParams.set('v', '1.0.4');
-    url.searchParams.set('charId', id);
+    url.searchParams.delete('charId');
     if (userId) url.searchParams.set('userId', userId);
     if (userRole) url.searchParams.set('userRole', userRole);
     if (playerName) url.searchParams.set('playerName', playerName);
@@ -306,11 +316,16 @@ const AppContent: React.FC = () => {
       url.searchParams.set('roomId', currentRoomId);
     }
 
-    localBridge.trackStandaloneCharacter(id);
-    const targetName = `dnd_sheet_standalone_${id}`;
+    const targetName = 'dnd_sheet_vault';
     const win = window.open(url.toString(), targetName);
     if (win) {
       localBridge.registerChildWindow(win);
+      try {
+        win.postMessage({
+          type: 'SELECT_CHARACTER',
+          charId: id
+        }, '*');
+      } catch (e) {}
     }
   }, [userId, userRole, playerName]);
 
