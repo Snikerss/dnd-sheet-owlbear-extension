@@ -767,7 +767,8 @@ export const useCharacterManager = (): CharacterManager => {
             past: [],
             future: []
           },
-          imageCache: rawChar.imageCache
+          imageCache: rawChar.imageCache,
+          lastModified: Date.now()
         };
 
         const serialized = serializeForCache(obrCharData);
@@ -1103,33 +1104,49 @@ export const useCharacterManager = (): CharacterManager => {
         if (Array.isArray(payload.knownRooms)) {
           saveKnownRooms(payload.knownRooms);
         }
+
+        const getEntryTime = (e: any) => {
+          if (!e) return 0;
+          if (typeof e.lastModified === 'number') return e.lastModified;
+          if (Array.isArray(e.log) && e.log[0] && typeof e.log[0].timestamp === 'number') {
+            return e.log[0].timestamp;
+          }
+          return 0;
+        };
+
         const state = charactersStateRef.current;
-        let entry = payload.charId ? state[payload.charId] : null;
+        const localEntry = payload.charId ? state[payload.charId] : null;
+        let finalEntry = localEntry;
 
         if (payload.entry && payload.charId) {
-          entry = payload.entry;
-          const entryWithMap = {
-            ...payload.entry,
-            imageCache: Array.isArray(payload.entry.imageCache) 
-              ? new Map(payload.entry.imageCache) 
-              : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
-          };
-          dispatch({
-            type: 'SYNC_REMOTE_CHARACTER',
-            payload: { id: payload.charId, entry: entryWithMap }
-          });
-          saveCharacterApi(payload.charId, entryWithMap);
-          if (isOwlbear()) {
-            broadcastCharacterSync(payload.charId, entryWithMap);
+          const incomingTime = getEntryTime(payload.entry);
+          const localTime = getEntryTime(localEntry);
+
+          if (!localEntry || incomingTime >= localTime) {
+            finalEntry = payload.entry;
+            const entryWithMap = {
+              ...payload.entry,
+              imageCache: Array.isArray(payload.entry.imageCache) 
+                ? new Map(payload.entry.imageCache) 
+                : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
+            };
+            dispatch({
+              type: 'SYNC_REMOTE_CHARACTER',
+              payload: { id: payload.charId, entry: entryWithMap }
+            });
+            saveCharacterApi(payload.charId, entryWithMap);
+            if (isOwlbear()) {
+              broadcastCharacterSync(payload.charId, entryWithMap);
+            }
           }
         }
 
-        const imageCacheArray = entry?.imageCache ? Array.from(entry.imageCache.entries()) : [];
+        const imageCacheArray = finalEntry?.imageCache ? Array.from(finalEntry.imageCache.entries()) : [];
         
         localBridge.postMessage({
           type: 'HANDSHAKE_PONG',
           charId: payload.charId,
-          entry: entry ? { ...entry, imageCache: imageCacheArray } : undefined,
+          entry: finalEntry ? { ...finalEntry, imageCache: imageCacheArray } : undefined,
           knownRooms: getKnownRooms()
         });
 
@@ -1147,17 +1164,33 @@ export const useCharacterManager = (): CharacterManager => {
         }
 
         if (payload.entry && payload.charId) {
-          const entryWithMap = {
-            ...payload.entry,
-            imageCache: Array.isArray(payload.entry.imageCache) 
-              ? new Map(payload.entry.imageCache) 
-              : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
+          const getEntryTime = (e: any) => {
+            if (!e) return 0;
+            if (typeof e.lastModified === 'number') return e.lastModified;
+            if (Array.isArray(e.log) && e.log[0] && typeof e.log[0].timestamp === 'number') {
+              return e.log[0].timestamp;
+            }
+            return 0;
           };
-          dispatch({
-            type: 'SYNC_REMOTE_CHARACTER',
-            payload: { id: payload.charId, entry: entryWithMap }
-          });
-          saveCharacterApi(payload.charId, entryWithMap);
+
+          const state = charactersStateRef.current;
+          const localEntry = state[payload.charId];
+          const incomingTime = getEntryTime(payload.entry);
+          const localTime = getEntryTime(localEntry);
+
+          if (!localEntry || incomingTime >= localTime) {
+            const entryWithMap = {
+              ...payload.entry,
+              imageCache: Array.isArray(payload.entry.imageCache) 
+                ? new Map(payload.entry.imageCache) 
+                : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
+            };
+            dispatch({
+              type: 'SYNC_REMOTE_CHARACTER',
+              payload: { id: payload.charId, entry: entryWithMap }
+            });
+            saveCharacterApi(payload.charId, entryWithMap);
+          }
           if (isLoadingRef.current) {
             setIsLoading(false);
           }
