@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { localBridge } from '../utils/bridgeService';
 
 interface EmbeddedOwlbearModalProps {
   isOpen: boolean;
@@ -52,6 +53,20 @@ export const EmbeddedOwlbearModal: React.FC<EmbeddedOwlbearModalProps> = ({
     } catch (e) {}
   };
 
+  const handleOpenCompanionWindow = (urlToLoad: string) => {
+    let cleanUrl = urlToLoad.trim();
+    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+      cleanUrl = 'https://' + cleanUrl;
+    }
+    const win = window.open(cleanUrl, 'owlbear_vtt_room');
+    if (win) {
+      try {
+        localBridge.registerChildWindow(win);
+      } catch (e) {}
+    }
+    handleSaveAndConnect(cleanUrl);
+  };
+
   if (!isOpen) return null;
 
   if (layoutMode === 'split') {
@@ -70,6 +85,13 @@ export const EmbeddedOwlbearModal: React.FC<EmbeddedOwlbearModalProps> = ({
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => handleOpenCompanionWindow(roomUrl)}
+              className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded transition-colors"
+              title="Открыть комнату в отдельном окне-спутнике с прямым подключением"
+            >
+              🚀 Окно-спутник
+            </button>
             <button
               onClick={() => setIsEditingUrl(!isEditingUrl)}
               className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded transition-colors"
@@ -96,7 +118,7 @@ export const EmbeddedOwlbearModal: React.FC<EmbeddedOwlbearModalProps> = ({
 
         {/* Edit URL Bar (if active) */}
         {isEditingUrl && (
-          <div className="p-2 bg-slate-900 border-b border-slate-800 flex flex-col gap-2">
+          <div className="p-2.5 bg-slate-900 border-b border-slate-800 flex flex-col gap-2">
             <div className="flex gap-2">
               <input
                 type="text"
@@ -107,9 +129,15 @@ export const EmbeddedOwlbearModal: React.FC<EmbeddedOwlbearModalProps> = ({
               />
               <button
                 onClick={() => handleSaveAndConnect(roomUrl)}
-                className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white font-medium text-xs rounded transition-colors"
+                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs rounded transition-colors"
               >
-                Открыть
+                Загрузить в кадр
+              </button>
+              <button
+                onClick={() => handleOpenCompanionWindow(roomUrl)}
+                className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded transition-colors"
+              >
+                🚀 Окно-спутник
               </button>
             </div>
             {roomHistory.length > 0 && (
@@ -129,12 +157,21 @@ export const EmbeddedOwlbearModal: React.FC<EmbeddedOwlbearModalProps> = ({
           </div>
         )}
 
-        {/* Embedded Owlbear Rodeo Iframe */}
-        <div className="flex-1 w-full h-full bg-slate-950">
+        {/* Notice & Embedded Owlbear Rodeo Iframe */}
+        <div className="flex-1 w-full h-full bg-slate-950 flex flex-col relative">
+          <div className="bg-amber-950/40 border-b border-amber-800/40 px-3 py-1.5 text-[11px] text-amber-200/90 flex items-center justify-between">
+            <span>💡 Сервер Owlbear может блокировать встраивание главной страницы в кадры браузера. Если кадр пуст — нажмите <strong>«🚀 Окно-спутник»</strong>.</span>
+            <button
+              onClick={() => handleOpenCompanionWindow(roomUrl)}
+              className="ml-2 px-2 py-0.5 bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-bold rounded"
+            >
+              🚀 Открыть окно
+            </button>
+          </div>
           <iframe
             src={roomUrl}
             title="Owlbear Rodeo VTT"
-            className="w-full h-full border-0"
+            className="w-full h-full border-0 flex-1"
             allow="microphone; camera; display-capture; autoplay; clipboard-write; clipboard-read"
           />
         </div>
@@ -154,6 +191,12 @@ export const EmbeddedOwlbearModal: React.FC<EmbeddedOwlbearModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleOpenCompanionWindow(roomUrl)}
+              className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded transition-colors"
+            >
+              🚀 Открыть окно-спутник
+            </button>
             <button
               onClick={onToggleLayoutMode}
               className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded transition-colors"
@@ -181,19 +224,34 @@ export const EmbeddedOwlbearModal: React.FC<EmbeddedOwlbearModalProps> = ({
             />
             <button
               onClick={() => handleSaveAndConnect(roomUrl)}
-              className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded-lg transition-colors"
+              className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-lg transition-colors"
             >
-              Перейти в комнату
+              Загрузить в кадр
+            </button>
+            <button
+              onClick={() => handleOpenCompanionWindow(roomUrl)}
+              className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-lg transition-colors"
+            >
+              🚀 Открыть окно-спутник
             </button>
           </div>
         </div>
 
         {/* Embedded Iframe */}
-        <div className="flex-1 w-full h-full bg-black">
+        <div className="flex-1 w-full h-full bg-black flex flex-col relative">
+          <div className="bg-amber-950/40 border-b border-amber-800/40 px-4 py-1.5 text-xs text-amber-200 flex items-center justify-between">
+            <span>💡 Если Owlbear блокирует встраивание в кадр — нажмите <strong>«🚀 Открыть окно-спутник»</strong>.</span>
+            <button
+              onClick={() => handleOpenCompanionWindow(roomUrl)}
+              className="px-3 py-0.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded"
+            >
+              🚀 Открыть окно-спутник
+            </button>
+          </div>
           <iframe
             src={roomUrl}
             title="Owlbear Rodeo VTT Overlay"
-            className="w-full h-full border-0"
+            className="w-full h-full border-0 flex-1"
             allow="microphone; camera; display-capture; autoplay; clipboard-write; clipboard-read"
           />
         </div>
