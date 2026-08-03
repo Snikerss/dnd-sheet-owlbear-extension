@@ -1096,6 +1096,7 @@ export const useCharacterManager = (): CharacterManager => {
           });
           if (isOwlbear()) {
             saveCharacterApi(payload.charId, entryWithMap);
+            broadcastCharacterSync(payload.charId, entryWithMap);
           }
         }
 
