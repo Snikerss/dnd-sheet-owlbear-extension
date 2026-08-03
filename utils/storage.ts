@@ -574,12 +574,25 @@ export async function loadCharactersApi(): Promise<any> {
   const localBackup = loadFromLocalStorage();
   const rawData = { ...localBackup };
 
-  // Asynchronously load imageCache lists from IndexedDB and merge them for all modes
+  // Asynchronously load imageCache lists from IndexedDB and merge them with local storage
   for (const id of Object.keys(rawData)) {
     try {
+      const existingCacheMap = new Map<string, string>();
+      if (Array.isArray(rawData[id]?.imageCache)) {
+        for (const [k, v] of rawData[id].imageCache) {
+          if (k && v) existingCacheMap.set(k, v);
+        }
+      }
+
       const imageCacheArray = await imageDb.get('char-images/' + id);
       if (imageCacheArray && Array.isArray(imageCacheArray)) {
-        rawData[id].imageCache = imageCacheArray;
+        for (const [k, v] of imageCacheArray) {
+          if (k && v) existingCacheMap.set(k, v);
+        }
+      }
+
+      if (rawData[id]) {
+        rawData[id].imageCache = Array.from(existingCacheMap.entries());
       }
     } catch (err) {
       console.error(`Failed to load images from IndexedDB for ${id}:`, err);
@@ -785,22 +798,13 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
     console.error(`Failed to save images to IndexedDB for ${id}:`, err);
   }
 
-  // 3. Save a copy with EMPTY imageCache to LocalStorage to save space
-  const localData = { ...inMemoryCharactersCache };
-  const lightLocalData: Record<string, any> = {};
-  for (const [charId, entry] of Object.entries(localData)) {
-    lightLocalData[charId] = {
-      ...entry,
-      imageCache: [] // Strip base64 imageCache completely for local storage copy
-    };
-  }
-
-  saveToLocalStorage(lightLocalData);
+  // 3. Save complete character data including imageCache to LocalStorage
+  saveToLocalStorage(inMemoryCharactersCache);
 
   if (isOwlbear()) {
     await broadcastCharacterSync(id, minifiedCharData);
   } else {
-    await saveToLocalDevApi(lightLocalData);
+    await saveToLocalDevApi(inMemoryCharactersCache);
   }
 }
 
