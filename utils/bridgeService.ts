@@ -193,6 +193,7 @@ class LocalBridgeService {
     // Автоматическая регистрация отправителя, если это дочернее окно
     if (event.source && event.source !== window && 'postMessage' in event.source) {
       this.registerChildWindow(event.source as Window);
+      p2pRoomBridge.registerWindow(event.source as Window);
     }
 
     this.listeners.forEach((listener) => {
