@@ -300,7 +300,8 @@ const AppContent: React.FC = () => {
       url.searchParams.set('roomId', currentRoomId);
     }
 
-    const win = window.open(url.toString(), '_blank');
+    const targetName = `dnd_sheet_standalone_${id}`;
+    const win = window.open(url.toString(), targetName);
     if (win) {
       localBridge.registerChildWindow(win);
     }

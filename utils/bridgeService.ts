@@ -89,6 +89,24 @@ class LocalBridgeService {
   }
 
   /**
+   * Находит и восстанавливает прямые связи с ранее открытыми отдельными вкладками через window.open('', targetName)
+   */
+  public reconnectStandaloneWindows(charIds: string[]): void {
+    if (typeof window === 'undefined') return;
+    for (const id of charIds) {
+      if (!id) continue;
+      try {
+        const targetName = `dnd_sheet_standalone_${id}`;
+        const win = window.open('', targetName);
+        if (win && !win.closed && win.location.href !== 'about:blank') {
+          this.registerChildWindow(win);
+          p2pRoomBridge.registerWindow(win);
+        }
+      } catch (e) {}
+    }
+  }
+
+  /**
    * Проверяет и регистрирует дедупликацию сообщения по токену и отпечатку времени.
    */
   public isDuplicateMessage(msgKey: string, maxAgeMs = 5000): boolean {

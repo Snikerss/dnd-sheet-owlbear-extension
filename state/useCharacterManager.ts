@@ -1153,7 +1153,7 @@ export const useCharacterManager = (): CharacterManager => {
     return unsubscribe;
   }, []);
 
-  // 2.7. Heartbeat emitter inside Owlbear iframe
+  // 2.7. Heartbeat emitter & standalone window reconnect loop inside Owlbear iframe
   useEffect(() => {
     if (!isOwlbear()) return;
 
@@ -1167,6 +1167,13 @@ export const useCharacterManager = (): CharacterManager => {
           timestamp: Date.now(),
           senderClientId: SESSION_CLIENT_ID
         }));
+
+        // Re-discover and re-add child standalone windows using targetName lookups
+        const activeIds = Object.keys(charactersStateRef.current);
+        localBridge.reconnectStandaloneWindows(activeIds);
+        localBridge.postMessage({
+          type: 'VTT_FRAME_READY'
+        });
       } catch (e) {}
     };
 
