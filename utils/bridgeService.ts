@@ -84,19 +84,40 @@ class LocalBridgeService {
   }
 
   /**
-   * Находит и восстанавливает прямые связи ТОЛЬКО с ранее открытыми отдельными вкладками через window.open('', targetName)
+   * Находит и восстанавливает прямые связи с открытыми отдельными вкладками.
+   * Проверяет targetName окон в браузерном реестре. Если окно не было открыто и браузер создал blank-окно, мгновенно закрывает его.
    */
-  public reconnectStandaloneWindows(charIds?: string[]): void {
-    if (typeof window === 'undefined') return;
-    const targetIds = charIds ? charIds.filter(id => this.knownStandaloneCharIds.has(id)) : Array.from(this.knownStandaloneCharIds);
-    for (const id of targetIds) {
+  public reconnectStandaloneWindows(charIds: string[]): void {
+    if (typeof window === 'undefined' || !Array.isArray(charIds)) return;
+    for (const id of charIds) {
       if (!id) continue;
       try {
         const targetName = `dnd_sheet_standalone_${id}`;
         const win = window.open('', targetName);
-        if (win && !win.closed && win.location && win.location.href !== 'about:blank') {
-          this.registerChildWindow(win);
-          p2pRoomBridge.registerWindow(win);
+        if (win && !win.closed) {
+          try {
+            const isBlank = !win.location || !win.location.href || win.location.href === 'about:blank' || win.location.href.startsWith('about:blank');
+            if (isBlank) {
+              win.close();
+            } else {
+              this.trackStandaloneCharacter(id);
+              this.registerChildWindow(win);
+              p2pRoomBridge.registerWindow(win);
+              win.postMessage({
+                type: 'VTT_FRAME_READY',
+                senderClientId: SESSION_CLIENT_ID
+              }, '*');
+            }
+          } catch (e) {
+            // Cross-origin location access check: if it threw a SecurityError, the tab IS OPEN on snikerss.github.io!
+            this.trackStandaloneCharacter(id);
+            this.registerChildWindow(win);
+            p2pRoomBridge.registerWindow(win);
+            win.postMessage({
+              type: 'VTT_FRAME_READY',
+              senderClientId: SESSION_CLIENT_ID
+            }, '*');
+          }
         }
       } catch (e) {}
     }
