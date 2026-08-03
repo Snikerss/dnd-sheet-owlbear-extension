@@ -1026,17 +1026,27 @@ export const useCharacterManager = (): CharacterManager => {
           const imageCacheArray = entry.imageCache 
             ? Array.from(entry.imageCache.entries()) 
             : [];
-          const responsePayload = {
+          localBridge.postMessage({
             type: 'CHARACTER_SYNC',
             charId: payload.charId,
             entry: {
               ...entry,
               imageCache: imageCacheArray
             }
-          };
-
-          console.log('[DND Sheet] Bridge Sync: Sending character data back:', payload.charId);
-          localBridge.postMessage(responsePayload);
+          });
+        } else {
+          // Fallback: read directly from local storage if state is still initializing
+          const localData = loadFromLocalStorage();
+          const localEntry = localData[payload.charId];
+          if (localEntry) {
+            localBridge.postMessage({
+              type: 'CHARACTER_SYNC',
+              charId: payload.charId,
+              entry: localEntry
+            });
+          }
+        }
+        if (isOwlbear()) {
           setSyncStatus('connected_tab');
         }
       } else if (payload.type === 'VTT_FRAME_READY') {
@@ -1046,37 +1056,45 @@ export const useCharacterManager = (): CharacterManager => {
         if (!isOwlbear() && charId) {
           localBridge.postMessage({ type: 'HANDSHAKE_PING', charId });
         }
-      } else if (payload.type === 'HANDSHAKE_PING' && payload.charId) {
+      } else if (payload.type === 'HANDSHAKE_PING') {
         console.log('[DND Sheet] Bridge Sync: Received HANDSHAKE_PING for character:', payload.charId);
         const state = charactersStateRef.current;
-        const entry = state[payload.charId];
-        if (entry) {
-          const imageCacheArray = entry.imageCache ? Array.from(entry.imageCache.entries()) : [];
-          localBridge.postMessage({
-            type: 'HANDSHAKE_PONG',
-            charId: payload.charId,
-            entry: { ...entry, imageCache: imageCacheArray }
+        const entry = payload.charId ? state[payload.charId] : null;
+        const imageCacheArray = entry?.imageCache ? Array.from(entry.imageCache.entries()) : [];
+        
+        localBridge.postMessage({
+          type: 'HANDSHAKE_PONG',
+          charId: payload.charId,
+          entry: entry ? { ...entry, imageCache: imageCacheArray } : undefined
+        });
+
+        if (isOwlbear()) {
+          setSyncStatus('connected_tab');
+        }
+      } else if (payload.type === 'HANDSHAKE_PONG') {
+        console.log('[DND Sheet] Bridge Sync: Received HANDSHAKE_PONG for character:', payload.charId);
+        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const urlCharId = urlParams?.get('charId');
+
+        if (!isOwlbear()) {
+          setSyncStatus('connected_tab');
+        }
+
+        if (payload.entry && payload.charId && payload.charId === urlCharId) {
+          const entryWithMap = {
+            ...payload.entry,
+            imageCache: Array.isArray(payload.entry.imageCache) 
+              ? new Map(payload.entry.imageCache) 
+              : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
+          };
+          dispatch({
+            type: 'SYNC_REMOTE_CHARACTER',
+            payload: { id: payload.charId, entry: entryWithMap }
           });
-          if (isOwlbear()) {
-            setSyncStatus('connected_tab');
+          if (isLoadingRef.current) {
+            setIsLoading(false);
           }
         }
-      } else if (payload.type === 'HANDSHAKE_PONG' && payload.charId && payload.entry) {
-        console.log('[DND Sheet] Bridge Sync: Received HANDSHAKE_PONG for character:', payload.charId);
-        const entryWithMap = {
-          ...payload.entry,
-          imageCache: Array.isArray(payload.entry.imageCache) 
-            ? new Map(payload.entry.imageCache) 
-            : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
-        };
-        dispatch({
-          type: 'SYNC_REMOTE_CHARACTER',
-          payload: { id: payload.charId, entry: entryWithMap }
-        });
-        if (isLoadingRef.current) {
-          setIsLoading(false);
-        }
-        setSyncStatus('connected_tab');
       } else if (payload.type === 'STORAGE_EVENT_SYNC') {
         storageRepository.loadCharacters().then(data => {
           if (data) {
