@@ -983,13 +983,16 @@ export const useCharacterManager = (): CharacterManager => {
 
         const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         const urlCharId = urlParams?.get('charId');
-        if (payload.charId === urlCharId && isLoadingRef.current) {
-          console.log('[DND Sheet] Received requested character data. Stopping loading.');
-          if ((window as any).__handshakeTimeoutId) {
-            clearTimeout((window as any).__handshakeTimeoutId);
-            delete (window as any).__handshakeTimeoutId;
+        if (payload.charId === urlCharId) {
+          if (isLoadingRef.current) {
+            console.log('[DND Sheet] Received requested character data. Stopping loading.');
+            if ((window as any).__handshakeTimeoutId) {
+              clearTimeout((window as any).__handshakeTimeoutId);
+              delete (window as any).__handshakeTimeoutId;
+            }
+            setIsLoading(false);
           }
-          setIsLoading(false);
+          setSyncStatus('connected_tab');
         }
       } else if (payload.type === 'REQUEST_CHARACTER_DATA' && payload.charId) {
         console.log('[DND Sheet] Bridge Sync: Received request for character data:', payload.charId);
@@ -1011,6 +1014,7 @@ export const useCharacterManager = (): CharacterManager => {
 
           console.log('[DND Sheet] Bridge Sync: Sending character data back:', payload.charId);
           localBridge.postMessage(responsePayload);
+          setSyncStatus('connected_tab');
         }
       } else if (payload.type === 'VTT_FRAME_READY') {
         console.log('[DND Sheet] Bridge Sync: VTT frame ready. Re-authenticating handshake...');

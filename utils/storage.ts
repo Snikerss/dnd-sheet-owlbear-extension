@@ -572,31 +572,24 @@ export async function loadCharactersApi(): Promise<any> {
   };
 
   const localBackup = loadFromLocalStorage();
+  const rawData = { ...localBackup };
 
-  if (isOwlbear()) {
-    // 1. Load light data from LocalStorage
-    const rawData = { ...localBackup };
-    
-    // 2. Asynchronously load imageCache lists from IndexedDB and merge them
-    for (const id of Object.keys(rawData)) {
-      try {
-        const imageCacheArray = await imageDb.get('char-images/' + id);
-        if (imageCacheArray && Array.isArray(imageCacheArray)) {
-          rawData[id].imageCache = imageCacheArray;
-        }
-      } catch (err) {
-        console.error(`Failed to load images from IndexedDB for ${id}:`, err);
+  // Asynchronously load imageCache lists from IndexedDB and merge them for all modes
+  for (const id of Object.keys(rawData)) {
+    try {
+      const imageCacheArray = await imageDb.get('char-images/' + id);
+      if (imageCacheArray && Array.isArray(imageCacheArray)) {
+        rawData[id].imageCache = imageCacheArray;
       }
-      
-      // Update our synchronous in-memory cache with the full data
-      inMemoryCharactersCache[id] = rawData[id];
+    } catch (err) {
+      console.error(`Failed to load images from IndexedDB for ${id}:`, err);
     }
-
-    return restoreGranularData(rawData);
-  } else {
-    const rawDev = await loadFromLocalDevApi();
-    return restoreGranularData(rawDev);
+    
+    // Update our synchronous in-memory cache with the full data
+    inMemoryCharactersCache[id] = rawData[id];
   }
+
+  return restoreGranularData(rawData);
 }
 
 const MAX_BROADCAST_CHUNK_SIZE = 20000;
