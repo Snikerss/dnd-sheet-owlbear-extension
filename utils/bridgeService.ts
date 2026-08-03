@@ -27,6 +27,20 @@ class LocalBridgeService {
 
     if (typeof window !== 'undefined') {
       window.addEventListener('message', (event) => this.handleMessage(event));
+      
+      // Fallback listener for browser storage events across tabs on the same origin
+      window.addEventListener('storage', (event) => {
+        if (event.key && (event.key.startsWith('com.antigravity.dnd-sheet/v2/character/') || event.key === 'com.antigravity.dnd-sheet/characters')) {
+          try {
+            this.handleMessage(new MessageEvent('message', {
+              data: {
+                type: 'STORAGE_EVENT_SYNC',
+                senderClientId: 'storage-event'
+              }
+            }));
+          } catch (e) {}
+        }
+      });
     }
   }
 

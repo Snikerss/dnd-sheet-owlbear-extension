@@ -16,7 +16,7 @@ import { TextFormattingContextMenu } from './components/RichTextFormatting';
 
 const AppContent: React.FC = () => {
   const { addNotification } = useNotifier();
-  const { characters, isLoading, syncingCharacters, addCharacter, deleteCharacter, updateCharacter, undo, redo, syncCharacter, clearLocalCache } = useCharacterManager();
+  const { characters, isLoading, syncStatus, syncingCharacters, addCharacter, deleteCharacter, updateCharacter, undo, redo, syncCharacter, clearLocalCache } = useCharacterManager();
   
   const [activeCharacterId, setActiveCharacterId] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
@@ -400,6 +400,7 @@ const AppContent: React.FC = () => {
               canRedo={canRedo}
               onOpenHistoryLog={() => setIsHistoryLogOpen(true)}
               isReadOnly={!!isReadOnly}
+              syncStatus={syncStatus}
               onSyncCharacter={() => syncCharacter(activeCharacterId)}
               onClearLocalCache={() => clearLocalCache(activeCharacterId)}
               onDeleteCharacter={() => handleDeleteCharacter(activeCharacterId)}

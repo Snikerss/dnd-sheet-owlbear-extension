@@ -37,6 +37,8 @@ import { getEquippedItemBonuses } from '../utils/inventory';
 import { isOwlbear } from '../utils/storage';
 import OBR from '@owlbear-rodeo/sdk';
 
+import { SyncStatusType } from './SyncStatusIndicator';
+
 interface CharacterSheetProps {
     onOpenCharacterManager: () => void;
     onUndo: () => void;
@@ -45,6 +47,7 @@ interface CharacterSheetProps {
     canRedo: boolean;
     onOpenHistoryLog: () => void;
     isReadOnly?: boolean;
+    syncStatus?: SyncStatusType;
     onSyncCharacter?: () => void;
     onClearLocalCache?: () => void;
     onDeleteCharacter?: () => void;
@@ -60,6 +63,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
     canRedo,
     onOpenHistoryLog,
     isReadOnly = false,
+    syncStatus,
     onSyncCharacter,
     onClearLocalCache,
     onDeleteCharacter,
@@ -921,6 +925,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                     onUndo={onUndo}
                     onRedo={onRedo}
                     onOpenHistoryLog={onOpenHistoryLog}
+                    syncStatus={syncStatus}
                     onSync={onSyncCharacter}
                     onClearCache={onClearLocalCache}
                     onDeleteCharacter={onDeleteCharacter}

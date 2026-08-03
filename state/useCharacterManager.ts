@@ -148,9 +148,12 @@ const getImageChecksums = (charData: any): Record<string, string> => {
   return checksums;
 };
 
+import type { SyncStatusType } from '../components/SyncStatusIndicator';
+
 interface CharacterManager {
   characters: CharactersState;
   isLoading: boolean;
+  syncStatus: SyncStatusType;
   syncingCharacters: Record<string, { status: 'images', pendingImages: string[] }>;
   addCharacter: (id: string, character: Character) => void;
   deleteCharacter: (id: string) => void;
@@ -280,17 +283,33 @@ const restoreFromMemory = (cloudData: any, memoryBackup: CharactersState) => {
 export const useCharacterManager = (): CharacterManager => {
   const [characters, dispatch] = useReducer(charactersReducer, {});
   const [isLoading, setIsLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<SyncStatusType>('synced');
   const [syncingCharacters, setSyncingCharacters] = useState<Record<string, { status: 'images', pendingImages: string[] }>>({});
   const { addNotification } = useNotifier();
 
   // Track the serialized state of each character individually (indexed by character ID)
   const lastSerializedRef = useRef<Record<string, string>>({});
   const charactersStateRef = useRef<CharactersState>(characters);
-  const incomingChunksRef = useRef<Record<string, { chunks: string[], total: number }>>({});
+  const incomingChunksRef = useRef<Record<string, { chunks: string[], total: number, updatedAt?: number }>>({});
 
   useEffect(() => {
     charactersStateRef.current = characters;
   }, [characters]);
+
+  // Garbage collection timer for stale incomplete P2P chunks (older than 30s)
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      const now = Date.now();
+      const chunks = incomingChunksRef.current;
+      for (const [key, item] of Object.entries(chunks)) {
+        if (item.updatedAt && now - item.updatedAt > 30000) {
+          console.warn(`[DND Sheet] Garbage collecting stale network chunks for ${key}...`);
+          delete chunks[key];
+        }
+      }
+    }, 15000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   // 1. Initial Load of character data
   useEffect(() => {
@@ -932,6 +951,51 @@ export const useCharacterManager = (): CharacterManager => {
           console.log('[DND Sheet] Bridge Sync: Sending character data back:', payload.charId);
           localBridge.postMessage(responsePayload);
         }
+      } else if (payload.type === 'VTT_FRAME_READY') {
+        console.log('[DND Sheet] Bridge Sync: VTT frame ready. Re-authenticating handshake...');
+        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const charId = urlParams?.get('charId');
+        if (!isOwlbear() && charId) {
+          localBridge.postMessage({ type: 'HANDSHAKE_PING', charId });
+        }
+      } else if (payload.type === 'HANDSHAKE_PING' && payload.charId) {
+        console.log('[DND Sheet] Bridge Sync: Received HANDSHAKE_PING for character:', payload.charId);
+        const state = charactersStateRef.current;
+        const entry = state[payload.charId];
+        if (entry) {
+          const imageCacheArray = entry.imageCache ? Array.from(entry.imageCache.entries()) : [];
+          localBridge.postMessage({
+            type: 'HANDSHAKE_PONG',
+            charId: payload.charId,
+            entry: { ...entry, imageCache: imageCacheArray }
+          });
+          if (isOwlbear()) {
+            setSyncStatus('connected_tab');
+          }
+        }
+      } else if (payload.type === 'HANDSHAKE_PONG' && payload.charId && payload.entry) {
+        console.log('[DND Sheet] Bridge Sync: Received HANDSHAKE_PONG for character:', payload.charId);
+        const entryWithMap = {
+          ...payload.entry,
+          imageCache: Array.isArray(payload.entry.imageCache) 
+            ? new Map(payload.entry.imageCache) 
+            : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
+        };
+        dispatch({
+          type: 'SYNC_REMOTE_CHARACTER',
+          payload: { id: payload.charId, entry: entryWithMap }
+        });
+        if (isLoadingRef.current) {
+          setIsLoading(false);
+        }
+        setSyncStatus('connected_tab');
+      } else if (payload.type === 'STORAGE_EVENT_SYNC') {
+        storageRepository.loadCharacters().then(data => {
+          if (data) {
+            const parsedState = parseCharactersData(data);
+            dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
+          }
+        }).catch(console.error);
       }
     });
 
@@ -1010,6 +1074,7 @@ export const useCharacterManager = (): CharacterManager => {
   return {
     characters,
     isLoading,
+    syncStatus,
     syncingCharacters,
     addCharacter,
     deleteCharacter,

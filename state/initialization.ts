@@ -3,6 +3,21 @@ import { SKILLS } from '../constants';
 import { defaultCharacterState } from './defaultCharacterState';
 
 /**
+ * Sanitizes rich text HTML strings from untrusted external JSON imports.
+ * Retains safe formatting tags (b, i, u, s, mark, span style, h3, br) and strips script/iframe/event handlers.
+ */
+export const sanitizeRichTextString = (str: string): string => {
+    if (!str || typeof str !== 'string') return '';
+    return str
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+        .replace(/\son\w+="[^"]*"/gi, '')
+        .replace(/\son\w+='[^']*'/gi, '')
+        .replace(/\son\w+=\w+/gi, '')
+        .replace(/javascript:/gi, '');
+};
+
+/**
  * Migrates a single item object to include new fields if they are missing.
  * This ensures backward compatibility with older saved data.
  * @param item The item object to migrate.
@@ -12,6 +27,9 @@ const migrateItem = (item: any): any => {
     if (typeof item !== 'object' || item === null) return item;
 
     const migrated = { ...item };
+    if (typeof migrated.description === 'string') {
+        migrated.description = sanitizeRichTextString(migrated.description);
+    }
 
     if (typeof migrated.weight !== 'number') {
         migrated.weight = 0;
@@ -91,13 +109,35 @@ export const migrateCharacterData = (characterData: any): any => {
     if (Array.isArray(migrated.attunementItems)) {
         migrated.attunementItems = migrated.attunementItems.map(migrateItem);
     }
-    if (!Array.isArray(migrated.features)) {
+    if (Array.isArray(migrated.notes)) {
+        migrated.notes = migrated.notes.map((n: any) => ({
+            ...n,
+            content: typeof n?.content === 'string' ? sanitizeRichTextString(n.content) : ''
+        }));
+    }
+    if (Array.isArray(migrated.features)) {
+        migrated.features = migrated.features.map((f: any) => ({
+            ...f,
+            description: typeof f?.description === 'string' ? sanitizeRichTextString(f.description) : ''
+        }));
+    } else {
         migrated.features = [];
+    }
+    if (Array.isArray(migrated.spells)) {
+        migrated.spells = migrated.spells.map((s: any) => ({
+            ...s,
+            description: typeof s?.description === 'string' ? sanitizeRichTextString(s.description) : '',
+            components: s?.components ? {
+                ...s.components,
+                materialDescription: typeof s.components.materialDescription === 'string' ? sanitizeRichTextString(s.components.materialDescription) : ''
+            } : s?.components
+        }));
     }
     if (Array.isArray(migrated.attacks)) {
         migrated.attacks = migrated.attacks.map((attack: any) => {
-            if (typeof attack === 'object' && attack !== null && typeof attack.imageUrl !== 'string') {
-                attack.imageUrl = '';
+            if (typeof attack === 'object' && attack !== null) {
+                if (typeof attack.imageUrl !== 'string') attack.imageUrl = '';
+                if (typeof attack.notes === 'string') attack.notes = sanitizeRichTextString(attack.notes);
             }
             return attack;
         });

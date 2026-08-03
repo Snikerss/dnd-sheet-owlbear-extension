@@ -2,6 +2,7 @@ import React, { useRef, useCallback, useMemo } from 'react';
 import { useNotifier } from '../context/NotificationContext';
 import { useCharacter } from '../context/CharacterContext';
 import { isOwlbear } from '../utils/storage';
+import { SyncStatusIndicator, SyncStatusType } from './SyncStatusIndicator';
 import OBR from '@owlbear-rodeo/sdk';
 
 interface CharacterHeaderProps {
@@ -12,6 +13,7 @@ interface CharacterHeaderProps {
   onUndo: () => void;
   onRedo: () => void;
   onOpenHistoryLog: () => void;
+  syncStatus?: SyncStatusType;
   onSync?: () => void;
   onClearCache?: () => void;
   onDeleteCharacter?: () => void;
@@ -137,6 +139,7 @@ export const CharacterHeader: React.FC<CharacterHeaderProps> = React.memo(({
   onUndo,
   onRedo,
   onOpenHistoryLog,
+  syncStatus,
   onSync,
   onClearCache,
   onDeleteCharacter,
@@ -175,11 +178,12 @@ export const CharacterHeader: React.FC<CharacterHeaderProps> = React.memo(({
                       </button>
                    </div>
                  )}
-                 {!isReadOnly && (
-                   <button onClick={onOpenHistoryLog} className="h-[50px] w-14 flex items-center justify-center bg-[var(--color-surface-raised)] text-[var(--color-text-medium)] rounded-lg hover:bg-[var(--color-surface-raised-hover)] hover:text-[var(--color-text-base)] transition-colors active:scale-95" data-tooltip="История изменений" aria-label="Открыть историю изменений">
-                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 01-18 0z" /></svg>
-                   </button>
-                 )}
+                  {!isReadOnly && (
+                    <button onClick={onOpenHistoryLog} className="h-[50px] w-14 flex items-center justify-center bg-[var(--color-surface-raised)] text-[var(--color-text-medium)] rounded-lg hover:bg-[var(--color-surface-raised-hover)] hover:text-[var(--color-text-base)] transition-colors active:scale-95" data-tooltip="История изменений" aria-label="Открыть историю изменений">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 01-18 0z" /></svg>
+                    </button>
+                  )}
+                  <SyncStatusIndicator status={syncStatus || 'synced'} onReconnect={onSync} className="h-[50px] my-auto" />
                  {onSync && (
                    <button 
                      onClick={onSync} 
