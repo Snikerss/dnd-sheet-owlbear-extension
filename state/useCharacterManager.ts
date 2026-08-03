@@ -1119,7 +1119,29 @@ export const useCharacterManager = (): CharacterManager => {
     return unsubscribe;
   }, []);
 
-  // 2.7. Heartbeat monitor for standalone tab to detect connection drops
+  // 2.7. Heartbeat emitter inside Owlbear iframe
+  useEffect(() => {
+    if (!isOwlbear()) return;
+
+    const emitHeartbeat = () => {
+      try {
+        const roomId = typeof OBR !== 'undefined' ? OBR.room?.id : '';
+        const roomName = (window as any).__currentRoomName || (typeof OBR !== 'undefined' ? (OBR as any).room?.name : '') || 'Owlbear Room';
+        window.localStorage.setItem('com.antigravity.dnd-sheet/vtt_heartbeat', JSON.stringify({
+          roomId,
+          roomName,
+          timestamp: Date.now(),
+          senderClientId: SESSION_CLIENT_ID
+        }));
+      } catch (e) {}
+    };
+
+    emitHeartbeat();
+    const interval = setInterval(emitHeartbeat, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 2.8. Heartbeat monitor for standalone tab to detect connection drops
   useEffect(() => {
     if (isOwlbear()) return;
 
@@ -1127,22 +1149,35 @@ export const useCharacterManager = (): CharacterManager => {
     const urlCharId = urlParams?.get('charId');
     if (!urlCharId) return;
 
-    let lastPongTime = Date.now();
+    const checkVttHeartbeat = () => {
+      try {
+        const raw = window.localStorage.getItem('com.antigravity.dnd-sheet/vtt_heartbeat');
+        if (raw) {
+          const heartbeat = JSON.parse(raw);
+          if (heartbeat && heartbeat.timestamp && (Date.now() - heartbeat.timestamp < 7000)) {
+            setSyncStatus('connected_tab');
+            return true;
+          }
+        }
+      } catch (e) {}
 
-    // Immediate ping on mount
-    localBridge.postMessage({ type: 'HANDSHAKE_PING', charId: urlCharId });
+      if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
+        setSyncStatus('disconnected');
+      } else {
+        setSyncStatus('synced');
+      }
+      return false;
+    };
 
+    checkVttHeartbeat();
     const interval = setInterval(() => {
       localBridge.postMessage({ type: 'HANDSHAKE_PING', charId: urlCharId });
-      if (Date.now() - lastPongTime > 12000) {
-        setSyncStatus('disconnected');
-      }
-    }, 3500);
+      checkVttHeartbeat();
+    }, 2000);
 
     const unsubscribe = localBridge.subscribe((event) => {
       const payload = event.data;
       if (payload && (payload.type === 'HANDSHAKE_PONG' || payload.type === 'CHARACTER_SYNC' || payload.type === 'CHARACTER_ACTION' || payload.type === 'VTT_FRAME_READY')) {
-        lastPongTime = Date.now();
         setSyncStatus('connected_tab');
       }
     });
