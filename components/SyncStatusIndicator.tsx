@@ -162,16 +162,35 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
             {/* Known Rooms History */}
             {knownRooms.length > 0 && (
               <div className="flex flex-col gap-1.5">
-                <span className="text-xs font-semibold text-slate-400">Сохраненные комнаты Owlbear:</span>
+                <span className="text-xs font-semibold text-slate-400">Сохраненные комнаты Owlbear (Нажмите для подключения):</span>
                 <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                  {knownRooms.map((r: { id: string; name: string }) => (
-                    <span
-                      key={r.id}
-                      className="px-2 py-1 bg-slate-800 border border-slate-700 text-slate-300 text-[11px] rounded-md flex items-center gap-1"
-                    >
-                      <span>🎲</span> {r.name}
-                    </span>
-                  ))}
+                  {knownRooms.map((r: any) => {
+                    const rId = r.roomId || r.id;
+                    const rName = r.roomName || r.name || 'Owlbear Room';
+                    const isCurrent = rId === currentRoomId;
+                    return (
+                      <button
+                        key={rId}
+                        onClick={() => {
+                          p2pRoomBridge.connect(rId, rName);
+                          if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
+                            const currentUrl = new URL(window.location.href);
+                            currentUrl.searchParams.set('roomId', rId);
+                            window.history.replaceState({}, '', currentUrl.toString());
+                          }
+                          if (onReconnect) onReconnect();
+                        }}
+                        className={`px-2.5 py-1 text-[11px] rounded-lg border font-medium transition-all flex items-center gap-1.5 ${
+                          isCurrent
+                            ? 'bg-amber-500/20 border-amber-500/60 text-amber-300'
+                            : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:border-slate-500'
+                        }`}
+                      >
+                        <span>🎲</span> {rName}
+                        {isCurrent && <span className="text-[9px] bg-amber-500/40 px-1 rounded">АКТИВНА</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

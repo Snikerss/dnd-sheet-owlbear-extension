@@ -13,6 +13,7 @@ import { localBridge } from '../utils/bridgeService';
 import { storageRepository } from '../utils/storageRepository';
 import { registerCurrentRoom, getKnownRooms, saveKnownRooms } from '../utils/roomRegistry';
 import { p2pRoomBridge } from '../utils/p2pBridge';
+import { cloudRealtimeBridge } from '../utils/cloudRealtimeBridge';
 
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/v2/character/';
 
@@ -1340,21 +1341,48 @@ export const useCharacterManager = (): CharacterManager => {
     };
   }, []);
 
-  // 2.9. Connect P2P Room Bridge when roomId is available
+  // 2.9. Connect P2P Room Bridge & Discovery Beacon
   useEffect(() => {
     if (isOwlbear() && typeof OBR !== 'undefined') {
       OBR.onReady(() => {
         const roomId = OBR.room?.id || 'global_vault_bridge';
+        const roomName = (OBR as any).room?.name || 'Owlbear Room';
         console.log(`[DND Sheet P2P] Owlbear VTT Ready. Connecting P2P network bridge for room: ${roomId}`);
-        p2pRoomBridge.connect(roomId);
+        registerCurrentRoom(roomId, roomName);
+        p2pRoomBridge.connect(roomId, roomName);
         localBridge.reconnectStandaloneWindows();
       });
     } else {
       const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-      const activeRoomId = urlParams?.get('roomId') || 'global_vault_bridge';
-      console.log(`[DND Sheet P2P] Standalone mode: Connecting P2P network bridge for room: ${activeRoomId}`);
-      p2pRoomBridge.connect(activeRoomId);
+      const urlRoomId = urlParams?.get('roomId');
+      const knownRooms = getKnownRooms();
+      const initialRoom = urlRoomId || (knownRooms.length > 0 && knownRooms[0] ? knownRooms[0].roomId : 'global_vault_bridge');
+      const initialRoomName = knownRooms.find(r => r?.roomId === initialRoom)?.roomName || 'Owlbear Room';
+
+      console.log(`[DND Sheet P2P] Standalone mode: Connecting P2P network bridge for room: ${initialRoom}`);
+      p2pRoomBridge.connect(initialRoom, initialRoomName);
       localBridge.reconnectStandaloneWindows();
+
+      // Subscribe to cloud discovery beacon for active room discovery
+      const unsubscribeBeacon = cloudRealtimeBridge.onRoomDiscovered((discoveredRoomId, discoveredRoomName) => {
+        console.log(`[DND Sheet P2P] Discovery Beacon found active Owlbear room: ${discoveredRoomId} (${discoveredRoomName})`);
+        registerCurrentRoom(discoveredRoomId, discoveredRoomName);
+        p2pRoomBridge.connect(discoveredRoomId, discoveredRoomName);
+        lastRemoteP2pTimeRef.current = Date.now();
+        setSyncStatus('connected_tab');
+
+        if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
+          const currentUrl = new URL(window.location.href);
+          currentUrl.searchParams.set('roomId', discoveredRoomId);
+          window.history.replaceState({}, '', currentUrl.toString());
+        }
+      });
+
+      cloudRealtimeBridge.queryDiscoveryBeacon();
+
+      return () => {
+        unsubscribeBeacon();
+      };
     }
   }, []);
 
