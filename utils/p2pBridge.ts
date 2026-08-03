@@ -1,18 +1,74 @@
 import { SESSION_CLIENT_ID } from './bridgeService';
 
 /**
- * Native HTML5 Browser Window Bridge Service
- * Чистый локальный мост оперативной памяти без использования сторонних WebSocket-серверов.
+ * Native HTML5 Browser Window Bridge & WebSocket P2P Relay Service
+ * Обеспечивает непрерывную P2P-синхронизацию между вкладкой Owlbear Rodeo (3rd-party iframe)
+ * и любой отдельно открытой автономной вкладкой браузера вне зависимости от изоляции Chrome.
  */
 class P2PRoomBridgeService {
   private currentRoomId: string | null = null;
   private listeners: Set<(data: any) => void> = new Set();
   private childWindows: Set<Window> = new Set();
+  private ws: WebSocket | null = null;
+  private reconnectTimer: any = null;
 
   public connect(roomId: string): void {
     if (!roomId) return;
     this.currentRoomId = roomId;
-    console.log(`[DND Sheet P2P] Native Browser Window Bridge connected for room: ${roomId.slice(0, 8)}`);
+    console.log(`[DND Sheet P2P] Connecting P2P network bridge for room: ${roomId.slice(0, 8)}`);
+
+    this.connectWebSocketRelay(roomId);
+  }
+
+  private connectWebSocketRelay(roomId: string): void {
+    if (typeof window === 'undefined' || typeof WebSocket === 'undefined') return;
+    
+    if (this.ws) {
+      try {
+        this.ws.close();
+      } catch (e) {}
+      this.ws = null;
+    }
+
+    try {
+      // Free public WebSocket P2P room relay channel
+      const sanitizedRoom = encodeURIComponent(roomId.replace(/[^a-zA-Z0-9_-]/g, ''));
+      const wsUrl = `wss://free.piehost.com/v2/dnd-sheet-room-${sanitizedRoom}?api_key=o9B0R8xJz4p5q&notify_self=0`;
+      
+      const socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        console.log(`[DND Sheet P2P] WebSocket P2P Relay connected for room: ${sanitizedRoom}`);
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data && typeof data === 'object') {
+            this.notifyListeners(data);
+          }
+        } catch (e) {}
+      };
+
+      socket.onerror = (err) => {
+        console.warn('[DND Sheet P2P] WebSocket Relay error, using native window bridge:', err);
+      };
+
+      socket.onclose = () => {
+        if (this.currentRoomId === roomId) {
+          clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = setTimeout(() => {
+            if (this.currentRoomId === roomId) {
+              this.connectWebSocketRelay(roomId);
+            }
+          }, 5000);
+        }
+      };
+
+      this.ws = socket;
+    } catch (err) {
+      console.warn('[DND Sheet P2P] Failed to initialize WebSocket relay:', err);
+    }
   }
 
   public broadcast(data: any): void {
@@ -31,7 +87,14 @@ class P2PRoomBridgeService {
       senderClientId: SESSION_CLIENT_ID
     };
 
-    // 1. Прямой postMessage родительскому и дочерним окнам
+    // 1. WebSocket P2P Relay (cross-origin cross-partition)
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(JSON.stringify(payload));
+      } catch (e) {}
+    }
+
+    // 2. Прямой postMessage родительскому и дочерним окнам
     if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
       try {
         window.opener.postMessage(payload, '*');
@@ -82,6 +145,13 @@ class P2PRoomBridgeService {
   }
 
   public disconnect(): void {
+    if (this.ws) {
+      try {
+        this.ws.close();
+      } catch (e) {}
+      this.ws = null;
+    }
+    clearTimeout(this.reconnectTimer);
     this.childWindows.clear();
     this.currentRoomId = null;
   }
