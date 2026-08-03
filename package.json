@@ -17,6 +17,7 @@
   "dependencies": {
     "@google/genai": "^1.21.0",
     "@owlbear-rodeo/sdk": "^3.1.0",
+    "peerjs": "^1.5.5",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
