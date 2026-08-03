@@ -328,11 +328,17 @@ export const useCharacterManager = (): CharacterManager => {
           dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
         }
 
-        if (isOwlbear() && typeof OBR !== 'undefined' && (OBR as any).room?.id) {
-          const roomId = (OBR as any).room.id;
-          const roomName = (OBR as any).room?.name || 'Owlbear Room';
-          (window as any).__currentRoomName = roomName;
-          registerCurrentRoom(roomId, roomName);
+        if (isOwlbear()) {
+          if (typeof OBR !== 'undefined' && (OBR as any).room?.id) {
+            const roomId = (OBR as any).room.id;
+            const roomName = (OBR as any).room?.name || 'Owlbear Room';
+            (window as any).__currentRoomName = roomName;
+            registerCurrentRoom(roomId, roomName);
+          }
+          try {
+            console.log('[DND Sheet] Owlbear VTT iframe ready. Broadcasting VTT_FRAME_READY to sibling tabs...');
+            localBridge.postMessage({ type: 'VTT_FRAME_READY' });
+          } catch (e) {}
         }
         
         const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -971,6 +977,18 @@ export const useCharacterManager = (): CharacterManager => {
           type: 'DISPATCH_CHARACTER_ACTION',
           payload: { id: payload.charId, action: payload.action }
         });
+
+        // Proxy incoming action from standalone tab to Owlbear VTT room network & storage
+        if (isOwlbear()) {
+          setTimeout(() => {
+            const state = charactersStateRef.current;
+            const entry = state[payload.charId];
+            if (entry) {
+              saveCharacterApi(payload.charId, entry);
+            }
+          }, 0);
+          setSyncStatus('connected_tab');
+        }
       } else if (payload.type === 'CHARACTER_SYNC' && payload.charId && payload.entry) {
         console.log('[DND Sheet] Bridge Sync: Syncing full character:', payload.charId);
         
@@ -1064,6 +1082,11 @@ export const useCharacterManager = (): CharacterManager => {
           if (data) {
             const parsedState = parseCharactersData(data);
             dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
+            if (isOwlbear()) {
+              for (const [id, entry] of Object.entries(parsedState)) {
+                saveCharacterApi(id, entry);
+              }
+            }
           }
         }).catch(console.error);
       }
