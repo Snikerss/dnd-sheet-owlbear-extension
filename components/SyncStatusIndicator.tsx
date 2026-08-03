@@ -41,10 +41,10 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
       badgeColor = 'bg-blue-500/20 text-blue-300 border-blue-500/40';
       dotColor = 'bg-blue-400';
       icon = '🔵';
-      label = inOwlbear ? 'Вкладка подключена' : 'Связь с Owlbear';
+      label = inOwlbear ? 'Вкладка подключена' : 'P2P Сеть Owlbear';
       title = inOwlbear
         ? 'Owlbear Rodeo VTT: Соседняя вкладка успешно подключена и синхронизируется в реальном времени'
-        : 'Отдельная вкладка браузера: Подключена к главному окну Owlbear VTT';
+        : 'Отдельная вкладка браузера: Подключена к комнате Owlbear Rodeo через P2P-сетевой мост';
       break;
     case 'disconnected':
       badgeColor = 'bg-rose-500/20 text-rose-300 border-rose-500/40 cursor-pointer hover:bg-rose-500/30 transition-colors';

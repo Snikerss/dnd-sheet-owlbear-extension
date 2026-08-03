@@ -294,6 +294,11 @@ const AppContent: React.FC = () => {
     if (userRole) url.searchParams.set('userRole', userRole);
     if (playerName) url.searchParams.set('playerName', playerName);
 
+    const currentRoomId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.room?.id : null;
+    if (currentRoomId) {
+      url.searchParams.set('roomId', currentRoomId);
+    }
+
     const win = window.open(url.toString(), '_blank');
     if (win) {
       localBridge.registerChildWindow(win);

@@ -12,6 +12,7 @@ import { imageDb } from '../utils/indexedDbStore';
 import { localBridge } from '../utils/bridgeService';
 import { storageRepository } from '../utils/storageRepository';
 import { registerCurrentRoom, getKnownRooms, saveKnownRooms } from '../utils/roomRegistry';
+import { p2pRoomBridge } from '../utils/p2pBridge';
 
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/v2/character/';
 
@@ -1186,6 +1187,23 @@ export const useCharacterManager = (): CharacterManager => {
       clearInterval(interval);
       unsubscribe();
     };
+  }, []);
+
+  // 2.9. Connect P2P Room Bridge when roomId is available
+  useEffect(() => {
+    let activeRoomId: string | null = null;
+
+    if (isOwlbear() && typeof OBR !== 'undefined') {
+      activeRoomId = OBR.room?.id || null;
+    } else {
+      const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      activeRoomId = urlParams?.get('roomId') || null;
+    }
+
+    if (activeRoomId) {
+      console.log(`[DND Sheet P2P] Initializing P2P network bridge for room: ${activeRoomId}`);
+      p2pRoomBridge.connect(activeRoomId);
+    }
   }, []);
 
   const syncCharacter = useCallback(async (id: string) => {

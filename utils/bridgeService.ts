@@ -3,6 +3,8 @@
  * Инкапсулирует обработку ошибок песочницы, SESSION_CLIENT_ID, дедупликацию и непрерывную синхронизацию.
  */
 
+import { p2pRoomBridge } from './p2pBridge';
+
 export const SESSION_CLIENT_ID = typeof window !== 'undefined'
   ? ((window as any).__dndSessionId || ((window as any).__dndSessionId = Math.random().toString(36).substring(2)))
   : '';
@@ -64,6 +66,16 @@ class LocalBridgeService {
           }
         } catch (e) {}
       }, 1000);
+
+      // P2P Room Network listener
+      p2pRoomBridge.subscribe((data) => {
+        if (data && typeof data === 'object') {
+          const msgKey = data.msgId ? `p2p-${data.msgId}` : `p2p-${data.type}-${data.sentAt}`;
+          if (!this.isDuplicateMessage(msgKey, 5000)) {
+            this.handleMessage(new MessageEvent('message', { data }));
+          }
+        }
+      });
     }
   }
 
@@ -153,6 +165,11 @@ class LocalBridgeService {
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.setItem('com.antigravity.dnd-sheet/bridge_signal', JSON.stringify(payload));
       }
+    } catch (e) {}
+
+    // 6. P2P Room Network Broadcast
+    try {
+      p2pRoomBridge.broadcast(payload);
     } catch (e) {}
   }
 
