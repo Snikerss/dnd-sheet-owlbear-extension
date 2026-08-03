@@ -1064,6 +1064,9 @@ export const useCharacterManager = (): CharacterManager => {
         }
       } else if (payload.type === 'VTT_FRAME_READY' || payload.type === 'P2P_PEER_JOIN') {
         console.log('[DND Sheet] Bridge Sync: Remote peer joined or VTT frame ready. Re-authenticating handshake...');
+        if (payload.roomId) {
+          registerCurrentRoom(payload.roomId, payload.roomName || 'Доска Owlbear');
+        }
         const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         const charId = urlParams?.get('charId');
         if (!isOwlbear() && charId) {
@@ -1079,6 +1082,9 @@ export const useCharacterManager = (): CharacterManager => {
         }
       } else if (payload.type === 'HANDSHAKE_PING') {
         console.log('[DND Sheet] Bridge Sync: Received HANDSHAKE_PING for character:', payload.charId);
+        if (payload.roomId) {
+          registerCurrentRoom(payload.roomId, payload.roomName || 'Доска Owlbear');
+        }
         if (Array.isArray(payload.knownRooms)) {
           saveKnownRooms(payload.knownRooms);
         }

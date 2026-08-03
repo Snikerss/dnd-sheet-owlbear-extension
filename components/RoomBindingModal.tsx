@@ -27,14 +27,37 @@ export const RoomBindingModal: React.FC<RoomBindingModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setKnownRooms(getKnownRooms());
+      const roomMap = new Map<string, OwlbearRoomBinding>();
+      for (const r of getKnownRooms()) {
+        roomMap.set(r.roomId, r);
+      }
+      if (Array.isArray(character.boundRooms)) {
+        for (const r of character.boundRooms) {
+          if (r.roomId && !roomMap.has(r.roomId)) {
+            roomMap.set(r.roomId, r);
+          }
+        }
+      }
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlRoomId = urlParams.get('roomId');
+        if (urlRoomId && !roomMap.has(urlRoomId)) {
+          roomMap.set(urlRoomId, {
+            roomId: urlRoomId,
+            roomName: (window as any).__currentRoomName || 'Текущая доска Owlbear',
+            lastVisited: Date.now()
+          });
+        }
+      }
+      setKnownRooms(Array.from(roomMap.values()));
     }
-  }, [isOpen]);
+  }, [isOpen, character.boundRooms]);
 
   if (!isOpen) return null;
 
   const currentBoundIds = new Set((character.boundRooms || []).map(r => r.roomId));
-  const currentRoomId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.room?.id : '';
+  const urlRoomId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('roomId') : '';
+  const currentRoomId = (isOwlbear() && typeof OBR !== 'undefined' ? OBR.room?.id : '') || urlRoomId || '';
 
   const handleToggleRoom = (room: OwlbearRoomBinding) => {
     if (currentBoundIds.has(room.roomId)) {
