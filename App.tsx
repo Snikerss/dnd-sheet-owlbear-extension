@@ -289,6 +289,7 @@ const AppContent: React.FC = () => {
 
   const handleOpenStandalone = useCallback((id: string) => {
     const url = new URL(window.location.href);
+    url.searchParams.set('v', '1.0.4');
     url.searchParams.set('charId', id);
     if (userId) url.searchParams.set('userId', userId);
     if (userRole) url.searchParams.set('userRole', userRole);
