@@ -1016,6 +1016,7 @@ export const useCharacterManager = (): CharacterManager => {
           type: 'SYNC_REMOTE_CHARACTER',
           payload: { id: payload.charId, entry: entryWithMap }
         });
+        saveCharacterApi(payload.charId, entryWithMap);
 
         const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         const urlCharId = urlParams?.get('charId');
