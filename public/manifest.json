@@ -1,6 +1,6 @@
 {
   "name": "D&D 5e Character Sheet",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "manifest_version": 1,
   "icon": "action-icon.svg",
   "action": {
