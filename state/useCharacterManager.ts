@@ -1095,6 +1095,37 @@ export const useCharacterManager = (): CharacterManager => {
     return unsubscribe;
   }, []);
 
+  // 2.7. Heartbeat monitor for standalone tab to detect connection drops
+  useEffect(() => {
+    if (isOwlbear()) return;
+
+    const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const urlCharId = urlParams?.get('charId');
+    if (!urlCharId) return;
+
+    let lastPongTime = Date.now();
+
+    const interval = setInterval(() => {
+      localBridge.postMessage({ type: 'HANDSHAKE_PING', charId: urlCharId });
+      if (Date.now() - lastPongTime > 9000) {
+        setSyncStatus('disconnected');
+      }
+    }, 4500);
+
+    const unsubscribe = localBridge.subscribe((event) => {
+      const payload = event.data;
+      if (payload && (payload.type === 'HANDSHAKE_PONG' || payload.type === 'CHARACTER_SYNC' || payload.type === 'CHARACTER_ACTION')) {
+        lastPongTime = Date.now();
+        setSyncStatus('connected_tab');
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
+  }, []);
+
   const syncCharacter = useCallback(async (id: string) => {
     try {
       if (isOwlbear()) {
@@ -1125,7 +1156,13 @@ export const useCharacterManager = (): CharacterManager => {
         addNotification('Отправлен запрос на повторную синхронизацию персонажа.', 'info');
       } else {
         console.log(`[DND Sheet] Standalone mode: Manual sync requesting character data for ${id}...`);
+        setSyncStatus('syncing');
         try {
+          localBridge.postMessage({ type: 'VTT_FRAME_READY' });
+          localBridge.postMessage({
+            type: 'HANDSHAKE_PING',
+            charId: id
+          });
           localBridge.postMessage({
             type: 'REQUEST_CHARACTER_DATA',
             charId: id
