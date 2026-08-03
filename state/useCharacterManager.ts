@@ -1120,17 +1120,17 @@ export const useCharacterManager = (): CharacterManager => {
         }
 
         if (payload.entry && payload.charId && payload.charId === urlCharId) {
-          const entryWithMap = {
-            ...payload.entry,
-            imageCache: Array.isArray(payload.entry.imageCache) 
-              ? new Map(payload.entry.imageCache) 
-              : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
-          };
-          dispatch({
-            type: 'SYNC_REMOTE_CHARACTER',
-            payload: { id: payload.charId, entry: entryWithMap }
-          });
           if (isLoadingRef.current) {
+            const entryWithMap = {
+              ...payload.entry,
+              imageCache: Array.isArray(payload.entry.imageCache) 
+                ? new Map(payload.entry.imageCache) 
+                : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
+            };
+            dispatch({
+              type: 'SYNC_REMOTE_CHARACTER',
+              payload: { id: payload.charId, entry: entryWithMap }
+            });
             setIsLoading(false);
           }
         }
@@ -1204,7 +1204,6 @@ export const useCharacterManager = (): CharacterManager => {
 
     checkVttHeartbeat();
     const interval = setInterval(() => {
-      localBridge.postMessage({ type: 'HANDSHAKE_PING', charId: urlCharId });
       checkVttHeartbeat();
     }, 2000);
 
