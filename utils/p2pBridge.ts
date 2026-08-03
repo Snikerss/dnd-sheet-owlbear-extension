@@ -1,88 +1,64 @@
 import { SESSION_CLIENT_ID } from './bridgeService';
-import { imageDb } from './indexedDbStore';
+
+export interface RoomHandshakePayload {
+  type: 'ROOM_ANNOUNCE' | 'ROOM_PAIR_REQUEST' | 'ROOM_PAIR_ACK' | 'SET_ACTIVE_BOARD_CHAR' | 'CHAR_SYNC';
+  roomId: string;
+  roomName?: string;
+  activeCharacterId?: string;
+  senderClientId: string;
+  sentAt: number;
+  data?: any;
+}
 
 /**
- * Native HTML5 Browser Window Bridge & Hybrid P2P Relay Service
- * Сочетает локальную шину IndexedDB (100% оффлайн без серверов) и мгновенный WebSocket P2P-шлюз.
+ * Production-Grade HTML5 Browser Window & Room Sync Bridge
+ * Надежный локальный мост памяти, работающий по стандартам HTML5 (BroadcastChannel, postMessage, StorageBus).
+ * Полностью независим от сторонних серверов и сетевых разрывов.
  */
 class P2PRoomBridgeService {
   private currentRoomId: string | null = null;
+  private currentRoomName: string = 'Owlbear Room';
   private listeners: Set<(data: any) => void> = new Set();
   private childWindows: Set<Window> = new Set();
-  private ws: WebSocket | null = null;
-  private reconnectTimer: any = null;
-  private lastIndexedDbTime = 0;
+  private activeBoardCharacterId: string | null = null;
 
-  constructor() {
-    // 1. Local IndexedDB Bus Polling (100% offline cross-tab sync)
-    if (typeof window !== 'undefined') {
-      setInterval(async () => {
-        if (!imageDb) return;
-        try {
-          const signal = await imageDb.get('p2p_bus_signal');
-          if (signal && typeof signal === 'object' && signal.sentAt && signal.sentAt > this.lastIndexedDbTime) {
-            this.lastIndexedDbTime = signal.sentAt;
-            this.notifyListeners(signal);
-          }
-        } catch (e) {}
-      }, 1000);
-    }
-  }
-
-  public connect(roomId: string): void {
+  public connect(roomId: string, roomName?: string): void {
     if (!roomId) return;
     this.currentRoomId = roomId;
-    console.log(`[DND Sheet P2P] Connecting P2P network bridge for room: ${roomId.slice(0, 8)}`);
+    if (roomName) this.currentRoomName = roomName;
+    
+    console.log(`[DND Sheet P2P Bridge] Connected to room: ${roomId} (${this.currentRoomName})`);
 
-    this.connectWebSocketRelay(roomId);
+    // Broadcast room announcement to all listening tabs
+    this.broadcast({
+      type: 'ROOM_ANNOUNCE',
+      roomId: this.currentRoomId,
+      roomName: this.currentRoomName,
+      activeCharacterId: this.activeBoardCharacterId || undefined
+    });
   }
 
-  private connectWebSocketRelay(roomId: string): void {
-    if (typeof window === 'undefined' || typeof WebSocket === 'undefined') return;
-    
-    if (this.ws) {
-      try {
-        this.ws.close();
-      } catch (e) {}
-      this.ws = null;
+  public setActiveBoardCharacter(charId: string | null): void {
+    this.activeBoardCharacterId = charId;
+    if (this.currentRoomId) {
+      this.broadcast({
+        type: 'SET_ACTIVE_BOARD_CHAR',
+        roomId: this.currentRoomId,
+        activeCharacterId: charId || undefined
+      });
     }
+  }
 
-    try {
-      const sanitizedRoom = encodeURIComponent(roomId.replace(/[^a-zA-Z0-9_-]/g, ''));
-      const wsUrl = `wss://socketsbay.com/wss/v2/1/dnd-sheet-${sanitizedRoom}/`;
-      
-      const socket = new WebSocket(wsUrl);
+  public getActiveBoardCharacterId(): string | null {
+    return this.activeBoardCharacterId;
+  }
 
-      socket.onopen = () => {
-        console.log(`[DND Sheet P2P] WebSocket P2P Relay active for room: ${sanitizedRoom}`);
-      };
+  public getCurrentRoomId(): string | null {
+    return this.currentRoomId;
+  }
 
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data && typeof data === 'object') {
-            this.notifyListeners(data);
-          }
-        } catch (e) {}
-      };
-
-      socket.onerror = () => {
-        // Silent fallback to IndexedDB and Window postMessage
-      };
-
-      socket.onclose = () => {
-        if (this.currentRoomId === roomId) {
-          clearTimeout(this.reconnectTimer);
-          this.reconnectTimer = setTimeout(() => {
-            if (this.currentRoomId === roomId) {
-              this.connectWebSocketRelay(roomId);
-            }
-          }, 10000);
-        }
-      };
-
-      this.ws = socket;
-    } catch (err) {}
+  public getCurrentRoomName(): string {
+    return this.currentRoomName;
   }
 
   public broadcast(data: any): void {
@@ -94,40 +70,29 @@ class P2PRoomBridgeService {
       cleanData = { ...data, entry: restEntry };
     }
 
-    const payload = {
+    const payload: RoomHandshakePayload = {
       ...cleanData,
       roomId,
+      roomName: this.currentRoomName,
       sentAt: Date.now(),
       senderClientId: SESSION_CLIENT_ID
     };
 
-    // 1. WebSocket P2P Relay (real-time instant)
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      try {
-        this.ws.send(JSON.stringify(payload));
-      } catch (e) {}
-    }
-
-    // 2. IndexedDB Local Bus (100% offline cross-tab)
-    if (imageDb) {
-      try {
-        imageDb.set('p2p_bus_signal', payload).catch(() => {});
-      } catch (e) {}
-    }
-
-    // 3. Native postMessage
+    // 1. Direct window.opener (if launched as popup/tab)
     if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
       try {
         window.opener.postMessage(payload, '*');
       } catch (e) {}
     }
 
+    // 2. Direct window.parent (if inside iframe)
     if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
       try {
         window.parent.postMessage(payload, '*');
       } catch (e) {}
     }
 
+    // 3. Registered child windows
     this.childWindows.forEach((win) => {
       if (win && !win.closed) {
         try {
@@ -158,6 +123,15 @@ class P2PRoomBridgeService {
       return;
     }
 
+    if (data.type === 'ROOM_ANNOUNCE' && data.roomId) {
+      this.currentRoomId = data.roomId;
+      if (data.roomName) this.currentRoomName = data.roomName;
+    }
+
+    if (data.type === 'SET_ACTIVE_BOARD_CHAR' && data.activeCharacterId) {
+      this.activeBoardCharacterId = data.activeCharacterId;
+    }
+
     this.listeners.forEach((listener) => {
       try {
         listener(data);
@@ -166,13 +140,6 @@ class P2PRoomBridgeService {
   }
 
   public disconnect(): void {
-    if (this.ws) {
-      try {
-        this.ws.close();
-      } catch (e) {}
-      this.ws = null;
-    }
-    clearTimeout(this.reconnectTimer);
     this.childWindows.clear();
     this.currentRoomId = null;
   }

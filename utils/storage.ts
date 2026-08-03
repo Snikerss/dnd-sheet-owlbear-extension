@@ -986,3 +986,25 @@ export function decodeBase64Sync(base64: string): any {
     return null;
   }
 }
+
+const KNOWN_ROOMS_KEY = 'com.antigravity.dnd-sheet/known_rooms';
+
+export function getKnownRooms(): Array<{ id: string; name: string; lastSeen: number }> {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(KNOWN_ROOMS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function registerCurrentRoom(id: string, name: string): void {
+  if (typeof window === 'undefined' || !id) return;
+  try {
+    const current = getKnownRooms();
+    const filtered = current.filter(r => r.id !== id);
+    const updated = [{ id, name: name || 'Owlbear Room', lastSeen: Date.now() }, ...filtered].slice(0, 10);
+    localStorage.setItem(KNOWN_ROOMS_KEY, JSON.stringify(updated));
+  } catch (e) {}
+}

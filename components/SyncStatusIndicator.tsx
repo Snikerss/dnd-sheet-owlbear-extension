@@ -1,31 +1,38 @@
-import React from 'react';
-import { isOwlbear } from '../utils/storage';
+import React, { useState } from 'react';
+import { isOwlbear, getKnownRooms } from '../utils/storage';
+import { p2pRoomBridge } from '../utils/p2pBridge';
+import { Character } from '../types';
 
 export type SyncStatusType = 'synced' | 'syncing' | 'connected_tab' | 'disconnected' | 'error';
 
 export interface SyncStatusIndicatorProps {
   status: SyncStatusType;
   onReconnect?: () => void;
+  characters?: Array<{ id: string; name: string; characterClass?: string }>;
+  activeCharacterId?: string | null;
+  onSelectActiveBoardCharacter?: (charId: string) => void;
   className?: string;
 }
 
 export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   status,
   onReconnect,
+  characters = [],
+  activeCharacterId,
+  onSelectActiveBoardCharacter,
   className = '',
 }) => {
   const inOwlbear = isOwlbear();
-  const urlHasCharId = typeof window !== 'undefined' && !!new URLSearchParams(window.location.search).get('charId');
+  const [showModal, setShowModal] = useState(false);
+  const knownRooms = getKnownRooms();
+  const currentRoomId = p2pRoomBridge.getCurrentRoomId() || 'global_vault_bridge';
+  const currentRoomName = p2pRoomBridge.getCurrentRoomName();
 
-  let badgeColor = inOwlbear
-    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
-  let dotColor = inOwlbear ? 'bg-emerald-400' : 'bg-emerald-400';
+  let badgeColor = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+  let dotColor = 'bg-emerald-400';
   let icon = inOwlbear ? '🟢' : '🌐';
   let label = inOwlbear ? 'Owlbear VTT' : 'Автономно';
-  let title = inOwlbear
-    ? 'Работает внутри комнаты Owlbear Rodeo VTT. Все изменения синхронизированы.'
-    : 'Открыто в автономном режиме. Нажмите для повторного поиска комнат P2P Owlbear!';
+  let title = 'Нажмите для управления синхронизацией и выбора активного персонажа';
 
   switch (status) {
     case 'syncing':
@@ -33,61 +40,160 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
       dotColor = 'bg-amber-400 animate-ping';
       icon = '🟡';
       label = 'Сохранение...';
-      title = 'Идет передача сетевых пакетов и запись данных';
       break;
     case 'connected_tab':
       badgeColor = 'bg-blue-500/20 text-blue-300 border-blue-500/40';
       dotColor = 'bg-blue-400';
       icon = '🔵';
       label = inOwlbear ? 'Вкладка подключена' : 'P2P Сеть Owlbear';
-      title = inOwlbear
-        ? 'Owlbear Rodeo VTT: Соседняя вкладка успешно подключена и синхронизируется в реальном времени'
-        : 'Отдельная вкладка браузера: Подключена к комнате Owlbear Rodeo через P2P-сетевой мост';
       break;
     case 'disconnected':
       badgeColor = 'bg-rose-500/20 text-rose-300 border-rose-500/40 cursor-pointer hover:bg-rose-500/30 transition-colors';
       dotColor = 'bg-rose-500';
       icon = '🔴';
       label = 'Связь потеряна';
-      title = 'Потеряна связь с главным окном Owlbear. Нажмите для переподключения!';
       break;
     case 'error':
       badgeColor = 'bg-red-600/30 text-red-300 border-red-500/50 cursor-pointer';
       dotColor = 'bg-red-500';
       icon = '⚠️';
       label = 'Ошибка синхр.';
-      title = 'Ошибка при передаче данных. Нажмите, чтобы запросить повторную синхронизацию';
       break;
   }
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    try {
-      console.log('--- DND SHEET DIAGNOSTIC REPORT ---');
-      console.log('inOwlbear:', inOwlbear);
-      console.log('status:', status);
-      console.log('urlHasCharId:', urlHasCharId);
-      console.log('-----------------------------------');
-    } catch (err) {}
+    setShowModal(true);
+  };
 
+  const handleManualReconnect = () => {
     if (onReconnect) {
       onReconnect();
     }
   };
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      title={title}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border backdrop-blur-sm shadow-sm transition-all duration-200 select-none ${badgeColor} ${className}`}
-    >
-      <span className="relative flex h-2 w-2">
-        <span className={`relative inline-flex rounded-full h-2 w-2 ${dotColor}`} />
-      </span>
-      <span className="leading-none text-[11px] font-medium tracking-wide">
-        {icon} {label}
-      </span>
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={handleClick}
+        title={title}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border backdrop-blur-sm shadow-sm transition-all duration-200 select-none hover:scale-105 ${badgeColor} ${className}`}
+      >
+        <span className="relative flex h-2 w-2">
+          <span className={`relative inline-flex rounded-full h-2 w-2 ${dotColor}`} />
+        </span>
+        <span className="leading-none text-[11px] font-medium tracking-wide">
+          {icon} {label}
+        </span>
+      </button>
+
+      {/* Sync Control Hub Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-[9999] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6 flex flex-col gap-5 text-slate-100 animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">⚙️</span>
+                <h3 className="text-base font-bold text-amber-400">Центр Управления Синхронизацией</h3>
+              </div>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-slate-400 hover:text-white text-lg font-bold w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-800 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Connection Status Overview */}
+            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Текущий статус сети:</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${badgeColor}`}>
+                  {icon} {label}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-slate-300">
+                <span className="text-slate-400">Комната VTT:</span>
+                <span className="font-mono text-amber-300">{currentRoomName}</span>
+              </div>
+              <div className="text-[11px] text-slate-500 font-mono truncate" title={currentRoomId}>
+                ID: {currentRoomId}
+              </div>
+            </div>
+
+            {/* Active Character Selector for VTT Board */}
+            {characters.length > 0 && onSelectActiveBoardCharacter && (
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <span>🎯</span> Персонаж, синхронизируемый с доской:
+                </label>
+                <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
+                  {characters.map((char) => {
+                    const isSelected = char.id === activeCharacterId;
+                    return (
+                      <button
+                        key={char.id}
+                        onClick={() => onSelectActiveBoardCharacter(char.id)}
+                        className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between ${
+                          isSelected
+                            ? 'bg-amber-500/15 border-amber-500/60 text-amber-200'
+                            : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <span className="text-base">{isSelected ? '🎯' : '👤'}</span>
+                          <span className="font-semibold text-xs truncate">{char.name}</span>
+                          <span className="text-[10px] text-slate-400">({char.characterClass || 'Персонаж'})</span>
+                        </div>
+                        {isSelected && (
+                          <span className="px-2 py-0.5 bg-amber-500 text-slate-950 font-bold text-[10px] rounded-md">
+                            АКТИВЕН
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Known Rooms History */}
+            {knownRooms.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-semibold text-slate-400">Сохраненные комнаты Owlbear:</span>
+                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                  {knownRooms.map((r: { id: string; name: string }) => (
+                    <span
+                      key={r.id}
+                      className="px-2 py-1 bg-slate-800 border border-slate-700 text-slate-300 text-[11px] rounded-md flex items-center gap-1"
+                    >
+                      <span>🎲</span> {r.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
+              <button
+                onClick={handleManualReconnect}
+                className="flex-1 py-2 px-4 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+              >
+                <span>🔄</span> Переподключить мост
+              </button>
+              <button
+                onClick={() => setShowModal(false)}
+                className="py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition-colors"
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
