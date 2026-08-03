@@ -20,10 +20,15 @@ const AppContent: React.FC = () => {
   
   const [activeCharacterId, setActiveCharacterId] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
-      return new URLSearchParams(window.location.search).get('charId');
+      const searchCharId = new URLSearchParams(window.location.search).get('charId');
+      if (searchCharId) return searchCharId;
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, '?'));
+      const hashCharId = hashParams.get('charId');
+      if (hashCharId) return hashCharId;
     }
     return null;
   });
+
   const [characterPendingDeletion, setCharacterPendingDeletion] = useState<{id: string, name: string} | null>(null);
   const [isHistoryLogOpen, setIsHistoryLogOpen] = useState(false);
 
@@ -83,11 +88,12 @@ const AppContent: React.FC = () => {
 
   useEffect(() => {
     const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-    const urlCharId = urlParams?.get('charId');
+    const hashParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.hash.replace(/^#/, '?')) : null;
+    const urlCharId = urlParams?.get('charId') || hashParams?.get('charId');
 
     if (!isLoading && activeCharacterId && !characters[activeCharacterId]) {
       if (urlCharId && urlCharId === activeCharacterId) {
-        // Do not reset activeCharacterId if it was specified via URL query parameter while waiting for remote sync
+        // Do not reset activeCharacterId if specified via URL parameter/hash while waiting for remote sync
         return;
       }
       setActiveCharacterId(null);
@@ -310,7 +316,7 @@ const AppContent: React.FC = () => {
     if (!path.endsWith('/')) {
       path += '/';
     }
-    const cleanUrl = origin + path;
+    const cleanUrl = `${origin}${path}#charId=${id}`;
 
     const targetName = 'dnd_sheet_vault';
     const win = window.open(cleanUrl, targetName);
