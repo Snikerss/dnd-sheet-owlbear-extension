@@ -340,10 +340,15 @@ export const useCharacterManager = (): CharacterManager => {
 
         if (!isOwlbear() && charId) {
           console.log(`[DND Sheet] Standalone mode: Requesting latest character data for ${charId}...`);
+          setSyncStatus('connected_tab');
           
           try {
             localBridge.postMessage({
               type: 'REQUEST_CHARACTER_DATA',
+              charId
+            });
+            localBridge.postMessage({
+              type: 'HANDSHAKE_PING',
               charId
             });
           } catch (e) {}

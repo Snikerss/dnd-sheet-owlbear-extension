@@ -15,15 +15,19 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   className = '',
 }) => {
   const inOwlbear = isOwlbear();
-  const envPrefix = inOwlbear ? 'Owlbear VTT' : 'Отдельная вкладка';
+  const urlHasCharId = typeof window !== 'undefined' && !!new URLSearchParams(window.location.search).get('charId');
 
-  let badgeColor = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
-  let dotColor = 'bg-emerald-400';
-  let icon = inOwlbear ? '🟢' : '🌐';
-  let label = inOwlbear ? 'Owlbear VTT' : 'Автономно';
+  let badgeColor = inOwlbear
+    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+    : (urlHasCharId ? 'bg-blue-500/20 text-blue-300 border-blue-500/40' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40');
+  let dotColor = inOwlbear ? 'bg-emerald-400' : (urlHasCharId ? 'bg-blue-400' : 'bg-emerald-400');
+  let icon = inOwlbear ? '🟢' : (urlHasCharId ? '🔵' : '🌐');
+  let label = inOwlbear ? 'Owlbear VTT' : (urlHasCharId ? 'Связь с Owlbear' : 'Автономно');
   let title = inOwlbear
     ? 'Работает внутри комнаты Owlbear Rodeo VTT. Все изменения синхронизированы.'
-    : 'Открыто в отдельной вкладке браузера. Сохраняется локально.';
+    : (urlHasCharId 
+        ? 'Отдельная вкладка браузера: Подключена к главному окну Owlbear VTT'
+        : 'Открыто автономно. Изменения сохраняются локально.');
 
   switch (status) {
     case 'syncing':
