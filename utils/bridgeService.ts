@@ -89,10 +89,11 @@ class LocalBridgeService {
    */
   public reconnectStandaloneWindows(charIds: string[]): void {
     if (typeof window === 'undefined' || !Array.isArray(charIds)) return;
-    for (const id of charIds) {
-      if (!id) continue;
+    const targetNames = ['dnd_sheet_vault', ...charIds.map(id => `dnd_sheet_standalone_${id}`)];
+
+    for (const targetName of targetNames) {
+      if (!targetName) continue;
       try {
-        const targetName = `dnd_sheet_standalone_${id}`;
         const win = window.open('', targetName);
         if (win && !win.closed) {
           try {
@@ -100,7 +101,9 @@ class LocalBridgeService {
             if (isBlank) {
               win.close();
             } else {
-              this.trackStandaloneCharacter(id);
+              if (targetName.startsWith('dnd_sheet_standalone_')) {
+                this.trackStandaloneCharacter(targetName.replace('dnd_sheet_standalone_', ''));
+              }
               this.registerChildWindow(win);
               p2pRoomBridge.registerWindow(win);
               win.postMessage({
@@ -110,7 +113,9 @@ class LocalBridgeService {
             }
           } catch (e) {
             // Cross-origin location access check: if it threw a SecurityError, the tab IS OPEN on snikerss.github.io!
-            this.trackStandaloneCharacter(id);
+            if (targetName.startsWith('dnd_sheet_standalone_')) {
+              this.trackStandaloneCharacter(targetName.replace('dnd_sheet_standalone_', ''));
+            }
             this.registerChildWindow(win);
             p2pRoomBridge.registerWindow(win);
             win.postMessage({

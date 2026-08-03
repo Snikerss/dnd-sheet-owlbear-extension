@@ -60,6 +60,12 @@ const AppContent: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!isOwlbear() && typeof window !== 'undefined' && (!window.name || window.name === '')) {
+      window.name = 'dnd_sheet_vault';
+    }
+  }, []);
+
+  useEffect(() => {
     if (isOwlbear()) {
       setUserId(OBR.player.id);
       OBR.player.getRole().then(setUserRole).catch(console.error);
