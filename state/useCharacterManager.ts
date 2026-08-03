@@ -1067,17 +1067,31 @@ export const useCharacterManager = (): CharacterManager => {
         if (payload.roomId) {
           registerCurrentRoom(payload.roomId, payload.roomName || 'Доска Owlbear');
         }
-        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-        const charId = urlParams?.get('charId');
-        if (!isOwlbear() && charId) {
-          const myEntry = charactersStateRef.current[charId] || loadFromLocalStorage()[charId];
-          const imageCacheArray = myEntry?.imageCache ? Array.from(myEntry.imageCache.entries()) : [];
-          localBridge.postMessage({
-            type: 'HANDSHAKE_PING',
-            charId,
-            entry: myEntry ? { ...myEntry, imageCache: imageCacheArray } : undefined,
-            knownRooms: getKnownRooms()
-          });
+        if (Array.isArray(payload.knownRooms)) {
+          saveKnownRooms(payload.knownRooms);
+        }
+        if (!isOwlbear()) {
+          const stateCharIds = Object.keys(charactersStateRef.current);
+          const localData = loadFromLocalStorage();
+          const allCharIds = Array.from(new Set([...stateCharIds, ...Object.keys(localData)]));
+
+          if (allCharIds.length > 0) {
+            for (const charId of allCharIds) {
+              const myEntry = charactersStateRef.current[charId] || localData[charId];
+              const imageCacheArray = myEntry?.imageCache ? Array.from(myEntry.imageCache.entries()) : [];
+              localBridge.postMessage({
+                type: 'HANDSHAKE_PING',
+                charId,
+                entry: myEntry ? { ...myEntry, imageCache: imageCacheArray } : undefined,
+                knownRooms: getKnownRooms()
+              });
+            }
+          } else {
+            localBridge.postMessage({
+              type: 'HANDSHAKE_PING',
+              knownRooms: getKnownRooms()
+            });
+          }
           setSyncStatus('connected_tab');
         }
       } else if (payload.type === 'HANDSHAKE_PING') {
