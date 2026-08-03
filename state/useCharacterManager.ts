@@ -968,8 +968,11 @@ export const useCharacterManager = (): CharacterManager => {
       }
 
       if (payload.type === 'CHARACTER_ACTION' && payload.charId && payload.action) {
-        const actId = payload.action.actionId || `${payload.action.type}-${JSON.stringify(payload.action.payload)}`;
-        if (localBridge.isDuplicateMessage(actId, 3000)) {
+        const uniqueActId = payload.action.actionId 
+          ? `act-${payload.action.actionId}` 
+          : (payload.msgId ? `msg-${payload.msgId}` : `raw-${payload.action.type}-${Date.now()}`);
+
+        if (localBridge.isDuplicateMessage(uniqueActId, 1000)) {
           return;
         }
 
