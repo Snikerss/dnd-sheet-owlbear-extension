@@ -968,7 +968,7 @@ export const useCharacterManager = (): CharacterManager => {
 
       if (payload.type === 'CHARACTER_ACTION' && payload.charId && payload.action) {
         const actId = payload.action.actionId || `${payload.action.type}-${JSON.stringify(payload.action.payload)}`;
-        if (localBridge.isDuplicateMessage(actId, 500)) {
+        if (localBridge.isDuplicateMessage(actId, 3000)) {
           return;
         }
 
@@ -980,13 +980,19 @@ export const useCharacterManager = (): CharacterManager => {
 
         // Proxy incoming action from standalone tab to Owlbear VTT room network & storage
         if (isOwlbear()) {
-          setTimeout(() => {
-            const state = charactersStateRef.current;
-            const entry = state[payload.charId];
-            if (entry) {
-              saveCharacterApi(payload.charId, entry);
-            }
-          }, 0);
+          const currentState = charactersStateRef.current;
+          const currentEntry = currentState[payload.charId];
+          if (currentEntry && currentEntry.history?.present) {
+            const updatedPresent = characterReducer(currentEntry.history.present, payload.action);
+            const updatedEntry = {
+              ...currentEntry,
+              history: {
+                ...currentEntry.history,
+                present: updatedPresent
+              }
+            };
+            saveCharacterApi(payload.charId, updatedEntry);
+          }
           setSyncStatus('connected_tab');
         }
       } else if (payload.type === 'CHARACTER_SYNC' && payload.charId && payload.entry) {
