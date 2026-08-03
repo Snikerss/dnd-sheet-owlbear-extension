@@ -1072,12 +1072,16 @@ export const useCharacterManager = (): CharacterManager => {
           localBridge.postMessage({
             type: 'HANDSHAKE_PING',
             charId,
-            entry: myEntry ? { ...myEntry, imageCache: imageCacheArray } : undefined
+            entry: myEntry ? { ...myEntry, imageCache: imageCacheArray } : undefined,
+            knownRooms: getKnownRooms()
           });
           setSyncStatus('connected_tab');
         }
       } else if (payload.type === 'HANDSHAKE_PING') {
         console.log('[DND Sheet] Bridge Sync: Received HANDSHAKE_PING for character:', payload.charId);
+        if (Array.isArray(payload.knownRooms)) {
+          saveKnownRooms(payload.knownRooms);
+        }
         const state = charactersStateRef.current;
         let entry = payload.charId ? state[payload.charId] : null;
 
@@ -1105,7 +1109,8 @@ export const useCharacterManager = (): CharacterManager => {
         localBridge.postMessage({
           type: 'HANDSHAKE_PONG',
           charId: payload.charId,
-          entry: entry ? { ...entry, imageCache: imageCacheArray } : undefined
+          entry: entry ? { ...entry, imageCache: imageCacheArray } : undefined,
+          knownRooms: getKnownRooms()
         });
 
         if (isOwlbear()) {
@@ -1113,6 +1118,9 @@ export const useCharacterManager = (): CharacterManager => {
         }
       } else if (payload.type === 'HANDSHAKE_PONG') {
         console.log('[DND Sheet] Bridge Sync: Received HANDSHAKE_PONG for character:', payload.charId);
+        if (Array.isArray(payload.knownRooms)) {
+          saveKnownRooms(payload.knownRooms);
+        }
         const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         const urlCharId = urlParams?.get('charId');
 

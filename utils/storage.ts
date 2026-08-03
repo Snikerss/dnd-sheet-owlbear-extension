@@ -124,6 +124,7 @@ export function minifyCharacter(char: Character): any {
   if (char.tabOrder && char.tabOrder.length > 0) min.tabOrder = char.tabOrder;
   if (char.collapsedTabs && Object.keys(char.collapsedTabs).length > 0) min.collapsedTabs = char.collapsedTabs;
   if (char.equippedItems && char.equippedItems.length > 0) min.equippedItems = char.equippedItems;
+  if (char.boundRooms && char.boundRooms.length > 0) min.boundRooms = char.boundRooms;
 
   return min;
 }
@@ -253,6 +254,7 @@ export function unminifyCharacter(min: any): Character {
   if (Array.isArray(min.tabOrder)) char.tabOrder = min.tabOrder;
   if (min.collapsedTabs) char.collapsedTabs = min.collapsedTabs;
   if (Array.isArray(min.equippedItems)) char.equippedItems = min.equippedItems;
+  if (Array.isArray(min.boundRooms)) char.boundRooms = min.boundRooms;
 
   return char;
 }
