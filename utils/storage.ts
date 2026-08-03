@@ -892,11 +892,14 @@ export async function deleteCharacterApi(id: string): Promise<void> {
 
 export function loadFromLocalStorage(): any {
   if (typeof window === 'undefined') return {};
-  if (Object.keys(inMemoryCharactersCache).length > 0) {
-    return inMemoryCharactersCache;
-  }
-  const data = localStorage.getItem('dnd-characters');
-  return data ? JSON.parse(data) : {};
+  let diskData: Record<string, any> = {};
+  try {
+    const raw = localStorage.getItem('dnd-characters');
+    if (raw) {
+      diskData = JSON.parse(raw);
+    }
+  } catch (e) {}
+  return { ...diskData, ...inMemoryCharactersCache };
 }
 
 export function saveToLocalStorage(characters: any) {
