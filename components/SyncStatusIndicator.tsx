@@ -62,10 +62,30 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
       break;
   }
 
+  const handleClick = (e: React.MouseEvent) => {
+    try {
+      console.log('--- DND SHEET DIAGNOSTIC REPORT ---');
+      console.log('inOwlbear:', inOwlbear);
+      console.log('status:', status);
+      console.log('urlHasCharId:', urlHasCharId);
+      console.log('vtt_heartbeat in localStorage:', window.localStorage.getItem('com.antigravity.dnd-sheet/vtt_heartbeat'));
+      console.log('bridge_signal in localStorage:', window.localStorage.getItem('com.antigravity.dnd-sheet/bridge_signal'));
+      console.log('opener exists:', !!window.opener);
+      console.log('parent exists:', window.parent !== window);
+      console.log('-----------------------------------');
+    } catch (err) {
+      console.error('Diagnostic failed:', err);
+    }
+
+    if (onReconnect) {
+      onReconnect();
+    }
+  };
+
   return (
     <button
       type="button"
-      onClick={onReconnect}
+      onClick={handleClick}
       title={title}
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border backdrop-blur-sm shadow-sm transition-all duration-200 select-none ${badgeColor} ${className}`}
     >
