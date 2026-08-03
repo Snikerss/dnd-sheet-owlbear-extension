@@ -1,6 +1,6 @@
 /**
- * Единый сервис управления межвкладочным мостом и P2P-вещанием (BroadcastChannel + window.message).
- * Инкапсулирует обработку ошибок песочницы, SESSION_CLIENT_ID и дедупликацию сообщений.
+ * Единый сервис управления межвкладочным мостом и P2P-вещанием (BroadcastChannel + window.message + localStorage Bus).
+ * Инкапсулирует обработку ошибок песочницы, SESSION_CLIENT_ID, дедупликацию и непрерывную синхронизацию.
  */
 
 export const SESSION_CLIENT_ID = typeof window !== 'undefined'
@@ -30,7 +30,14 @@ class LocalBridgeService {
       
       // Fallback listener for browser storage events across tabs on the same origin
       window.addEventListener('storage', (event) => {
-        if (event.key && (event.key.startsWith('com.antigravity.dnd-sheet/v2/character/') || event.key === 'com.antigravity.dnd-sheet/characters')) {
+        if (!event.key) return;
+
+        if (event.key === 'com.antigravity.dnd-sheet/bridge_signal' && event.newValue) {
+          try {
+            const parsed = JSON.parse(event.newValue);
+            this.handleMessage(new MessageEvent('message', { data: parsed }));
+          } catch (e) {}
+        } else if (event.key.startsWith('com.antigravity.dnd-sheet/v2/character/') || event.key === 'com.antigravity.dnd-sheet/characters') {
           try {
             this.handleMessage(new MessageEvent('message', {
               data: {
@@ -41,6 +48,22 @@ class LocalBridgeService {
           } catch (e) {}
         }
       });
+
+      // Periodic polling fallback for localStorage signal bus (every 1000ms)
+      setInterval(() => {
+        try {
+          const raw = window.localStorage.getItem('com.antigravity.dnd-sheet/bridge_signal');
+          if (raw) {
+            const payload = JSON.parse(raw);
+            if (payload && payload.msgId && payload.msgTimestamp && (Date.now() - payload.msgTimestamp < 5000)) {
+              const msgKey = `bus-${payload.msgId}`;
+              if (!this.isDuplicateMessage(msgKey, 5000)) {
+                this.handleMessage(new MessageEvent('message', { data: payload }));
+              }
+            }
+          }
+        } catch (e) {}
+      }, 1000);
     }
   }
 
@@ -82,10 +105,13 @@ class LocalBridgeService {
    * Отправляет сообщение во все открытые вкладки и дочерние/родительские окна браузера.
    */
   public postMessage(data: any): void {
+    const msgId = Math.random().toString(36).substring(2) + Date.now().toString(36);
     const payload = {
       ...data,
       senderClientId: SESSION_CLIENT_ID,
-      senderId: SESSION_CLIENT_ID
+      senderId: SESSION_CLIENT_ID,
+      msgId,
+      msgTimestamp: Date.now()
     };
 
     // 1. BroadcastChannel (все вкладки на том же домене)
@@ -121,6 +147,13 @@ class LocalBridgeService {
         this.childWindows.delete(win);
       }
     });
+
+    // 5. LocalStorage Signal Bus (гарантированный резервный канал связи для вкладок/iframe)
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('com.antigravity.dnd-sheet/bridge_signal', JSON.stringify(payload));
+      }
+    } catch (e) {}
   }
 
   /**
