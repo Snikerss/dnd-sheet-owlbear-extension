@@ -304,12 +304,13 @@ const AppContent: React.FC = () => {
   }, []);
 
   const handleOpenStandalone = useCallback((id: string) => {
-    // Strip /index.html from pathname so GitHub Pages opens the root directory without 404
-    let cleanPath = typeof window !== 'undefined' ? window.location.pathname.replace(/\/index\.html$/i, '/') : '/';
-    if (!cleanPath.endsWith('/')) {
-      cleanPath += '/';
+    if (typeof window === 'undefined') return;
+    const origin = window.location.origin;
+    let path = window.location.pathname.replace(/\/index\.html.*/i, '');
+    if (!path.endsWith('/')) {
+      path += '/';
     }
-    const cleanUrl = (typeof window !== 'undefined' ? window.location.origin : '') + cleanPath;
+    const cleanUrl = origin + path;
 
     const targetName = 'dnd_sheet_vault';
     const win = window.open(cleanUrl, targetName);
