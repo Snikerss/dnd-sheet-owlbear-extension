@@ -11,7 +11,7 @@ export const CHARACTER_BASIC_FIELDS = [
   'maxHpBonus', 'carryCapacityBonus',
   'globalAttackDiceBonusToHitDice', 'globalAttackDiceBonusToDamageDice',
   'spellcastingAbility', 'maxPreparedSpells', 'spellSaveDcBonus',
-  'spellAttackBonusBonus', 'activeNoteId', 'attunementMaxBonus', 'ownerId', 'ownerName', 'viewMode', 'isGlobal'
+  'spellAttackBonusBonus', 'activeNoteId', 'attunementMaxBonus', 'ownerId', 'ownerName', 'viewMode', 'isGlobal', 'boundRooms'
 ] as const;
 
 export type CharacterBasicField = typeof CHARACTER_BASIC_FIELDS[number];

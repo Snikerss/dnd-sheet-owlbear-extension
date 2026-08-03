@@ -34,12 +34,7 @@ class LocalBridgeService {
       window.addEventListener('storage', (event) => {
         if (!event.key) return;
 
-        if (event.key === 'com.antigravity.dnd-sheet/bridge_signal' && event.newValue) {
-          try {
-            const parsed = JSON.parse(event.newValue);
-            this.handleMessage(new MessageEvent('message', { data: parsed }));
-          } catch (e) {}
-        } else if (event.key.startsWith('com.antigravity.dnd-sheet/v2/character/') || event.key === 'com.antigravity.dnd-sheet/characters') {
+        if (event.key.startsWith('com.antigravity.dnd-sheet/v2/character/') || event.key === 'com.antigravity.dnd-sheet/characters') {
           try {
             this.handleMessage(new MessageEvent('message', {
               data: {
