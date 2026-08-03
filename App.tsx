@@ -357,17 +357,6 @@ const AppContent: React.FC = () => {
     );
   }, [characters]);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center text-[var(--color-text-base)]">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-12 h-12 border-4 border-[var(--color-accent-primary)] border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-lg font-semibold tracking-wide">Загрузка персонажей...</p>
-        </div>
-      </div>
-    );
-  }
-
   const [isEmbeddedOwlbearOpen, setIsEmbeddedOwlbearOpen] = useState(false);
   const [embeddedOwlbearLayout, setEmbeddedOwlbearLayout] = useState<'split' | 'overlay'>('split');
   const [embeddedOwlbearUrl, setEmbeddedOwlbearUrl] = useState<string>('https://www.owlbear.rodeo/');
@@ -380,6 +369,17 @@ const AppContent: React.FC = () => {
     localBridge.reconnectStandaloneWindows();
     addNotification('Отправлен прямой сигнал сопряжения с открытыми окнами Owlbear.', 'info');
   }, [addNotification]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center text-[var(--color-text-base)]">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-12 h-12 border-4 border-[var(--color-accent-primary)] border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-lg font-semibold tracking-wide">Загрузка персонажей...</p>
+        </div>
+      </div>
+    );
+  }
 
   const confirmDeletion = () => {
     if (characterPendingDeletion) {
