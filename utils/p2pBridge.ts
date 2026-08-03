@@ -75,12 +75,10 @@ class P2PRoomBridgeService {
 
       this.socket.onclose = () => {
         this.isConnecting = false;
-        this.endpointIndex++;
         if (this.pingInterval) clearInterval(this.pingInterval);
         if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
         this.reconnectTimer = setTimeout(() => {
           if (this.currentRoomId) {
-            console.log('[DND Sheet P2P] Reconnecting to room network (switching cluster)...');
             this.initWebSocket();
           }
         }, 3000);
