@@ -1067,13 +1067,38 @@ export const useCharacterManager = (): CharacterManager => {
         const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         const charId = urlParams?.get('charId');
         if (!isOwlbear() && charId) {
-          localBridge.postMessage({ type: 'HANDSHAKE_PING', charId });
+          const myEntry = charactersStateRef.current[charId] || loadFromLocalStorage()[charId];
+          const imageCacheArray = myEntry?.imageCache ? Array.from(myEntry.imageCache.entries()) : [];
+          localBridge.postMessage({
+            type: 'HANDSHAKE_PING',
+            charId,
+            entry: myEntry ? { ...myEntry, imageCache: imageCacheArray } : undefined
+          });
           setSyncStatus('connected_tab');
         }
       } else if (payload.type === 'HANDSHAKE_PING') {
         console.log('[DND Sheet] Bridge Sync: Received HANDSHAKE_PING for character:', payload.charId);
         const state = charactersStateRef.current;
-        const entry = payload.charId ? state[payload.charId] : null;
+        let entry = payload.charId ? state[payload.charId] : null;
+
+        // Если локальное состояние еще пустое (например, сразу после F5), берем переданный слепок от отправителя
+        if (!entry && payload.entry && payload.charId) {
+          entry = payload.entry;
+          const entryWithMap = {
+            ...payload.entry,
+            imageCache: Array.isArray(payload.entry.imageCache) 
+              ? new Map(payload.entry.imageCache) 
+              : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
+          };
+          dispatch({
+            type: 'SYNC_REMOTE_CHARACTER',
+            payload: { id: payload.charId, entry: entryWithMap }
+          });
+          if (isOwlbear()) {
+            saveCharacterApi(payload.charId, entryWithMap);
+          }
+        }
+
         const imageCacheArray = entry?.imageCache ? Array.from(entry.imageCache.entries()) : [];
         
         localBridge.postMessage({
