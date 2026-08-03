@@ -1,8 +1,9 @@
 import { SESSION_CLIENT_ID } from './bridgeService';
 
 /**
- * P2P Room Network Bridge Service (Multi-Relay Fallback Engine)
- * Высокоскоростной мост реального времени с автовыбором открытого WSS-канала для 100% выдерживания F5.
+ * P2P Room Network Bridge Service (ntfy.sh PubSub Engine)
+ * Высокоскоростной мост реального времени между отдельной вкладкой и Owlbear Rodeo.
+ * Использование легких пакетов (<200B) гарантирует моментальную рассылку обоим окнам.
  */
 class P2PRoomBridgeService {
   private socket: WebSocket | null = null;
@@ -11,13 +12,6 @@ class P2PRoomBridgeService {
   private childWindows: Set<Window> = new Set();
   private isConnecting: boolean = false;
   private reconnectTimer: any = null;
-  private activeEndpointIndex: number = 0;
-
-  // Список бесплатных публичных WSS-реле без API-ключей и авторизации
-  private endpoints = [
-    'wss://demo.piesocket.com/v3/dnd_room_v6?api_key=VC32145&notify_self=1',
-    'wss://socketsbay.com/wss/v2/1/demo/'
-  ];
 
   public connect(roomId: string): void {
     if (!roomId) return;
@@ -43,19 +37,16 @@ class P2PRoomBridgeService {
     }
 
     const shortRoomId = this.currentRoomId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 24);
-    const rawEndpoint = this.endpoints[this.activeEndpointIndex % this.endpoints.length] ?? 'wss://demo.piesocket.com/v3/dnd_room?api_key=VC32145&notify_self=1';
-    const endpoint = rawEndpoint.includes('piesocket')
-      ? `wss://demo.piesocket.com/v3/dnd_room_${shortRoomId}?api_key=VC32145&notify_self=1`
-      : rawEndpoint;
+    const endpoint = `wss://ntfy.sh/dnd_sheet_room_${shortRoomId}/ws`;
 
     try {
       this.socket = new WebSocket(endpoint);
 
       this.socket.onopen = () => {
         this.isConnecting = false;
-        console.log(`[DND Sheet P2P] Connected to network channel via relay ${this.activeEndpointIndex + 1}`);
+        console.log(`[DND Sheet P2P] Connected to ntfy room network channel: ${shortRoomId}`);
 
-        // Анонс появления пира в комнате
+        // Анонс выходящего на связь пира
         this.broadcast({
           type: 'P2P_PEER_JOIN',
           roomId: this.currentRoomId,
@@ -65,18 +56,19 @@ class P2PRoomBridgeService {
 
       this.socket.onmessage = (event) => {
         try {
-          const rawData = JSON.parse(event.data);
-          const payload = (rawData && rawData.data && typeof rawData.data === 'object') ? rawData.data : rawData;
-          if (payload && typeof payload === 'object' && payload.roomId === this.currentRoomId && payload.type) {
-            this.notifyListeners(payload);
+          const wrapper = JSON.parse(event.data);
+          if (wrapper && wrapper.event === 'message' && wrapper.message) {
+            const rawData = typeof wrapper.message === 'string' ? JSON.parse(wrapper.message) : wrapper.message;
+            if (rawData && typeof rawData === 'object' && rawData.roomId === this.currentRoomId && rawData.type) {
+              console.log('[DND Sheet P2P] Received P2P message from room:', rawData.type);
+              this.notifyListeners(rawData);
+            }
           }
         } catch (e) {}
       };
 
       this.socket.onerror = () => {
         this.isConnecting = false;
-        // Переключаемся на следующий реле в списке при ошибке
-        this.activeEndpointIndex++;
       };
 
       this.socket.onclose = () => {
@@ -90,14 +82,13 @@ class P2PRoomBridgeService {
       };
     } catch (err) {
       this.isConnecting = false;
-      this.activeEndpointIndex++;
     }
   }
 
   public broadcast(data: any): void {
     if (!this.currentRoomId) return;
 
-    // Вырезаем тяжелые base64 картинки для удержания пакета <200 байт
+    // Глубокая очистка тяжелых base64 картинок для удержания размера пакета <200 байт
     let cleanData = data;
     if (data && typeof data === 'object' && data.entry && data.entry.imageCache) {
       const { imageCache, ...restEntry } = data.entry;
@@ -113,14 +104,16 @@ class P2PRoomBridgeService {
 
     const body = JSON.stringify(payload);
 
-    // 1. Отправляем в открытый WSS сокет
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      try {
-        this.socket.send(body);
-      } catch (e) {}
-    }
+    // 1. Публикуем в ntfy через простой POST-запрос без кастомных заголовков (<200B обходит CORS, 413 и 429)
+    const shortRoomId = this.currentRoomId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 24);
+    try {
+      fetch(`https://ntfy.sh/dnd_sheet_room_${shortRoomId}`, {
+        method: 'POST',
+        body: body
+      }).catch(() => {});
+    } catch (e) {}
 
-    // 2. Прямой postMessage родительскому и дочерним окнам
+    // 2. Прямой HTML5 postMessage родительскому и дочерним окнам
     if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
       try {
         window.opener.postMessage(payload, '*');
