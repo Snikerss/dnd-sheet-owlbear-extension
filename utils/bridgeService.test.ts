@@ -63,6 +63,7 @@ describe('LocalBridgeService & Native Window Target Resolution', () => {
       return null;
     });
 
+    localBridge.trackStandaloneCharacter('char-777');
     localBridge.reconnectStandaloneWindows(['char-777']);
     expect(openSpy).toHaveBeenCalledWith('', 'dnd_sheet_standalone_char-777');
 

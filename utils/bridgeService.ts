@@ -72,17 +72,29 @@ class LocalBridgeService {
     }
   }
 
+  private knownStandaloneCharIds: Set<string> = new Set();
+
   /**
-   * Находит и восстанавливает прямые связи с ранее открытыми отдельными вкладками через window.open('', targetName)
+   * Отмечает ID персонажа как открытого в отдельной вкладке
    */
-  public reconnectStandaloneWindows(charIds: string[]): void {
+  public trackStandaloneCharacter(charId: string): void {
+    if (charId) {
+      this.knownStandaloneCharIds.add(charId);
+    }
+  }
+
+  /**
+   * Находит и восстанавливает прямые связи ТОЛЬКО с ранее открытыми отдельными вкладками через window.open('', targetName)
+   */
+  public reconnectStandaloneWindows(charIds?: string[]): void {
     if (typeof window === 'undefined') return;
-    for (const id of charIds) {
+    const targetIds = charIds ? charIds.filter(id => this.knownStandaloneCharIds.has(id)) : Array.from(this.knownStandaloneCharIds);
+    for (const id of targetIds) {
       if (!id) continue;
       try {
         const targetName = `dnd_sheet_standalone_${id}`;
         const win = window.open('', targetName);
-        if (win && !win.closed && win.location.href !== 'about:blank') {
+        if (win && !win.closed && win.location && win.location.href !== 'about:blank') {
           this.registerChildWindow(win);
           p2pRoomBridge.registerWindow(win);
         }
@@ -184,6 +196,10 @@ class LocalBridgeService {
     // Игнорируем собственные сообщения от той же вкладки
     const senderId = event.data.senderClientId || event.data.senderId;
     if (senderId && senderId === SESSION_CLIENT_ID) return;
+
+    if (event.data.charId) {
+      this.trackStandaloneCharacter(event.data.charId);
+    }
 
     // Автоматическая регистрация отправителя, если это дочернее окно
     if (event.source && event.source !== window && 'postMessage' in event.source) {
