@@ -18,16 +18,7 @@ const AppContent: React.FC = () => {
   const { addNotification } = useNotifier();
   const { characters, isLoading, syncStatus, syncingCharacters, addCharacter, deleteCharacter, updateCharacter, undo, redo, syncCharacter, clearLocalCache, exportVaultData, importVaultData } = useCharacterManager();
   
-  const [activeCharacterId, setActiveCharacterId] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      const searchCharId = new URLSearchParams(window.location.search).get('charId');
-      if (searchCharId) return searchCharId;
-      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, '?'));
-      const hashCharId = hashParams.get('charId');
-      if (hashCharId) return hashCharId;
-    }
-    return null;
-  });
+  const [activeCharacterId, setActiveCharacterId] = useState<string | null>(null);
 
   const [characterPendingDeletion, setCharacterPendingDeletion] = useState<{id: string, name: string} | null>(null);
   const [isHistoryLogOpen, setIsHistoryLogOpen] = useState(false);
@@ -309,25 +300,19 @@ const AppContent: React.FC = () => {
     return unsubscribe;
   }, []);
 
-  const handleOpenStandalone = useCallback((id: string) => {
+  const handleOpenStandalone = useCallback((_id?: string) => {
     if (typeof window === 'undefined') return;
     const origin = window.location.origin;
     let path = window.location.pathname.replace(/\/index\.html.*/i, '');
     if (!path.endsWith('/')) {
       path += '/';
     }
-    const cleanUrl = `${origin}${path}#charId=${id}`;
+    const cleanUrl = origin + path;
 
     const targetName = 'dnd_sheet_vault';
     const win = window.open(cleanUrl, targetName);
     if (win) {
       localBridge.registerChildWindow(win);
-      try {
-        win.postMessage({
-          type: 'SELECT_CHARACTER',
-          charId: id
-        }, '*');
-      } catch (e) {}
     }
   }, []);
 
