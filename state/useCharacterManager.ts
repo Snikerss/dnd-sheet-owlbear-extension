@@ -1175,6 +1175,8 @@ export const useCharacterManager = (): CharacterManager => {
     return () => clearInterval(interval);
   }, []);
 
+  const lastRemoteP2pTimeRef = useRef<number>(Date.now());
+
   // 2.8. Heartbeat monitor for standalone tab to detect connection drops
   useEffect(() => {
     if (isOwlbear()) return;
@@ -1184,22 +1186,20 @@ export const useCharacterManager = (): CharacterManager => {
     if (!urlCharId) return;
 
     const checkVttHeartbeat = () => {
-      try {
-        const raw = window.localStorage.getItem('com.antigravity.dnd-sheet/vtt_heartbeat');
-        if (raw) {
-          const heartbeat = JSON.parse(raw);
-          if (heartbeat && heartbeat.timestamp && (Date.now() - heartbeat.timestamp < 7000)) {
-            setSyncStatus('connected_tab');
-            return true;
-          }
-        }
-      } catch (e) {}
-
-      if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
-        setSyncStatus('disconnected');
-      } else {
-        setSyncStatus('synced');
+      // 1. Если недавно приходило любое сообщение через P2P мост (менее 10 секунд назад)
+      if (Date.now() - lastRemoteP2pTimeRef.current < 10000) {
+        setSyncStatus('connected_tab');
+        return true;
       }
+
+      // 2. Если есть открытый родительскийopener
+      if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
+        setSyncStatus('connected_tab');
+        return true;
+      }
+
+      // 3. Иначе автономный режим
+      setSyncStatus('synced');
       return false;
     };
 
@@ -1210,7 +1210,8 @@ export const useCharacterManager = (): CharacterManager => {
 
     const unsubscribe = localBridge.subscribe((event) => {
       const payload = event.data;
-      if (payload && (payload.type === 'HANDSHAKE_PONG' || payload.type === 'CHARACTER_SYNC' || payload.type === 'CHARACTER_ACTION' || payload.type === 'VTT_FRAME_READY')) {
+      if (payload && typeof payload === 'object') {
+        lastRemoteP2pTimeRef.current = Date.now();
         setSyncStatus('connected_tab');
       }
     });
