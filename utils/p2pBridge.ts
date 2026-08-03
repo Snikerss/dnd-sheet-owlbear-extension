@@ -42,12 +42,7 @@ class P2PRoomBridgeService {
     if (this.pingInterval) clearInterval(this.pingInterval);
 
     const shortRoomId = this.currentRoomId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16);
-    const endpoints = [
-      `wss://demo.piesocket.com/v3/room_${shortRoomId}?api_key=VC32145&notify_self=1`,
-      `wss://free.piesocket.com/v3/room_${shortRoomId}?api_key=VC32145&notify_self=1`
-    ];
-
-    const endpoint: string = endpoints[this.endpointIndex % endpoints.length] || endpoints[0] || '';
+    const endpoint = `wss://demo.piesocket.com/v3/room_${shortRoomId}?api_key=VC32145&notify_self=1`;
 
     try {
       this.socket = new WebSocket(endpoint);
