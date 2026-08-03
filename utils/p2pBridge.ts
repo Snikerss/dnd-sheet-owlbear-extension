@@ -1,9 +1,8 @@
 import { SESSION_CLIENT_ID } from './bridgeService';
 
 /**
- * P2P Room Network Bridge Service (ntfy.sh PubSub Engine)
- * Обеспечивает сквозную 100% бесплатную передачу данных между отдельными вкладками
- * и фреймом Owlbear Rodeo VTT через глобальныйPubSub канал ntfy.sh.
+ * P2P Room Network Bridge Service (ntfy.sh Engine)
+ * Высокоскоростной мост реального времени между автономной вкладкой и Owlbear Rodeo.
  */
 class P2PRoomBridgeService {
   private socket: WebSocket | null = null;
@@ -12,9 +11,6 @@ class P2PRoomBridgeService {
   private isConnecting: boolean = false;
   private reconnectTimer: any = null;
 
-  /**
-   * Инициализирует P2P-соединение с комнатой.
-   */
   public connect(roomId: string): void {
     if (!roomId) return;
     if (this.currentRoomId === roomId && this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
@@ -89,30 +85,37 @@ class P2PRoomBridgeService {
   }
 
   /**
-   * Отправляет сообщение в P2P-сетевой канал текущей комнаты.
+   * Отправляет очищенное сообщение в P2P-сетевой канал ntfy.
    */
   public broadcast(data: any): void {
     if (!this.currentRoomId) return;
     const shortRoomId = this.currentRoomId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 24);
+
+    // Удаляем тяжелые base64 изображения из сетевого пакета для удержания размера до 2 Кб
+    let cleanData = data;
+    if (data && typeof data === 'object' && data.entry && data.entry.imageCache) {
+      const { imageCache, ...restEntry } = data.entry;
+      cleanData = { ...data, entry: restEntry };
+    }
+
     const payload = {
-      ...data,
+      ...cleanData,
       roomId: this.currentRoomId,
       sentAt: Date.now()
     };
 
     const body = JSON.stringify(payload);
 
-    // Отправляем через WebSocket без лимитов размера и HTTP-ограничений
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      try {
-        this.socket.send(body);
-      } catch (e) {}
-    }
+    // Публикация через ntfy HTTP POST для мгновенной рассылки всем подписчикам
+    try {
+      fetch(`https://ntfy.sh/dnd_sheet_room_${shortRoomId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: body
+      }).catch(() => {});
+    } catch (e) {}
   }
 
-  /**
-   * Подписывается на входящие P2P-сообщения сети.
-   */
   public subscribe(callback: (data: any) => void): () => void {
     this.listeners.add(callback);
     return () => {
@@ -123,7 +126,7 @@ class P2PRoomBridgeService {
   private notifyListeners(data: any): void {
     const senderId = data.senderClientId || data.senderId;
     if (senderId && senderId === SESSION_CLIENT_ID) {
-      return; // Игнорируем собственные эхо-сообщения
+      return;
     }
 
     this.listeners.forEach((listener) => {
@@ -135,9 +138,6 @@ class P2PRoomBridgeService {
     });
   }
 
-  /**
-   * Отключает P2P-мост.
-   */
   public disconnect(): void {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.socket) {
