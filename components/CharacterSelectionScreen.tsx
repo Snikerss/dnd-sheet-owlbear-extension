@@ -207,11 +207,11 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
                   : 'bg-[var(--color-surface-well)] text-teal-300 border-teal-500/40 hover:border-teal-400'
               }`}
             >
-              🎯 Текущая доска Owlbear
+              {(window as any).__currentRoomName ? `🎯 Текущая доска (${(window as any).__currentRoomName})` : '🎯 Текущая доска Owlbear'}
             </button>
           )}
 
-          {knownRooms.map(room => (
+          {knownRooms.filter(room => room.roomId !== currentRoomId).map(room => (
             <button
               key={room.roomId}
               onClick={() => setSelectedRoomFilter(room.roomId)}
