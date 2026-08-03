@@ -1298,19 +1298,17 @@ export const useCharacterManager = (): CharacterManager => {
   useEffect(() => {
     if (isOwlbear() && typeof OBR !== 'undefined') {
       OBR.onReady(() => {
-        const roomId = OBR.room?.id;
-        if (roomId) {
-          console.log(`[DND Sheet P2P] Owlbear VTT Ready. Connecting P2P network bridge for room: ${roomId}`);
-          p2pRoomBridge.connect(roomId);
-        }
+        const roomId = OBR.room?.id || 'global_vault_bridge';
+        console.log(`[DND Sheet P2P] Owlbear VTT Ready. Connecting P2P network bridge for room: ${roomId}`);
+        p2pRoomBridge.connect(roomId);
+        localBridge.reconnectStandaloneWindows();
       });
     } else {
       const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-      const activeRoomId = urlParams?.get('roomId') || null;
-      if (activeRoomId) {
-        console.log(`[DND Sheet P2P] Standalone mode: Connecting P2P network bridge for room: ${activeRoomId}`);
-        p2pRoomBridge.connect(activeRoomId);
-      }
+      const activeRoomId = urlParams?.get('roomId') || 'global_vault_bridge';
+      console.log(`[DND Sheet P2P] Standalone mode: Connecting P2P network bridge for room: ${activeRoomId}`);
+      p2pRoomBridge.connect(activeRoomId);
+      localBridge.reconnectStandaloneWindows();
     }
   }, []);
 

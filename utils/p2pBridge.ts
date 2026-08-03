@@ -16,7 +16,7 @@ class P2PRoomBridgeService {
   }
 
   public broadcast(data: any): void {
-    if (!this.currentRoomId) return;
+    const roomId = this.currentRoomId || 'global_vault_bridge';
 
     let cleanData = data;
     if (data && typeof data === 'object' && data.entry && data.entry.imageCache) {
@@ -26,7 +26,7 @@ class P2PRoomBridgeService {
 
     const payload = {
       ...cleanData,
-      roomId: this.currentRoomId,
+      roomId,
       sentAt: Date.now(),
       senderClientId: SESSION_CLIENT_ID
     };

@@ -175,7 +175,7 @@ class LocalBridgeService {
     // 6. LocalStorage Bus Signal for cross-tab sync on same domain
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
-        window.localStorage.setItem('com.antigravity.dnd-sheet/bridge_signal', JSON.stringify(payload));
+        window.localStorage.setItem('com.antigravity.dnd-sheet/bridge_signal', JSON.stringify({ ...payload, _seq: Date.now() + Math.random() }));
       } catch (e) {}
     }
   }
