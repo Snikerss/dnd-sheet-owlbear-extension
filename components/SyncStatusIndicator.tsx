@@ -6,15 +6,20 @@ export type SyncStatusType = 'synced' | 'syncing' | 'connected_tab' | 'disconnec
 export interface SyncStatusIndicatorProps {
   status: SyncStatusType;
   onReconnect?: () => void;
+  onOpenEmbeddedOwlbear?: () => void;
+  onConnectOwlbearWindow?: () => void;
   className?: string;
 }
 
 export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   status,
   onReconnect,
+  onOpenEmbeddedOwlbear,
+  onConnectOwlbearWindow,
   className = '',
 }) => {
   const inOwlbear = isOwlbear();
+  const [showOptionsModal, setShowOptionsModal] = React.useState(false);
   const urlHasCharId = typeof window !== 'undefined' && !!new URLSearchParams(window.location.search).get('charId');
 
   let badgeColor = inOwlbear
@@ -25,7 +30,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   let label = inOwlbear ? 'Owlbear VTT' : 'Автономно';
   let title = inOwlbear
     ? 'Работает внутри комнаты Owlbear Rodeo VTT. Все изменения синхронизированы.'
-    : 'Открыто в автономном режиме. Все изменения сохраняются локально.';
+    : 'Нажмите для выбора режима подключения к Owlbear Rodeo VTT!';
 
   switch (status) {
     case 'syncing':
@@ -61,38 +66,99 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   }
 
   const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
       console.log('--- DND SHEET DIAGNOSTIC REPORT ---');
       console.log('inOwlbear:', inOwlbear);
       console.log('status:', status);
       console.log('urlHasCharId:', urlHasCharId);
-      console.log('vtt_heartbeat in localStorage:', window.localStorage.getItem('com.antigravity.dnd-sheet/vtt_heartbeat'));
-      console.log('bridge_signal in localStorage:', window.localStorage.getItem('com.antigravity.dnd-sheet/bridge_signal'));
-      console.log('opener exists:', !!window.opener);
-      console.log('parent exists:', window.parent !== window);
       console.log('-----------------------------------');
-    } catch (err) {
-      console.error('Diagnostic failed:', err);
-    }
+    } catch (err) {}
 
-    if (onReconnect) {
+    if (!inOwlbear) {
+      setShowOptionsModal(true);
+    } else if (onReconnect) {
       onReconnect();
     }
   };
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      title={title}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border backdrop-blur-sm shadow-sm transition-all duration-200 select-none ${badgeColor} ${className}`}
-    >
-      <span className="relative flex h-2 w-2">
-        <span className={`relative inline-flex rounded-full h-2 w-2 ${dotColor}`} />
-      </span>
-      <span className="leading-none text-[11px] font-medium tracking-wide">
-        {icon} {label}
-      </span>
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={handleClick}
+        title={title}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border backdrop-blur-sm shadow-sm transition-all duration-200 select-none ${badgeColor} ${className}`}
+      >
+        <span className="relative flex h-2 w-2">
+          <span className={`relative inline-flex rounded-full h-2 w-2 ${dotColor}`} />
+        </span>
+        <span className="leading-none text-[11px] font-medium tracking-wide">
+          {icon} {label}
+        </span>
+      </button>
+
+      {/* Interactive Integration Options Modal */}
+      {showOptionsModal && (
+        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-5 flex flex-col gap-4 text-slate-100">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-amber-400 flex items-center gap-2">
+                <span>🌐</span> Выберите режим подключения к Owlbear
+              </h3>
+              <button
+                onClick={() => setShowOptionsModal(false)}
+                className="text-slate-400 hover:text-slate-200 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {/* Option 1 */}
+              <button
+                onClick={() => {
+                  setShowOptionsModal(false);
+                  if (onOpenEmbeddedOwlbear) onOpenEmbeddedOwlbear();
+                }}
+                className="p-3 bg-slate-800/80 hover:bg-slate-800 border border-slate-700 hover:border-amber-500/50 rounded-lg text-left transition-all flex flex-col gap-1 group"
+              >
+                <div className="font-semibold text-sm text-amber-300 group-hover:text-amber-200 flex items-center gap-2">
+                  <span>🖥️ Вариант 1: Встроить Owlbear Rodeo VTT (Разделенный экран)</span>
+                </div>
+                <div className="text-xs text-slate-400">
+                  Запускает доску Owlbear прямо внутри этого приложения в режиме разделенного экрана. **100% неразрывная постоянная синхронизация!**
+                </div>
+              </button>
+
+              {/* Option 2 */}
+              <button
+                onClick={() => {
+                  setShowOptionsModal(false);
+                  if (onConnectOwlbearWindow) onConnectOwlbearWindow();
+                }}
+                className="p-3 bg-slate-800/80 hover:bg-slate-800 border border-slate-700 hover:border-blue-500/50 rounded-lg text-left transition-all flex flex-col gap-1 group"
+              >
+                <div className="font-semibold text-sm text-blue-300 group-hover:text-blue-200 flex items-center gap-2">
+                  <span>🔗 Вариант 2: Подключить открытое окно Owlbear (Прямой P2P мост)</span>
+                </div>
+                <div className="text-xs text-slate-400">
+                  Устанавливает прямую парную привязку со случайным или ранее открытым окном Owlbear в соседней вкладке вашего браузера.
+                </div>
+              </button>
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 flex justify-end">
+              <button
+                onClick={() => setShowOptionsModal(false)}
+                className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition-colors"
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
