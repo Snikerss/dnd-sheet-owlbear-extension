@@ -574,35 +574,6 @@ export async function loadCharactersApi(): Promise<any> {
   const localBackup = loadFromLocalStorage();
   const rawData = { ...localBackup };
 
-  // 1. If running inside Owlbear Rodeo, read room metadata from OBR
-  if (isOwlbear() && typeof OBR !== 'undefined' && OBR.isReady) {
-    try {
-      const roomMetadata = await OBR.room.getMetadata();
-      for (const [key, value] of Object.entries(roomMetadata)) {
-        if (key.startsWith('com.antigravity.dnd-sheet/v2/character/')) {
-          const charId = key.replace('com.antigravity.dnd-sheet/v2/character/', '');
-          if (charId && value) {
-            rawData[charId] = {
-              ...(rawData[charId] || {}),
-              ...(value as any)
-            };
-          }
-        } else if (key === 'com.antigravity.dnd-sheet/characters' && value) {
-          for (const [charId, entry] of Object.entries(value as any)) {
-            if (charId && entry) {
-              rawData[charId] = {
-                ...(rawData[charId] || {}),
-                ...(entry as any)
-              };
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('[DND Sheet] Failed to load room metadata from OBR:', e);
-    }
-  }
-
   // Asynchronously load imageCache lists from IndexedDB and merge them with local storage
   for (const id of Object.keys(rawData)) {
     try {
@@ -752,23 +723,25 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
     }
     
     // 3. Broadcast portrait and all other imageCache entries if they are new, changed, or forceSyncImages is true
-    console.log(`[DND Sheet] broadcastCharacterSync: combinedImageCacheMap size is ${combinedImageCacheMap.size}, syncing ${imagesToSync.length} images`);
     for (const imgId of imagesToSync) {
       const imgVal = combinedImageCacheMap.get(imgId);
       if (imgVal) {
         const isPortrait = imgId === 'img:ref:portrait';
-        console.log(`[DND Sheet] Broadcasting image: ${imgId} (isPortrait: ${isPortrait}, size: ${imgVal.length})`);
-        try {
-          await broadcastLargeString(id, imgId, isPortrait, imgVal);
-          if (isPortrait) {
-            lastSentImagesCache[id].portraitUrl = imgVal;
-          } else {
-            lastSentImagesCache[id].imageCacheKeys.add(imgId);
-          }
-        } catch (err) {
-          console.error(`[DND Sheet] Failed to broadcast image ${imgId}:`, err);
+        // Immediately record that this image version was processed for this session
+        if (isPortrait) {
+          lastSentImagesCache[id].portraitUrl = imgVal;
+        } else {
+          lastSentImagesCache[id].imageCacheKeys.add(imgId);
         }
-        // Add a delay between sending different images to prevent RateLimitHit
+
+        // Only attempt room broadcast if image size is within reasonable VTT limits
+        if (imgVal.length < 500000) {
+          try {
+            await broadcastLargeString(id, imgId, isPortrait, imgVal);
+          } catch (err) {
+            console.warn(`[DND Sheet] Skipped room broadcast for large image ${imgId}`);
+          }
+        }
         await delay(150);
       }
     }
