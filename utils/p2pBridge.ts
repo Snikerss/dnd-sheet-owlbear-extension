@@ -106,11 +106,17 @@ class P2PRoomBridgeService {
 
     const body = JSON.stringify(payload);
 
-    // Публикация через ntfy HTTP POST для мгновенной рассылки всем подписчикам
+    // 1. Отправляем через WebSocket если открыт
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      try {
+        this.socket.send(body);
+      } catch (e) {}
+    }
+
+    // 2. Отправляем через простые POST-запросы без кастомных заголовков (для обхода CORS OPTIONS preflight)
     try {
       fetch(`https://ntfy.sh/dnd_sheet_room_${shortRoomId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: body
       }).catch(() => {});
     } catch (e) {}
