@@ -1222,10 +1222,6 @@ export const useCharacterManager = (): CharacterManager => {
   useEffect(() => {
     if (isOwlbear()) return;
 
-    const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-    const urlCharId = urlParams?.get('charId');
-    if (!urlCharId) return;
-
     const checkVttHeartbeat = () => {
       // 1. Если недавно приходило любое сообщение через P2P мост (менее 10 секунд назад)
       if (Date.now() - lastRemoteP2pTimeRef.current < 10000) {
@@ -1233,7 +1229,7 @@ export const useCharacterManager = (): CharacterManager => {
         return true;
       }
 
-      // 2. Если есть открытый родительскийopener
+      // 2. Если есть открытый родительский opener
       if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
         setSyncStatus('connected_tab');
         return true;
@@ -1252,8 +1248,11 @@ export const useCharacterManager = (): CharacterManager => {
     const unsubscribe = localBridge.subscribe((event) => {
       const payload = event.data;
       if (payload && typeof payload === 'object') {
-        lastRemoteP2pTimeRef.current = Date.now();
-        setSyncStatus('connected_tab');
+        const senderId = payload.senderClientId || payload.senderId;
+        if (senderId && senderId !== SESSION_CLIENT_ID) {
+          lastRemoteP2pTimeRef.current = Date.now();
+          setSyncStatus('connected_tab');
+        }
       }
     });
 
@@ -1315,10 +1314,16 @@ export const useCharacterManager = (): CharacterManager => {
         console.log(`[DND Sheet] Standalone mode: Manual sync requesting character data for ${id}...`);
         setSyncStatus('syncing');
         try {
+          const localData = loadFromLocalStorage();
+          const entry = charactersStateRef.current[id] || localData[id];
+          const imageCacheArray = entry?.imageCache ? Array.from(entry.imageCache.entries()) : [];
+
           localBridge.postMessage({ type: 'VTT_FRAME_READY' });
           localBridge.postMessage({
             type: 'HANDSHAKE_PING',
-            charId: id
+            charId: id,
+            entry: entry ? { ...entry, imageCache: imageCacheArray } : undefined,
+            knownRooms: getKnownRooms()
           });
           localBridge.postMessage({
             type: 'REQUEST_CHARACTER_DATA',
