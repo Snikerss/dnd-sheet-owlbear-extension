@@ -576,6 +576,51 @@ export async function loadCharactersApi(): Promise<any> {
   const localBackup = loadFromLocalStorage();
   const rawData = { ...localBackup };
 
+  // 1. Auto-recover characters from granular localStorage keys
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('com.antigravity.dnd-sheet/v2/character/')) {
+          const charId = key.replace('com.antigravity.dnd-sheet/v2/character/', '');
+          if (charId && (!rawData[charId] || !rawData[charId].character)) {
+            const rawVal = localStorage.getItem(key);
+            if (rawVal) {
+              try {
+                rawData[charId] = JSON.parse(rawVal);
+                console.log(`[DND Sheet Recovery] Restored character ${charId} from granular localStorage key.`);
+              } catch (e) {}
+            }
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 2. Auto-recover characters from Owlbear Room Metadata if running in Owlbear
+  if (isOwlbear() && typeof OBR !== 'undefined' && OBR.isReady) {
+    try {
+      const metadata = await OBR.room.getMetadata();
+      for (const [key] of Object.entries(metadata)) {
+        if (key.startsWith('com.antigravity.dnd-sheet/v2/character/') && key.endsWith('/info')) {
+          const charId = key.replace('com.antigravity.dnd-sheet/v2/character/', '').replace('/info', '');
+          if (charId && (!rawData[charId] || !rawData[charId].character)) {
+            const cloudChar = await loadChunkedMetadata(`com.antigravity.dnd-sheet/v2/character/${charId}`, metadata);
+            if (cloudChar) {
+              rawData[charId] = cloudChar;
+              console.log(`[DND Sheet Recovery] Restored character ${charId} from Owlbear Room Metadata.`);
+            }
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  // Save recovered items back to main dnd-characters key
+  if (Object.keys(rawData).length > Object.keys(localBackup).length) {
+    saveToLocalStorage(rawData);
+  }
+
   // Asynchronously load imageCache lists from IndexedDB and merge them with local storage
   for (const id of Object.keys(rawData)) {
     try {
