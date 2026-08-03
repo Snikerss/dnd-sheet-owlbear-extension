@@ -574,6 +574,35 @@ export async function loadCharactersApi(): Promise<any> {
   const localBackup = loadFromLocalStorage();
   const rawData = { ...localBackup };
 
+  // 1. If running inside Owlbear Rodeo, read room metadata from OBR
+  if (isOwlbear() && typeof OBR !== 'undefined' && OBR.isReady) {
+    try {
+      const roomMetadata = await OBR.room.getMetadata();
+      for (const [key, value] of Object.entries(roomMetadata)) {
+        if (key.startsWith('com.antigravity.dnd-sheet/v2/character/')) {
+          const charId = key.replace('com.antigravity.dnd-sheet/v2/character/', '');
+          if (charId && value) {
+            rawData[charId] = {
+              ...(rawData[charId] || {}),
+              ...(value as any)
+            };
+          }
+        } else if (key === 'com.antigravity.dnd-sheet/characters' && value) {
+          for (const [charId, entry] of Object.entries(value as any)) {
+            if (charId && entry) {
+              rawData[charId] = {
+                ...(rawData[charId] || {}),
+                ...(entry as any)
+              };
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[DND Sheet] Failed to load room metadata from OBR:', e);
+    }
+  }
+
   // Asynchronously load imageCache lists from IndexedDB and merge them with local storage
   for (const id of Object.keys(rawData)) {
     try {
