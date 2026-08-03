@@ -753,16 +753,11 @@ export const useCharacterManager = (): CharacterManager => {
 
       // A. Save or update characters that have changes
       for (const [id, rawChar] of Object.entries(rawCharacters)) {
-        // Only save/broadcast if we own this character! Check character.ownerId directly from the sheet
         const fullChar = rawChar.character;
-        const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
-        if (!isCharacterOwner(fullChar, myId)) {
-          continue; 
-        }
 
         const obrCharData = {
           character: rawChar.character,
-          log: rawChar.log.slice(0, 10), // Limit log to last 10 items to save space in VTT metadata
+          log: rawChar.log ? rawChar.log.slice(0, 10) : [], // Limit log to last 10 items to save space in VTT metadata
           history: {
             past: [],
             future: []
@@ -1253,15 +1248,28 @@ export const useCharacterManager = (): CharacterManager => {
     return () => clearInterval(interval);
   }, []);
 
-  const lastRemoteP2pTimeRef = useRef<number>(Date.now());
+  const lastRemoteP2pTimeRef = useRef<number>(0);
+
+  // 2.7. Periodic Heartbeat Emitter for Owlbear mode to keep standalone tabs connected
+  useEffect(() => {
+    if (!isOwlbear()) return;
+    const sendHeartbeat = () => {
+      try {
+        localBridge.postMessage({ type: 'HEARTBEAT_PING' });
+      } catch (e) {}
+    };
+    sendHeartbeat();
+    const interval = setInterval(sendHeartbeat, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   // 2.8. Heartbeat monitor for standalone tab to detect connection drops
   useEffect(() => {
     if (isOwlbear()) return;
 
     const checkVttHeartbeat = () => {
-      // 1. Если недавно приходило любое сообщение через P2P мост (менее 10 секунд назад)
-      if (Date.now() - lastRemoteP2pTimeRef.current < 10000) {
+      // 1. Если приходило любое сообщение через P2P мост менее 10 секунд назад
+      if (lastRemoteP2pTimeRef.current > 0 && Date.now() - lastRemoteP2pTimeRef.current < 10000) {
         setSyncStatus('connected_tab');
         return true;
       }
