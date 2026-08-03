@@ -15,9 +15,8 @@ class P2PRoomBridgeService {
 
   // Список бесплатных публичных WSS-реле без API-ключей и авторизации
   private endpoints = [
-    'wss://free.piesocket.com/v3/dnd_sheet_room_v5?api_key=VC32145',
-    'wss://socketsbay.com/wss/v2/1/demo/',
-    'wss://ws.postman-echo.com/raw'
+    'wss://demo.piesocket.com/v3/dnd_room_v6?api_key=VC32145&notify_self=1',
+    'wss://socketsbay.com/wss/v2/1/demo/'
   ];
 
   public connect(roomId: string): void {
@@ -44,7 +43,10 @@ class P2PRoomBridgeService {
     }
 
     const shortRoomId = this.currentRoomId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 24);
-    const endpoint: string = this.endpoints[this.activeEndpointIndex % this.endpoints.length] ?? 'wss://socketsbay.com/wss/v2/1/demo/';
+    const rawEndpoint = this.endpoints[this.activeEndpointIndex % this.endpoints.length] ?? 'wss://demo.piesocket.com/v3/dnd_room?api_key=VC32145&notify_self=1';
+    const endpoint = rawEndpoint.includes('piesocket')
+      ? `wss://demo.piesocket.com/v3/dnd_room_${shortRoomId}?api_key=VC32145&notify_self=1`
+      : rawEndpoint;
 
     try {
       this.socket = new WebSocket(endpoint);
