@@ -1,4 +1,5 @@
 import React from 'react';
+import { isOwlbear } from '../utils/storage';
 
 export type SyncStatusType = 'synced' | 'syncing' | 'connected_tab' | 'disconnected' | 'error';
 
@@ -13,11 +14,16 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   onReconnect,
   className = '',
 }) => {
+  const inOwlbear = isOwlbear();
+  const envPrefix = inOwlbear ? 'Owlbear VTT' : 'Отдельная вкладка';
+
   let badgeColor = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
   let dotColor = 'bg-emerald-400';
-  let icon = '🟢';
-  let label = 'Синхронизировано';
-  let title = 'Все изменения локально сохранены и переданы в комнату VTT';
+  let icon = inOwlbear ? '🟢' : '🌐';
+  let label = inOwlbear ? 'Owlbear VTT' : 'Автономно';
+  let title = inOwlbear
+    ? 'Работает внутри комнаты Owlbear Rodeo VTT. Все изменения синхронизированы.'
+    : 'Открыто в отдельной вкладке браузера. Сохраняется локально.';
 
   switch (status) {
     case 'syncing':
@@ -25,14 +31,16 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
       dotColor = 'bg-amber-400 animate-ping';
       icon = '🟡';
       label = 'Сохранение...';
-      title = 'Идет передача сетевых чанков и запись в хранилище';
+      title = 'Идет передача сетевых пакетов и запись данных';
       break;
     case 'connected_tab':
       badgeColor = 'bg-blue-500/20 text-blue-300 border-blue-500/40';
       dotColor = 'bg-blue-400';
       icon = '🔵';
-      label = 'Вкладка подключена';
-      title = 'Соседняя вкладка синхронизирована с главным окном Owlbear VTT';
+      label = inOwlbear ? 'Вкладка подключена' : 'Связь с Owlbear';
+      title = inOwlbear
+        ? 'Owlbear Rodeo VTT: Соседняя вкладка успешно подключена и синхронизируется в реальном времени'
+        : 'Отдельная вкладка браузера: Подключена к главному окну Owlbear VTT';
       break;
     case 'disconnected':
       badgeColor = 'bg-rose-500/20 text-rose-300 border-rose-500/40 cursor-pointer hover:bg-rose-500/30 transition-colors';
