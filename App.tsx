@@ -304,20 +304,14 @@ const AppContent: React.FC = () => {
   }, []);
 
   const handleOpenStandalone = useCallback((id: string) => {
-    const url = new URL(window.location.href);
-    url.searchParams.set('v', '1.0.4');
-    url.searchParams.delete('charId');
-    if (userId) url.searchParams.set('userId', userId);
-    if (userRole) url.searchParams.set('userRole', userRole);
-    if (playerName) url.searchParams.set('playerName', playerName);
-
-    const currentRoomId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.room?.id : null;
-    if (currentRoomId) {
-      url.searchParams.set('roomId', currentRoomId);
+    // Open clean root app URL without any query parameters
+    let cleanUrl = window.location.origin + window.location.pathname;
+    if (!cleanUrl.endsWith('/')) {
+      cleanUrl += '/';
     }
 
     const targetName = 'dnd_sheet_vault';
-    const win = window.open(url.toString(), targetName);
+    const win = window.open(cleanUrl, targetName);
     if (win) {
       localBridge.registerChildWindow(win);
       try {
@@ -327,7 +321,7 @@ const AppContent: React.FC = () => {
         }, '*');
       } catch (e) {}
     }
-  }, [userId, userRole, playerName]);
+  }, []);
 
   const handleUpdateCharacter = useCallback((action: CharacterAction) => {
     if (activeCharacterId) {
