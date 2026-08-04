@@ -547,6 +547,7 @@ const AppContent: React.FC = () => {
           characters={characterList}
           syncingCharacters={syncingCharacters}
           currentUserId={userId}
+          currentUserName={playerName}
           activeBoardCharacterId={activeBoardCharacterId}
           onSelectActiveBoardCharacter={handleToggleActiveBoardCharacter}
           onSelectCharacter={handleSelectCharacter}

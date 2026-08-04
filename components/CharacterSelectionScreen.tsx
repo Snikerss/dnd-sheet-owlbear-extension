@@ -14,6 +14,7 @@ interface CharacterSelectionScreenProps {
   characters: Record<string, Character>;
   syncingCharacters?: Record<string, { status: 'images', pendingImages: string[] }>;
   currentUserId?: string | null;
+  currentUserName?: string | null;
   activeBoardCharacterId?: string | null;
   onSelectActiveBoardCharacter?: (id: string | null) => void;
   onSelectCharacter: (id: string) => void;
@@ -34,6 +35,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
   characters,
   syncingCharacters,
   currentUserId,
+  currentUserName,
   activeBoardCharacterId,
   onSelectActiveBoardCharacter,
   onSelectCharacter,
@@ -183,6 +185,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
                   isSyncing={!!syncState}
                   pendingImagesCount={syncState?.pendingImages.length || 0}
                   currentUserId={currentUserId}
+                  currentUserName={currentUserName}
                   isGM={isGM}
                 />
               );

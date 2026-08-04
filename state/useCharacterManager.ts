@@ -929,7 +929,8 @@ export const useCharacterManager = (): CharacterManager => {
       myId = new URLSearchParams(window.location.search).get('userId') || '';
     }
 
-    const isOwner = isGM || !fullChar?.ownerId || !myId || fullChar.ownerId === myId;
+    const myName = typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_name') : 'Игрок';
+    const isOwner = isGM || !fullChar?.ownerId || !myId || fullChar.ownerId === myId || (!!myName && fullChar?.ownerName === myName);
     if (!isOwner) {
       console.warn('[DND Sheet] Blocked deleteCharacter for unowned character:', id);
       addNotification('Вы не можете удалить персонажа, принадлежащего другому игроку.', 'error');

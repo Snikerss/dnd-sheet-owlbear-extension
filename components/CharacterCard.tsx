@@ -17,6 +17,7 @@ interface CharacterCardProps {
   isSyncing?: boolean;
   pendingImagesCount?: number;
   currentUserId?: string | null;
+  currentUserName?: string | null;
   isGM?: boolean;
 }
 
@@ -35,11 +36,12 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
   isSyncing = false,
   pendingImagesCount = 0,
   currentUserId,
+  currentUserName,
   isGM = true
 }) => {
   const { addNotification } = useNotifier();
 
-  const canDelete = isGM || !character.ownerId || !currentUserId || character.ownerId === currentUserId;
+  const canDelete = isGM || !character.ownerId || !currentUserId || character.ownerId === currentUserId || (!!currentUserName && character.ownerName === currentUserName);
 
   const handleOpenClick = () => {
     if (onOpenStandalone) {
