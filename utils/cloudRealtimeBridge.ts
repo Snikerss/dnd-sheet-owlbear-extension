@@ -51,7 +51,7 @@ class CloudRealtimeBridgeService {
         secure: true,
         host: '0.peerjs.com',
         port: 443,
-        path: '/peerjs'
+        path: '/'
       });
 
       peer.on('open', (id) => {
