@@ -387,8 +387,32 @@ const AppContent: React.FC = () => {
   
   const isGM = userRole === 'GM' || !isOwlbear();
 
+  const isConnectionLost = syncStatus === 'error';
+
   return (
     <>
+      {/* Connection Lost Banner */}
+      {isConnectionLost && (
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[10000] w-[94%] max-w-xl bg-gradient-to-r from-red-950/95 via-slate-900/98 to-red-950/95 border border-red-500/60 backdrop-blur-md text-red-200 px-4 py-3 rounded-2xl shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl animate-pulse">⚠️</span>
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-red-400">Связь с Owlbear Rodeo потеряна</span>
+              <span className="text-[11px] text-slate-300">Изменения временно заблокированы, чтобы предотвратить рассинхрон с ГМом.</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== 'undefined') window.location.reload();
+            }}
+            className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl shadow transition-all whitespace-nowrap"
+          >
+            🔄 Обновить
+          </button>
+        </div>
+      )}
+
       <ConfirmationModal
         isOpen={!!characterPendingDeletion}
         title="Подтвердите удаление"
@@ -415,7 +439,7 @@ const AppContent: React.FC = () => {
               canUndo={canUndo}
               canRedo={canRedo}
               onOpenHistoryLog={() => setIsHistoryLogOpen(true)}
-              isReadOnly={!!isReadOnly}
+              isReadOnly={!!isReadOnly || isConnectionLost}
               syncStatus={syncStatus}
               onSyncCharacter={() => syncCharacter(activeCharacterId)}
               onClearLocalCache={() => clearLocalCache(activeCharacterId)}
