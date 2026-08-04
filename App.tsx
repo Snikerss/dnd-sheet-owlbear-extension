@@ -20,6 +20,12 @@ const AppContent: React.FC = () => {
   const { characters, isLoading, syncStatus, syncingCharacters, addCharacter, deleteCharacter, updateCharacter, undo, redo, syncCharacter, clearLocalCache, exportVaultData, importVaultData } = useCharacterManager();
   
   const [activeCharacterId, setActiveCharacterId] = useState<string | null>(null);
+  const [activeBoardCharacterId, setActiveBoardCharacterId] = useState<string | null>(p2pRoomBridge.getActiveBoardCharacterId());
+
+  const handleToggleActiveBoardCharacter = (charId: string | null) => {
+    p2pRoomBridge.setActiveBoardCharacter(charId);
+    setActiveBoardCharacterId(charId);
+  };
 
   const [characterPendingDeletion, setCharacterPendingDeletion] = useState<{id: string, name: string} | null>(null);
   const [isHistoryLogOpen, setIsHistoryLogOpen] = useState(false);
@@ -454,8 +460,8 @@ const AppContent: React.FC = () => {
           characters={characterList}
           syncingCharacters={syncingCharacters}
           currentUserId={userId}
-          activeBoardCharacterId={p2pRoomBridge.getActiveBoardCharacterId()}
-          onSelectActiveBoardCharacter={(charId) => p2pRoomBridge.setActiveBoardCharacter(charId === p2pRoomBridge.getActiveBoardCharacterId() ? null : charId)}
+          activeBoardCharacterId={activeBoardCharacterId}
+          onSelectActiveBoardCharacter={handleToggleActiveBoardCharacter}
           onSelectCharacter={handleSelectCharacter}
           onCreateCharacter={handleCreateCharacter}
           onDeleteCharacter={handleDeleteCharacter}

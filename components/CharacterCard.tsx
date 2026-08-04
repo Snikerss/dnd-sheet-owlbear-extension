@@ -148,19 +148,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
                 </svg>
               </button>
             )}
-            {onSelectBroadcastGM && (
-              <button
-                onClick={onSelectBroadcastGM}
-                data-tooltip={isBroadcastingToGM ? "Транслируется ГМу на карту" : "Начать трансляцию ГМу на карту"}
-                className={`p-2 rounded-lg transition-colors flex items-center justify-center ${
-                  isBroadcastingToGM
-                    ? 'text-emerald-400 bg-emerald-500/20'
-                    : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-emerald-400'
-                }`}
-              >
-                <span className="text-sm">📡</span>
-              </button>
-            )}
             {onOpenStandalone && (
               <button
                 onClick={handleOpenClick}
