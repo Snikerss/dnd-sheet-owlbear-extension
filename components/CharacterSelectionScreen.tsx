@@ -168,7 +168,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
                   onSync={onSyncCharacter ? () => onSyncCharacter(id) : undefined}
                   onClearCache={onClearLocalCache ? () => onClearLocalCache(id) : undefined}
                   isBroadcastingToGM={isBroadcastingToGM}
-                  onSelectBroadcastGM={onSelectActiveBoardCharacter ? () => onSelectActiveBoardCharacter(id) : undefined}
+                  onSelectBroadcastGM={onSelectActiveBoardCharacter ? () => onSelectActiveBoardCharacter(isBroadcastingToGM ? null : id) : undefined}
                   isSyncing={!!syncState}
                   pendingImagesCount={syncState?.pendingImages.length || 0}
                   currentUserId={currentUserId}

@@ -178,7 +178,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
               }`}
               role="switch"
               aria-checked={isBroadcastingToGM}
-              title={isBroadcastingToGM ? 'Трансляция ГМу включена' : 'Трансляция ГМу выключена'}
+              title={isBroadcastingToGM ? 'Трансляция ГМу включена (нажмите для выключения)' : 'Трансляция ГМу выключена (нажмите для включения)'}
             >
               <span
                 className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
