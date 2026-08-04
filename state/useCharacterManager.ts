@@ -808,7 +808,26 @@ export const useCharacterManager = (): CharacterManager => {
         };
       }
     }
+
     dispatch({ type: 'ADD_CHARACTER', payload: { id, character: charToAdd } });
+
+    // Instantly sync newly created character to Owlbear iframe and all other open tabs!
+    try {
+      const syncPayload = {
+        type: 'CHARACTER_SYNC',
+        charId: id,
+        entry: {
+          character: charToAdd,
+          log: [],
+          history: { past: [], future: [] },
+          imageCache: []
+        },
+        senderClientId: SESSION_CLIENT_ID,
+        senderId: SESSION_CLIENT_ID
+      };
+      localBridge.postMessage(syncPayload);
+      localBridge.postMessage({ type: 'STORAGE_EVENT_SYNC', senderClientId: SESSION_CLIENT_ID });
+    } catch (e) {}
   }, []);
 
   const exportVaultData = useCallback(() => {
@@ -1096,7 +1115,26 @@ export const useCharacterManager = (): CharacterManager => {
       }
     });
 
-    return unsubscribe;
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'dnd-characters' || e.key === null) {
+        storageRepository.loadCharacters().then(data => {
+          if (data) {
+            const parsedState = parseCharactersData(data);
+            dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
+          }
+        }).catch(console.error);
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleStorageChange);
+    }
+
+    return () => {
+      unsubscribe();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('storage', handleStorageChange);
+      }
+    };
   }, []);
 
   // 2.7. Heartbeat emitter & standalone window reconnect loop inside Owlbear iframe
