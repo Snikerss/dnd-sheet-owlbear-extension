@@ -12,7 +12,7 @@ const inMemoryCharactersCache: Record<string, any> = {};
  * Checks if the application is running inside the Owlbear Rodeo iframe environment.
  */
 export const isOwlbear = (): boolean => {
-  return typeof window !== 'undefined' && window.parent !== window;
+  return typeof window !== 'undefined' && window.parent !== window && typeof OBR !== 'undefined' && !!OBR.isReady;
 };
 
 const LEGACY_METADATA_KEY = 'com.antigravity.dnd-sheet/characters';
@@ -793,7 +793,7 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
       }
     }
   } catch (error) {
-    console.error(`Owlbear broadcastCharacterSync error for ${id}:`, error);
+    console.warn(`[DND Sheet] Owlbear broadcast skipped for ${id} (VTT room offline or disconnected).`);
   }
 }
 
