@@ -758,15 +758,20 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
     
     for (let i = 0; i < chunkCount; i++) {
       const chunkStr = jsonStr.slice(i * MAX_BROADCAST_CHUNK_SIZE, (i + 1) * MAX_BROADCAST_CHUNK_SIZE);
-      await OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
-        type: 'CHARACTER_CHUNK_SYNC',
-        id,
-        senderClientId: SESSION_CLIENT_ID,
-        senderPlayerId: isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '',
-        chunkIndex: i,
-        totalChunks: chunkCount,
-        chunkData: chunkStr
-      });
+      try {
+        await OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
+          type: 'CHARACTER_CHUNK_SYNC',
+          id,
+          senderClientId: SESSION_CLIENT_ID,
+          senderPlayerId: isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '',
+          chunkIndex: i,
+          totalChunks: chunkCount,
+          chunkData: chunkStr
+        });
+      } catch (err) {
+        // Owlbear SDK rate limit or no active listeners - fail gracefully
+        break;
+      }
     }
     
     // 3. Broadcast portrait and all other imageCache entries if they are new, changed, or forceSyncImages is true
