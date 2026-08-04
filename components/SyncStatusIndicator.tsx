@@ -125,20 +125,26 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
 
             {/* Active Character Selector for VTT Board */}
             {characters.length > 0 && onSelectActiveBoardCharacter && (
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <span>🎯</span> Персонаж, синхронизируемый с доской:
-                </label>
+              <div className="flex flex-col gap-2 bg-slate-950/60 p-3.5 border border-slate-800 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
+                    <span>🎯</span> Активный персонаж на доске VTT:
+                  </label>
+                  <span className="text-[10px] text-slate-400">
+                    Комната: <span className="font-mono text-amber-400">{currentRoomName}</span>
+                  </span>
+                </div>
                 <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
                   {characters.map((char) => {
                     const isSelected = char.id === activeCharacterId;
                     return (
                       <button
                         key={char.id}
+                        type="button"
                         onClick={() => onSelectActiveBoardCharacter(char.id)}
                         className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between ${
                           isSelected
-                            ? 'bg-amber-500/15 border-amber-500/60 text-amber-200'
+                            ? 'bg-amber-500/15 border-amber-500/60 text-amber-200 shadow-md'
                             : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
                         }`}
                       >
@@ -147,9 +153,13 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
                           <span className="font-semibold text-xs truncate">{char.name}</span>
                           <span className="text-[10px] text-slate-400">({char.characterClass || 'Персонаж'})</span>
                         </div>
-                        {isSelected && (
-                          <span className="px-2 py-0.5 bg-amber-500 text-slate-950 font-bold text-[10px] rounded-md">
-                            АКТИВЕН
+                        {isSelected ? (
+                          <span className="px-2 py-0.5 bg-amber-500 text-slate-950 font-bold text-[10px] rounded-md shadow">
+                            АКТИВЕН ДЛЯ ЭТОЙ КОМНАТЫ
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-500 hover:text-slate-300">
+                            Выбрать для комнаты ➔
                           </span>
                         )}
                       </button>
