@@ -1341,15 +1341,15 @@ export const useCharacterManager = (): CharacterManager => {
     };
   }, []);
 
-  // 2.9. Connect P2P Room Bridge & Discovery Beacon
+  // 2.9. Connect Native Owlbear Room & Standalone Local Bridge
   useEffect(() => {
     if (isOwlbear() && typeof OBR !== 'undefined') {
       OBR.onReady(() => {
         const roomId = OBR.room?.id || 'global_vault_bridge';
         const roomName = (OBR as any).room?.name || 'Owlbear Room';
-        console.log(`[DND Sheet P2P] Owlbear VTT Ready. Connecting P2P network bridge for room: ${roomId}`);
+        console.log(`[DND Sheet P2P] Owlbear VTT Ready. Room: ${roomId} (${roomName})`);
         registerCurrentRoom(roomId, roomName);
-        p2pRoomBridge.connect(roomId, roomName);
+        p2pRoomBridge.setActiveBoardCharacter(null);
         localBridge.reconnectStandaloneWindows();
       });
     } else {
@@ -1359,36 +1359,9 @@ export const useCharacterManager = (): CharacterManager => {
       const initialRoom = urlRoomId || (knownRooms.length > 0 && knownRooms[0] ? knownRooms[0].roomId : 'global_vault_bridge');
       const initialRoomName = knownRooms.find(r => r?.roomId === initialRoom)?.roomName || 'Owlbear Room';
 
-      console.log(`[DND Sheet P2P] Standalone mode: Connecting P2P network bridge for room: ${initialRoom}`);
+      console.log(`[DND Sheet P2P] Standalone mode: Connecting local P2P bridge for room: ${initialRoom}`);
       p2pRoomBridge.connect(initialRoom, initialRoomName);
       localBridge.reconnectStandaloneWindows();
-
-      // Subscribe to cloud discovery beacon for active room discovery
-      const unsubscribeBeacon = cloudRealtimeBridge.onRoomDiscovered((discoveredRoomId, discoveredRoomName) => {
-        console.log(`[DND Sheet P2P] Discovery Beacon found active Owlbear room: ${discoveredRoomId} (${discoveredRoomName})`);
-        registerCurrentRoom(discoveredRoomId, discoveredRoomName);
-        p2pRoomBridge.connect(discoveredRoomId, discoveredRoomName);
-        lastRemoteP2pTimeRef.current = Date.now();
-        setSyncStatus('connected_tab');
-
-        if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
-          const currentUrl = new URL(window.location.href);
-          currentUrl.searchParams.set('roomId', discoveredRoomId);
-          window.history.replaceState({}, '', currentUrl.toString());
-        }
-      });
-
-      cloudRealtimeBridge.queryDiscoveryBeacon();
-      const beaconInterval = setInterval(() => {
-        if (lastRemoteP2pTimeRef.current === 0 || Date.now() - lastRemoteP2pTimeRef.current > 10000) {
-          cloudRealtimeBridge.queryDiscoveryBeacon();
-        }
-      }, 4000);
-
-      return () => {
-        clearInterval(beaconInterval);
-        unsubscribeBeacon();
-      };
     }
   }, []);
 
