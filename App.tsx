@@ -22,6 +22,15 @@ const AppContent: React.FC = () => {
   const [activeCharacterId, setActiveCharacterId] = useState<string | null>(null);
   const [activeBoardCharacterId, setActiveBoardCharacterId] = useState<string | null>(p2pRoomBridge.getActiveBoardCharacterId());
 
+  useEffect(() => {
+    const unsubscribe = p2pRoomBridge.subscribe((payload) => {
+      if (payload && (payload.type === 'SET_ACTIVE_BOARD_CHAR' || payload.type === 'ROOM_ANNOUNCE')) {
+        setActiveBoardCharacterId(payload.activeCharacterId || null);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   const handleToggleActiveBoardCharacter = (charId: string | null) => {
     p2pRoomBridge.setActiveBoardCharacter(charId);
     setActiveBoardCharacterId(charId);
