@@ -1,5 +1,4 @@
 import { SESSION_CLIENT_ID } from './bridgeService';
-import { cloudRealtimeBridge, CloudMessagePayload } from './cloudRealtimeBridge';
 import { webrtcP2pEngine } from './webrtcP2pEngine';
 
 export interface RoomHandshakePayload {
@@ -18,8 +17,9 @@ const p2pBroadcastChannel = typeof window !== 'undefined' && typeof BroadcastCha
   : null;
 
 /**
- * Production-Grade HTML5 Browser Window, WebRTC DataChannel & BroadcastChannel Bridge
- * Мгновенная P2P-передача персонажей без ошибок сокетов WSS и сбоев DataChannel.
+ * Production-Grade Pure HTML5 & WebRTC DataChannel Bridge
+ * Мгновенная P2P-передача персонажей напрямую через память браузера и WebRTC DataChannel.
+ * 0 зависимости от внешних сокет-серверов, 0 ошибок сети.
  */
 class P2PRoomBridgeService {
   private currentRoomId: string | null = null;
@@ -34,12 +34,7 @@ class P2PRoomBridgeService {
       this.notifyListeners(payload);
     });
 
-    // 2. Subscribe to Cloud Realtime messages
-    cloudRealtimeBridge.subscribe((payload) => {
-      this.notifyListeners(payload);
-    });
-
-    // 3. Subscribe to Native HTML5 BroadcastChannel (<1ms memory latency)
+    // 2. Subscribe to Native HTML5 BroadcastChannel (<1ms memory latency)
     if (p2pBroadcastChannel) {
       p2pBroadcastChannel.onmessage = (event) => {
         if (event.data && typeof event.data === 'object') {
@@ -48,7 +43,7 @@ class P2PRoomBridgeService {
       };
     }
 
-    // 4. Subscribe to window.postMessage events
+    // 3. Subscribe to window.postMessage events
     if (typeof window !== 'undefined') {
       window.addEventListener('message', (event) => {
         if (event.data && typeof event.data === 'object' && event.data.senderClientId) {
@@ -64,9 +59,6 @@ class P2PRoomBridgeService {
     if (roomName) this.currentRoomName = roomName;
 
     console.log(`[DND Sheet P2P Bridge] Connecting to room: ${roomId} (${this.currentRoomName})`);
-
-    // Connect cloud realtime bridge
-    cloudRealtimeBridge.connect(roomId, this.currentRoomName);
 
     // Initialize WebRTC Direct Peer connection
     webrtcP2pEngine.initPeer(roomId, true);
@@ -130,26 +122,21 @@ class P2PRoomBridgeService {
     // 2. Send via Direct WebRTC DataChannel
     webrtcP2pEngine.send(payload);
 
-    // 3. Relay via Cloud Realtime Bridge
-    try {
-      cloudRealtimeBridge.send(payload as CloudMessagePayload);
-    } catch (e) {}
-
-    // 4. Direct window.opener (if launched as popup/tab)
+    // 3. Direct window.opener (if launched as popup/tab)
     if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
       try {
         window.opener.postMessage(payload, '*');
       } catch (e) {}
     }
 
-    // 5. Direct window.parent (if inside iframe)
+    // 4. Direct window.parent (if inside iframe)
     if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
       try {
         window.parent.postMessage(payload, '*');
       } catch (e) {}
     }
 
-    // 6. Registered child windows
+    // 5. Registered child windows
     this.childWindows.forEach((win) => {
       if (win && !win.closed) {
         try {
@@ -198,7 +185,6 @@ class P2PRoomBridgeService {
 
   public disconnect(): void {
     webrtcP2pEngine.cleanupPeer();
-    cloudRealtimeBridge.disconnect();
     this.childWindows.clear();
     this.currentRoomId = null;
   }
