@@ -87,11 +87,17 @@ const AppContent: React.FC = () => {
     if (isOwlbear() && typeof OBR !== 'undefined') {
       OBR.onReady(async () => {
         const id = OBR.player.id || localId;
-        const name = (await OBR.player.getName()) || 'Игрок';
+        const name = await OBR.player.getName();
         const role = await OBR.player.getRole();
         setUserId(id);
-        setPlayerName(name);
+        if (name) setPlayerName(name);
         setUserRole(role);
+
+        OBR.player.onChange((player) => {
+          if (player && player.name) {
+            setPlayerName(player.name);
+          }
+        });
       });
     } else {
       const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
@@ -100,9 +106,23 @@ const AppContent: React.FC = () => {
       const urlPlayerName = params.get('playerName');
       setUserId(urlUserId || localId);
       setUserRole(urlUserRole || 'PLAYER');
-      setPlayerName(urlPlayerName || 'Игрок');
+      if (urlPlayerName) setPlayerName(urlPlayerName);
     }
   }, []);
+
+  // Sync player name changes across all characters owned by this player
+  useEffect(() => {
+    if (!userId || !playerName || playerName === 'Игрок') return;
+    for (const [id, entry] of Object.entries(characters)) {
+      const char = entry?.history?.present;
+      if (char && char.ownerId === userId && char.ownerName !== playerName) {
+        updateCharacter(id, {
+          type: 'SET_FIELD',
+          payload: { field: 'ownerName', value: playerName }
+        });
+      }
+    }
+  }, [userId, playerName, characters, updateCharacter]);
 
   useEffect(() => {
     const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
