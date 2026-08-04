@@ -184,15 +184,48 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
               </div>
             </div>
 
-            {/* Info Notice about All-Character Sync */}
-            <div className="bg-slate-950/60 p-3.5 border border-slate-800 rounded-xl flex flex-col gap-1 text-xs text-slate-300">
-              <div className="flex items-center gap-1.5 font-bold text-amber-300">
-                <span>🔄</span> Двусторонняя синхронизация всех персонажей
+            {/* Character Broadcast to GM in this Room */}
+            {characters.length > 0 && onSelectActiveBoardCharacter && (
+              <div className="flex flex-col gap-2 bg-slate-950/60 p-3.5 border border-slate-800 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
+                    <span>📡</span> Персонаж, транслируемый ГМу в этой комнате:
+                  </label>
+                </div>
+                <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
+                  {characters.map((char) => {
+                    const isBroadcasting = char.id === activeCharacterId;
+                    return (
+                      <button
+                        key={char.id}
+                        type="button"
+                        onClick={() => onSelectActiveBoardCharacter(char.id)}
+                        className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between ${
+                          isBroadcasting
+                            ? 'bg-amber-500/15 border-amber-500/60 text-amber-200 shadow-md'
+                            : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <span className="text-base">{isBroadcasting ? '📡' : '👤'}</span>
+                          <span className="font-semibold text-xs truncate">{char.name}</span>
+                          <span className="text-[10px] text-slate-400">({char.characterClass || 'Персонаж'})</span>
+                        </div>
+                        {isBroadcasting ? (
+                          <span className="px-2 py-0.5 bg-amber-500 text-slate-950 font-bold text-[10px] rounded-md shadow">
+                            🟢 ТРАНСЛИРУЕТСЯ ГМУ
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 hover:text-amber-300">
+                            Транслировать ГМу ➔
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                Все персонажи и их изменения (ХП, ячейки заклинаний, инвентарь, заметки) автоматически актуализируются во всех открытых вкладках и в Owlbear VTT.
-              </p>
-            </div>
+            )}
 
             {/* Actions */}
             <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
