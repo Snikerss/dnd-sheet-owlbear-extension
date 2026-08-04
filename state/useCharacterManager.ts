@@ -916,6 +916,14 @@ export const useCharacterManager = (): CharacterManager => {
       lastSerializedRef.current = newCache;
     }
 
+    // 4. Broadcast deletion across all sibling tabs via localBridge
+    try {
+      localBridge.postMessage({
+        type: 'DELETE_CHARACTER_SYNC',
+        charId: id
+      });
+    } catch (e) {}
+
     if (isGM) {
       // IF GM: Deletes ONLY locally on GM's machine. Do NOT broadcast deletion or delete room metadata!
       console.log(`[DND Sheet] GM deleted character ${id} locally. Room sync & broadcast skipped.`);
@@ -1036,6 +1044,17 @@ export const useCharacterManager = (): CharacterManager => {
 
       if (payload.type === 'VTT_DISCONNECTED') {
         setSyncStatus('error');
+        return;
+      }
+
+      if (payload.type === 'DELETE_CHARACTER_SYNC' && payload.charId) {
+        console.log('[DND Sheet] Bridge Sync: Syncing character deletion from remote tab:', payload.charId);
+        dispatch({ type: 'DELETE_CHARACTER', payload: { id: payload.charId } });
+        if (lastSerializedRef.current[payload.charId]) {
+          const newCache = { ...lastSerializedRef.current };
+          delete newCache[payload.charId];
+          lastSerializedRef.current = newCache;
+        }
         return;
       }
 
