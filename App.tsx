@@ -529,6 +529,11 @@ const AppContent: React.FC = () => {
           onClearLocalCache={clearLocalCache}
           onExportVault={exportVaultData}
           onImportVault={importVaultData}
+          onUpdateOwnerName={(charId, newName) => {
+            updateCharacter(charId, { type: 'SET_FIELD', payload: { field: 'ownerName', value: newName } });
+            setPlayerName(newName);
+            try { localStorage.setItem('com.antigravity.dnd-sheet/player_name', newName); } catch (e) {}
+          }}
           isGM={isGM}
         />
       )}

@@ -26,6 +26,7 @@ interface CharacterSelectionScreenProps {
   onClearLocalCache?: (id: string) => void;
   onExportVault?: () => void;
   onImportVault?: (fileContent: string) => void;
+  onUpdateOwnerName?: (charId: string, newName: string) => void;
   isGM?: boolean;
 }
 
@@ -45,6 +46,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
   onClearLocalCache,
   onExportVault,
   onImportVault,
+  onUpdateOwnerName,
   isGM = true,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -169,6 +171,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
                   onClearCache={onClearLocalCache ? () => onClearLocalCache(id) : undefined}
                   isBroadcastingToGM={isBroadcastingToGM}
                   onSelectBroadcastGM={onSelectActiveBoardCharacter ? () => onSelectActiveBoardCharacter(isBroadcastingToGM ? null : id) : undefined}
+                  onUpdateOwnerName={onUpdateOwnerName ? (newName) => onUpdateOwnerName(id, newName) : undefined}
                   isSyncing={!!syncState}
                   pendingImagesCount={syncState?.pendingImages.length || 0}
                   currentUserId={currentUserId}
