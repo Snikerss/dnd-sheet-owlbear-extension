@@ -362,10 +362,26 @@ const AppContent: React.FC = () => {
     return unsubscribe;
   }, []);
 
-  const handleOpenStandalone = useCallback((id: string) => {
-    const charId = id || '';
-    const currentName = playerName || 'Игрок';
-    const win = window.open(`./index.html?charId=${charId}&userId=${encodeURIComponent(userId || '')}&userRole=${encodeURIComponent(userRole || '')}&playerName=${encodeURIComponent(currentName)}`, `dnd_sheet_${charId || 'vault'}`);
+  const handleOpenStandalone = useCallback((charId?: string) => {
+    if (typeof window === 'undefined') return;
+    const origin = window.location.origin;
+    let path = window.location.pathname.replace(/\/index\.html.*/i, '');
+    if (!path.endsWith('/')) {
+      path += '/';
+    }
+
+    const currentId = userId || (isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : (localStorage.getItem('com.antigravity.dnd-sheet/player_id') || ''));
+    const currentName = playerName || (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_name') : null) || 'Игрок';
+    const currentRole = userRole || 'PLAYER';
+
+    let query = `?userId=${encodeURIComponent(currentId || '')}&userRole=${encodeURIComponent(currentRole)}&playerName=${encodeURIComponent(currentName)}`;
+    if (charId) {
+      query += `&charId=${encodeURIComponent(charId)}`;
+    }
+
+    const cleanUrl = origin + path + query;
+    console.log('[DND Sheet] Opening standalone window:', cleanUrl);
+    const win = window.open(cleanUrl, '_blank');
     if (win) {
       localBridge.registerChildWindow(win);
     }
