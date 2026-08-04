@@ -4,6 +4,7 @@ import { CharacterSelectionScreen } from './components/CharacterSelectionScreen'
 import { CharacterSheet } from './components/CharacterSheet';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { HistoryLogModal } from './components/HistoryLogModal';
+import { PlayerNameModal } from './components/PlayerNameModal';
 import { CharacterAction, Character, LogEntry } from './types';
 import { useCharacterManager } from './state/useCharacterManager';
 import { defaultCharacterState } from './state/defaultCharacterState';
@@ -38,6 +39,7 @@ const AppContent: React.FC = () => {
 
   const [characterPendingDeletion, setCharacterPendingDeletion] = useState<{id: string, name: string} | null>(null);
   const [isHistoryLogOpen, setIsHistoryLogOpen] = useState(false);
+  const [editingOwnerNameCharId, setEditingOwnerNameCharId] = useState<string | null>(null);
 
   const [userId, setUserId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<'GM' | 'PLAYER' | null>(null);
@@ -493,6 +495,23 @@ const AppContent: React.FC = () => {
         log={activeLog}
       />
 
+      <PlayerNameModal
+        isOpen={!!editingOwnerNameCharId}
+        initialName={editingOwnerNameCharId ? characters[editingOwnerNameCharId]?.history?.present?.ownerName || playerName || 'Игрок' : ''}
+        onCancel={() => setEditingOwnerNameCharId(null)}
+        onConfirm={(newName) => {
+          if (editingOwnerNameCharId) {
+            updateCharacter(editingOwnerNameCharId, {
+              type: 'SET_FIELD',
+              payload: { field: 'ownerName', value: newName }
+            });
+            setPlayerName(newName);
+            try { localStorage.setItem('com.antigravity.dnd-sheet/player_name', newName); } catch (e) {}
+            setEditingOwnerNameCharId(null);
+          }
+        }}
+      />
+
       {activeCharacter && activeCharacterId ? (
         <CharacterProvider character={activeCharacter} dispatch={handleUpdateCharacter}>
             <CharacterSheet
@@ -529,11 +548,7 @@ const AppContent: React.FC = () => {
           onClearLocalCache={clearLocalCache}
           onExportVault={exportVaultData}
           onImportVault={importVaultData}
-          onUpdateOwnerName={(charId, newName) => {
-            updateCharacter(charId, { type: 'SET_FIELD', payload: { field: 'ownerName', value: newName } });
-            setPlayerName(newName);
-            try { localStorage.setItem('com.antigravity.dnd-sheet/player_name', newName); } catch (e) {}
-          }}
+          onUpdateOwnerName={(charId) => setEditingOwnerNameCharId(charId)}
           isGM={isGM}
         />
       )}

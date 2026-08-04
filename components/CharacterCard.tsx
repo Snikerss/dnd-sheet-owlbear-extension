@@ -13,7 +13,7 @@ interface CharacterCardProps {
   onClearCache?: () => void;
   isBroadcastingToGM?: boolean;
   onSelectBroadcastGM?: () => void;
-  onUpdateOwnerName?: (newName: string) => void;
+  onUpdateOwnerName?: () => void;
   isSyncing?: boolean;
   pendingImagesCount?: number;
   currentUserId?: string | null;
@@ -96,10 +96,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
               onClick={(e) => {
                 e.stopPropagation();
                 if (onUpdateOwnerName) {
-                  const newName = prompt('Введите имя игрока (владельца):', character.ownerName || 'Игрок');
-                  if (newName && newName.trim()) {
-                    onUpdateOwnerName(newName.trim());
-                  }
+                  onUpdateOwnerName();
                 }
               }}
               className={`bg-black/75 text-emerald-300 text-[11px] px-2 py-0.5 rounded-md backdrop-blur-sm border border-emerald-500/30 font-semibold shadow-md flex items-center gap-1 ${
