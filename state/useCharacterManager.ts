@@ -1347,9 +1347,9 @@ export const useCharacterManager = (): CharacterManager => {
       OBR.onReady(() => {
         const roomId = OBR.room?.id || 'global_vault_bridge';
         const roomName = (OBR as any).room?.name || 'Owlbear Room';
-        console.log(`[DND Sheet P2P] Owlbear VTT Ready. Room: ${roomId} (${roomName})`);
+        console.log(`[DND Sheet P2P] Owlbear VTT Ready. Connecting bridge for room: ${roomId} (${roomName})`);
         registerCurrentRoom(roomId, roomName);
-        p2pRoomBridge.setActiveBoardCharacter(null);
+        p2pRoomBridge.connect(roomId, roomName);
         localBridge.reconnectStandaloneWindows();
       });
     } else {

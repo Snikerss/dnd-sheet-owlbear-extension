@@ -159,11 +159,45 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
               </div>
             )}
 
-            {/* Known Rooms History */}
-            {knownRooms.length > 0 && (
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs font-semibold text-slate-400">Сохраненные комнаты Owlbear (Нажмите для подключения):</span>
-                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+            {/* Known Rooms History & Manual Join Input */}
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-semibold text-slate-400">Присоединиться к комнате Owlbear:</span>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const targetRoomId = (e.currentTarget.elements.namedItem('customRoomId') as HTMLInputElement)?.value.trim();
+                  if (targetRoomId) {
+                    const cleanRoomId = targetRoomId.includes('roomId=')
+                      ? new URL(targetRoomId).searchParams.get('roomId') || targetRoomId
+                      : targetRoomId;
+
+                    p2pRoomBridge.connect(cleanRoomId, 'Присоединенная комната');
+                    if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
+                      const currentUrl = new URL(window.location.href);
+                      currentUrl.searchParams.set('roomId', cleanRoomId);
+                      window.history.replaceState({}, '', currentUrl.toString());
+                    }
+                    if (onReconnect) onReconnect();
+                  }
+                }}
+                className="flex items-center gap-2"
+              >
+                <input
+                  name="customRoomId"
+                  type="text"
+                  placeholder="Вставьте ID комнаты или ссылку Owlbear..."
+                  className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500 font-mono"
+                />
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl transition-all shadow"
+                >
+                  Войти
+                </button>
+              </form>
+
+              {knownRooms.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pt-1">
                   {knownRooms.map((r: any) => {
                     const rId = r.roomId || r.id;
                     const rName = r.roomName || r.name || 'Owlbear Room';
@@ -171,6 +205,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
                     return (
                       <button
                         key={rId}
+                        type="button"
                         onClick={() => {
                           p2pRoomBridge.connect(rId, rName);
                           if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
@@ -192,8 +227,8 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
                     );
                   })}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Actions */}
             <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
