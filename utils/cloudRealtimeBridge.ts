@@ -38,7 +38,7 @@ class CloudRealtimeBridgeService {
 
     this.disconnect();
 
-    const sanitizedRoom = roomId.replace(/[^a-zA-Z0-9_-]/g, '');
+    const sanitizedRoom = roomId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
     const peerId = `dnd-room-${sanitizedRoom}`;
 
     try {
