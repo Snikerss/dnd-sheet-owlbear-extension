@@ -812,8 +812,8 @@ export const useCharacterManager = (): CharacterManager => {
     const newEntry = {
       character: charToAdd,
       log: [],
-      history: { past: [], future: [] },
-      imageCache: []
+      history: { past: [], present: charToAdd, future: [] },
+      imageCache: new Map()
     };
 
     dispatch({ type: 'ADD_CHARACTER', payload: { id, character: charToAdd } });
@@ -826,7 +826,12 @@ export const useCharacterManager = (): CharacterManager => {
       const syncPayload = {
         type: 'CHARACTER_SYNC',
         charId: id,
-        entry: newEntry,
+        entry: {
+          character: charToAdd,
+          log: [],
+          history: { past: [], present: charToAdd, future: [] },
+          imageCache: []
+        },
         senderClientId: SESSION_CLIENT_ID,
         senderId: SESSION_CLIENT_ID
       };
@@ -1132,11 +1137,14 @@ export const useCharacterManager = (): CharacterManager => {
       } else if (payload.type === 'CHARACTER_SYNC' && payload.charId && payload.entry) {
         console.log('[DND Sheet] Bridge Sync: Syncing full character:', payload.charId);
         
+        const rawChar = payload.entry.character || payload.entry.history?.present;
+        if (!rawChar) return;
+
         const localEntry = charactersStateRef.current[payload.charId];
         let shouldUpdate = true;
-        if (localEntry && localEntry.history?.present && payload.entry?.history?.present) {
+        if (localEntry && localEntry.history?.present) {
           const localTime = (localEntry.history.present as any)?.updatedAt || (localEntry.history.present as any)?.lastModified || 0;
-          const remoteTime = (payload.entry.history.present as any)?.updatedAt || (payload.entry.history.present as any)?.lastModified || 0;
+          const remoteTime = (rawChar as any)?.updatedAt || (rawChar as any)?.lastModified || 0;
           if (localTime > remoteTime) {
             console.log(`[DND Sheet] Keeping local character ${payload.charId} (local version is newer or equal).`);
             shouldUpdate = false;
@@ -1144,22 +1152,27 @@ export const useCharacterManager = (): CharacterManager => {
         }
 
         if (shouldUpdate) {
-          const entryWithMap = {
-            ...payload.entry,
-            imageCache: Array.isArray(payload.entry.imageCache) 
-              ? new Map(payload.entry.imageCache) 
-              : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
+          const imageMap = Array.isArray(payload.entry.imageCache) 
+            ? new Map(payload.entry.imageCache) 
+            : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map());
+
+          const entryWithHistory = {
+            log: payload.entry.log || [],
+            history: payload.entry.history && payload.entry.history.present
+              ? { ...payload.entry.history, present: rawChar }
+              : { past: [], present: rawChar, future: [] },
+            imageCache: imageMap
           };
 
-          const serialized = serializeForCache(entryWithMap);
+          const serialized = serializeForCache(entryWithHistory);
           if (lastSerializedRef.current[payload.charId] !== serialized) {
             lastSerializedRef.current[payload.charId] = serialized;
 
             dispatch({
               type: 'SYNC_REMOTE_CHARACTER',
-              payload: { id: payload.charId, entry: entryWithMap }
+              payload: { id: payload.charId, entry: entryWithHistory }
             });
-            saveCharacterApi(payload.charId, entryWithMap).catch(console.error);
+            saveCharacterApi(payload.charId, entryWithHistory).catch(console.error);
           }
         }
 
