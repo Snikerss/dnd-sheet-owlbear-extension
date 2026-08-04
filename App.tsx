@@ -78,18 +78,29 @@ const AppContent: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (isOwlbear()) {
-      setUserId(OBR.player.id);
-      OBR.player.getRole().then(setUserRole).catch(console.error);
-      OBR.player.getName().then(setPlayerName).catch(console.error);
+    let localId = typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_id') : null;
+    if (!localId && typeof window !== 'undefined') {
+      localId = 'player_' + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem('com.antigravity.dnd-sheet/player_id', localId);
+    }
+
+    if (isOwlbear() && typeof OBR !== 'undefined') {
+      OBR.onReady(async () => {
+        const id = OBR.player.id || localId;
+        const name = (await OBR.player.getName()) || 'Игрок';
+        const role = await OBR.player.getRole();
+        setUserId(id);
+        setPlayerName(name);
+        setUserRole(role);
+      });
     } else {
-      const params = new URLSearchParams(window.location.search);
+      const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
       const urlUserId = params.get('userId');
       const urlUserRole = params.get('userRole') as 'GM' | 'PLAYER' | null;
       const urlPlayerName = params.get('playerName');
-      if (urlUserId) setUserId(urlUserId);
-      if (urlUserRole) setUserRole(urlUserRole);
-      if (urlPlayerName) setPlayerName(urlPlayerName);
+      setUserId(urlUserId || localId);
+      setUserRole(urlUserRole || 'PLAYER');
+      setPlayerName(urlPlayerName || 'Игрок');
     }
   }, []);
 
@@ -228,44 +239,46 @@ const AppContent: React.FC = () => {
 
   const handleSelectCharacter = useCallback((id: string) => {
     const character = characters[id]?.history.present;
-    if (character && isOwlbear() && !character.ownerId && OBR.player.id && userRole !== 'GM') {
-      console.log(`[DND Sheet] Assigning ownership of unclaimed character "${character.name}" to player:`, OBR.player.id);
+    const currentId = userId || (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_id') : null);
+    const currentName = playerName || 'Игрок';
+
+    if (character && !character.ownerId && currentId && userRole !== 'GM') {
+      console.log(`[DND Sheet] Assigning ownership of character "${character.name}" to player:`, currentId);
       updateCharacter(id, { 
         type: 'SET_FIELD', 
-        payload: { field: 'ownerId', value: OBR.player.id } 
+        payload: { field: 'ownerId', value: currentId } 
       });
-      if (playerName) {
-        updateCharacter(id, {
-          type: 'SET_FIELD',
-          payload: { field: 'ownerName', value: playerName }
-        });
-      }
+      updateCharacter(id, {
+        type: 'SET_FIELD',
+        payload: { field: 'ownerName', value: currentName }
+      });
     }
     setActiveCharacterId(id);
-  }, [characters, updateCharacter, playerName, userRole]);
+  }, [characters, updateCharacter, playerName, userRole, userId]);
 
   const handleCreateCharacter = useCallback(() => {
     const newId = generateUUID();
     const newCharacter: Character = structuredClone(defaultCharacterState);
     newCharacter.name = 'Новый персонаж';
     
-    if (isOwlbear() && OBR.player.id) {
-      newCharacter.ownerId = OBR.player.id;
-      if (playerName) {
-        newCharacter.ownerName = playerName;
-      }
+    const currentId = userId || (isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_id') : null));
+    const currentName = playerName || 'Игрок';
+
+    if (currentId && userRole !== 'GM') {
+      newCharacter.ownerId = currentId;
+      newCharacter.ownerName = currentName;
     }
 
     addCharacter(newId, newCharacter);
     setActiveCharacterId(newId);
-  }, [addCharacter, playerName]);
+  }, [addCharacter, playerName, userId, userRole]);
 
   const handleDeleteCharacter = useCallback((id: string) => {
     const characterToDelete = characters[id]?.history.present;
     if (!characterToDelete) return;
 
-    const myId = userId || (isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '');
-    const isGM = userRole === 'GM' || !isOwlbear();
+    const myId = userId || (isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_id') : ''));
+    const isGM = userRole === 'GM';
     const isOwner = isGM || !characterToDelete.ownerId || !myId || characterToDelete.ownerId === myId;
 
     if (!isOwner) {
@@ -284,27 +297,29 @@ const AppContent: React.FC = () => {
     const newCharacter: Character = structuredClone(characterToCopy);
     newCharacter.name = `${characterToCopy.name} (копия)`;
 
-    if (userId) {
-      newCharacter.ownerId = userId;
-      if (playerName) {
-        newCharacter.ownerName = playerName;
-      }
+    const currentId = userId || (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_id') : null);
+    const currentName = playerName || 'Игрок';
+
+    if (currentId && userRole !== 'GM') {
+      newCharacter.ownerId = currentId;
+      newCharacter.ownerName = currentName;
     }
 
     addCharacter(newId, newCharacter);
     setActiveCharacterId(newId);
-  }, [characters, addCharacter, userId, playerName]);
+  }, [characters, addCharacter, userId, playerName, userRole]);
 
   const handleAddCharacter = useCallback((id: string, character: Character) => {
     const charWithNewOwner = { ...character };
-    if (userId) {
-      charWithNewOwner.ownerId = userId;
-      if (playerName) {
-        charWithNewOwner.ownerName = playerName;
-      }
+    const currentId = userId || (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_id') : null);
+    const currentName = playerName || 'Игрок';
+
+    if (currentId && userRole !== 'GM') {
+      charWithNewOwner.ownerId = currentId;
+      charWithNewOwner.ownerName = currentName;
     }
     addCharacter(id, charWithNewOwner);
-  }, [addCharacter, userId, playerName]);
+  }, [addCharacter, userId, playerName, userRole]);
 
   useEffect(() => {
     const unsubscribe = localBridge.subscribe((event: MessageEvent) => {
@@ -316,21 +331,31 @@ const AppContent: React.FC = () => {
     return unsubscribe;
   }, []);
 
-  const handleOpenStandalone = useCallback((_id?: string) => {
+  const handleOpenStandalone = useCallback((charId?: string) => {
     if (typeof window === 'undefined') return;
     const origin = window.location.origin;
     let path = window.location.pathname.replace(/\/index\.html.*/i, '');
     if (!path.endsWith('/')) {
       path += '/';
     }
-    const cleanUrl = origin + path;
+
+    const currentId = userId || (isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : localStorage.getItem('com.antigravity.dnd-sheet/player_id'));
+    const currentName = playerName || 'Игрок';
+    const currentRole = userRole || 'PLAYER';
+
+    let query = `?userId=${encodeURIComponent(currentId || '')}&userRole=${encodeURIComponent(currentRole)}&playerName=${encodeURIComponent(currentName)}`;
+    if (charId) {
+      query += `&charId=${encodeURIComponent(charId)}`;
+    }
+
+    const cleanUrl = origin + path + query;
 
     const targetName = 'dnd_sheet_vault';
     const win = window.open(cleanUrl, targetName);
     if (win) {
       localBridge.registerChildWindow(win);
     }
-  }, []);
+  }, [userId, userRole, playerName]);
 
   const handleUpdateCharacter = useCallback((action: CharacterAction) => {
     if (activeCharacterId) {
