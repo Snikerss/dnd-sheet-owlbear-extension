@@ -47,7 +47,7 @@ class CloudRealtimeBridgeService {
       const clientPeerId = 'p' + Math.random().toString(36).substring(2, 12);
 
       const peer = new Peer(clientPeerId, {
-        debug: 1,
+        debug: 0,
         secure: true,
         host: '0.peerjs.com',
         port: 443,
