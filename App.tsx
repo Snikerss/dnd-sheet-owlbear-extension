@@ -90,12 +90,16 @@ const AppContent: React.FC = () => {
         const name = await OBR.player.getName();
         const role = await OBR.player.getRole();
         setUserId(id);
-        if (name) setPlayerName(name);
+        if (name) {
+          setPlayerName(name);
+          try { localStorage.setItem('com.antigravity.dnd-sheet/player_name', name); } catch (e) {}
+        }
         setUserRole(role);
 
         OBR.player.onChange((player) => {
           if (player && player.name) {
             setPlayerName(player.name);
+            try { localStorage.setItem('com.antigravity.dnd-sheet/player_name', player.name); } catch (e) {}
           }
         });
       });
@@ -104,9 +108,10 @@ const AppContent: React.FC = () => {
       const urlUserId = params.get('userId');
       const urlUserRole = params.get('userRole') as 'GM' | 'PLAYER' | null;
       const urlPlayerName = params.get('playerName');
+      const localName = typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_name') : null;
       setUserId(urlUserId || localId);
       setUserRole(urlUserRole || 'PLAYER');
-      if (urlPlayerName) setPlayerName(urlPlayerName);
+      setPlayerName(urlPlayerName || localName || 'Игрок');
     }
   }, []);
 

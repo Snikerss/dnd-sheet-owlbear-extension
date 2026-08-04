@@ -91,7 +91,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
         {(character.ownerName || character.ownerId) && (
           <div className="absolute top-2 right-2 z-10">
             <span className="bg-black/75 text-emerald-300 text-[11px] px-2 py-0.5 rounded-md backdrop-blur-sm border border-emerald-500/30 font-semibold shadow-md flex items-center gap-1">
-              <span>👤</span> {character.ownerName || (currentUserId && character.ownerId === currentUserId ? 'Вы' : 'Игрок')}
+              <span>👤</span> {character.ownerName || 'Игрок'}
             </span>
           </div>
         )}
