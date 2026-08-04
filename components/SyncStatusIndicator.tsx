@@ -184,121 +184,14 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
               </div>
             </div>
 
-            {/* Active Character Selector for VTT Board */}
-            {characters.length > 0 && onSelectActiveBoardCharacter && (
-              <div className="flex flex-col gap-2 bg-slate-950/60 p-3.5 border border-slate-800 rounded-xl">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
-                    <span>🎯</span> Активный персонаж на доске VTT:
-                  </label>
-                  <span className="text-[10px] text-slate-400">
-                    Комната: <span className="font-mono text-amber-400">{currentRoomName}</span>
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
-                  {characters.map((char) => {
-                    const isSelected = char.id === activeCharacterId;
-                    return (
-                      <button
-                        key={char.id}
-                        type="button"
-                        onClick={() => onSelectActiveBoardCharacter(char.id)}
-                        className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between ${
-                          isSelected
-                            ? 'bg-amber-500/15 border-amber-500/60 text-amber-200 shadow-md'
-                            : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <span className="text-base">{isSelected ? '🎯' : '👤'}</span>
-                          <span className="font-semibold text-xs truncate">{char.name}</span>
-                          <span className="text-[10px] text-slate-400">({char.characterClass || 'Персонаж'})</span>
-                        </div>
-                        {isSelected ? (
-                          <span className="px-2 py-0.5 bg-amber-500 text-slate-950 font-bold text-[10px] rounded-md shadow">
-                            АКТИВЕН ДЛЯ ЭТОЙ КОМНАТЫ
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-slate-500 hover:text-slate-300">
-                            Выбрать для комнаты ➔
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+            {/* Info Notice about All-Character Sync */}
+            <div className="bg-slate-950/60 p-3.5 border border-slate-800 rounded-xl flex flex-col gap-1 text-xs text-slate-300">
+              <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                <span>🔄</span> Двусторонняя синхронизация всех персонажей
               </div>
-            )}
-
-            {/* Known Rooms History & Manual Join Input */}
-            <div className="flex flex-col gap-2">
-              <span className="text-xs font-semibold text-slate-400">Присоединиться к комнате Owlbear:</span>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const targetRoomId = (e.currentTarget.elements.namedItem('customRoomId') as HTMLInputElement)?.value.trim();
-                  if (targetRoomId) {
-                    const cleanRoomId = targetRoomId.includes('roomId=')
-                      ? new URL(targetRoomId).searchParams.get('roomId') || targetRoomId
-                      : targetRoomId;
-
-                    p2pRoomBridge.connect(cleanRoomId, 'Присоединенная комната');
-                    if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
-                      const currentUrl = new URL(window.location.href);
-                      currentUrl.searchParams.set('roomId', cleanRoomId);
-                      window.history.replaceState({}, '', currentUrl.toString());
-                    }
-                    if (onReconnect) onReconnect();
-                  }
-                }}
-                className="flex items-center gap-2"
-              >
-                <input
-                  name="customRoomId"
-                  type="text"
-                  placeholder="Вставьте ID комнаты или ссылку Owlbear..."
-                  className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500 font-mono"
-                />
-                <button
-                  type="submit"
-                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl transition-all shadow"
-                >
-                  Войти
-                </button>
-              </form>
-
-              {knownRooms.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pt-1">
-                  {knownRooms.map((r: any) => {
-                    const rId = r.roomId || r.id;
-                    const rName = r.roomName || r.name || 'Owlbear Room';
-                    const isCurrent = rId === currentRoomId;
-                    return (
-                      <button
-                        key={rId}
-                        type="button"
-                        onClick={() => {
-                          p2pRoomBridge.connect(rId, rName);
-                          if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
-                            const currentUrl = new URL(window.location.href);
-                            currentUrl.searchParams.set('roomId', rId);
-                            window.history.replaceState({}, '', currentUrl.toString());
-                          }
-                          if (onReconnect) onReconnect();
-                        }}
-                        className={`px-2.5 py-1 text-[11px] rounded-lg border font-medium transition-all flex items-center gap-1.5 ${
-                          isCurrent
-                            ? 'bg-amber-500/20 border-amber-500/60 text-amber-300'
-                            : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:border-slate-500'
-                        }`}
-                      >
-                        <span>🎲</span> {rName}
-                        {isCurrent && <span className="text-[9px] bg-amber-500/40 px-1 rounded">АКТИВНА</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Все персонажи и их изменения (ХП, ячейки заклинаний, инвентарь, заметки) автоматически актуализируются во всех открытых вкладках и в Owlbear VTT.
+              </p>
             </div>
 
             {/* Actions */}
