@@ -14,9 +14,9 @@ export interface CloudMessagePayload {
 type CloudMessageHandler = (payload: CloudMessagePayload) => void;
 
 /**
- * Production-Grade PeerJS Dynamic WebRTC P2P Gateway
- * Регистрирует уникальный клиентский Peer ID через 0.peerjs.com без конфликтов фиксированных ID.
- * Гарантирует 0 ошибок соединения WSS, моментальное рукопожатие и прямой WebRTC DataChannel.
+ * Production-Grade Client-Generated PeerJS WebRTC P2P Gateway
+ * Генерирует клиентский уникальный 10-значный Peer ID (пропуская HTTP GET /id CORS-блокировки).
+ * Мгновенно открывает WSS-подключение и соединяет WebRTC DataChannel без 403 CORS ошибок.
  */
 class CloudRealtimeBridgeService {
   private peer: Peer | null = null;
@@ -43,13 +43,19 @@ class CloudRealtimeBridgeService {
     }
 
     try {
-      // Let PeerJS generate a clean, guaranteed valid Peer ID on 0.peerjs.com
-      const peer = new Peer({
-        debug: 1
+      // Client-side generated 10-char Peer ID to bypass GET /peerjs/id CORS 403 restriction
+      const clientPeerId = 'p' + Math.random().toString(36).substring(2, 12);
+
+      const peer = new Peer(clientPeerId, {
+        debug: 1,
+        secure: true,
+        host: '0.peerjs.com',
+        port: 443,
+        path: '/peerjs'
       });
 
       peer.on('open', (id) => {
-        console.log(`[PeerJS Gateway] Connected to 0.peerjs.com. My Peer ID: ${id}`);
+        console.log(`[PeerJS Gateway] Connected directly via WSS. My Peer ID: ${id}`);
         this.myPeerId = id;
         this.broadcastPeerAnnounce();
       });
