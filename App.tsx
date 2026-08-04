@@ -87,13 +87,11 @@ const AppContent: React.FC = () => {
     if (isOwlbear() && typeof OBR !== 'undefined') {
       OBR.onReady(async () => {
         const id = OBR.player.id || localId;
-        const name = await OBR.player.getName();
+        const name = (await OBR.player.getName()) || 'Игрок';
         const role = await OBR.player.getRole();
         setUserId(id);
-        if (name) {
-          setPlayerName(name);
-          try { localStorage.setItem('com.antigravity.dnd-sheet/player_name', name); } catch (e) {}
-        }
+        setPlayerName(name);
+        try { localStorage.setItem('com.antigravity.dnd-sheet/player_name', name); } catch (e) {}
         setUserRole(role);
 
         OBR.player.onChange((player) => {
@@ -117,7 +115,7 @@ const AppContent: React.FC = () => {
 
   // Sync player name changes across all characters owned by this player
   useEffect(() => {
-    if (!userId || !playerName || playerName === 'Игрок') return;
+    if (!userId || !playerName) return;
     for (const [id, entry] of Object.entries(characters)) {
       const char = entry?.history?.present;
       if (char && char.ownerId === userId && char.ownerName !== playerName) {
