@@ -1,4 +1,5 @@
 import { SESSION_CLIENT_ID } from './bridgeService';
+import { isOwlbear } from './storage';
 
 export interface CloudMessagePayload {
   type: 'CHAR_UPDATE' | 'DICE_ROLL' | 'PRESENCE_QUERY' | 'STATE_RESPONSE' | 'ROOM_ANNOUNCE';
@@ -26,6 +27,13 @@ class CloudRealtimeBridgeService {
 
   public connect(roomId: string, roomName?: string): void {
     if (!roomId) return;
+
+    // Inside Owlbear Rodeo iframe, native OBR SDK handles 100% of room sync natively.
+    // Skip external WSS sockets inside iframe to eliminate Cloudflare/CSP errors!
+    if (isOwlbear()) {
+      return;
+    }
+
     this.currentRoomId = roomId;
     if (roomName) this.currentRoomName = roomName;
 
