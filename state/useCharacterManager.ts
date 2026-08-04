@@ -864,11 +864,41 @@ export const useCharacterManager = (): CharacterManager => {
       }
       const incomingState = parsed.characters || parsed;
       const parsedState = parseCharactersData(incomingState);
+
+      const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_id') : '');
+      const myName = typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_name') : 'Игрок';
+
+      for (const [id, entry] of Object.entries(parsedState)) {
+        if (entry && entry.history?.present) {
+          if (!entry.history.present.ownerId && myId) {
+            entry.history.present.ownerId = myId;
+            if (myName) entry.history.present.ownerName = myName;
+          }
+          saveCharacterApi(id, entry).catch(console.error);
+          try {
+            const imageCacheArray = entry.imageCache ? (entry.imageCache instanceof Map ? Array.from(entry.imageCache.entries()) : entry.imageCache) : [];
+            localBridge.postMessage({
+              type: 'CHARACTER_SYNC',
+              charId: id,
+              entry: {
+                ...entry,
+                imageCache: imageCacheArray
+              },
+              senderClientId: SESSION_CLIENT_ID
+            });
+          } catch (err) {}
+        }
+      }
+
       dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
       if (Array.isArray(parsed.knownRooms)) {
         saveKnownRooms(parsed.knownRooms);
       }
-      addNotification('Хранилище персонажей успешно импортировано!', 'info');
+      try {
+        localBridge.postMessage({ type: 'STORAGE_EVENT_SYNC', senderClientId: SESSION_CLIENT_ID });
+      } catch (e) {}
+
+      addNotification('Хранилище персонажей успешно импортировано и синхронизировано!', 'info');
     } catch (e) {
       console.error('[DND Sheet] Failed to import vault:', e);
       addNotification('Ошибка при импорте файла хранилища.', 'error');
@@ -1102,24 +1132,36 @@ export const useCharacterManager = (): CharacterManager => {
       } else if (payload.type === 'CHARACTER_SYNC' && payload.charId && payload.entry) {
         console.log('[DND Sheet] Bridge Sync: Syncing full character:', payload.charId);
         
-        const entryWithMap = {
-          ...payload.entry,
-          imageCache: Array.isArray(payload.entry.imageCache) 
-            ? new Map(payload.entry.imageCache) 
-            : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
-        };
-
-        const serialized = serializeForCache(entryWithMap);
-        if (lastSerializedRef.current[payload.charId] === serialized) {
-          return; // Skip no-op duplicate sync
+        const localEntry = charactersStateRef.current[payload.charId];
+        let shouldUpdate = true;
+        if (localEntry && localEntry.history?.present && payload.entry?.history?.present) {
+          const localTime = (localEntry.history.present as any)?.updatedAt || (localEntry.history.present as any)?.lastModified || 0;
+          const remoteTime = (payload.entry.history.present as any)?.updatedAt || (payload.entry.history.present as any)?.lastModified || 0;
+          if (localTime > remoteTime) {
+            console.log(`[DND Sheet] Keeping local character ${payload.charId} (local version is newer or equal).`);
+            shouldUpdate = false;
+          }
         }
-        lastSerializedRef.current[payload.charId] = serialized;
 
-        dispatch({
-          type: 'SYNC_REMOTE_CHARACTER',
-          payload: { id: payload.charId, entry: entryWithMap }
-        });
-        saveCharacterApi(payload.charId, entryWithMap);
+        if (shouldUpdate) {
+          const entryWithMap = {
+            ...payload.entry,
+            imageCache: Array.isArray(payload.entry.imageCache) 
+              ? new Map(payload.entry.imageCache) 
+              : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
+          };
+
+          const serialized = serializeForCache(entryWithMap);
+          if (lastSerializedRef.current[payload.charId] !== serialized) {
+            lastSerializedRef.current[payload.charId] = serialized;
+
+            dispatch({
+              type: 'SYNC_REMOTE_CHARACTER',
+              payload: { id: payload.charId, entry: entryWithMap }
+            });
+            saveCharacterApi(payload.charId, entryWithMap).catch(console.error);
+          }
+        }
 
         const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         const urlCharId = urlParams?.get('charId');
@@ -1141,7 +1183,7 @@ export const useCharacterManager = (): CharacterManager => {
         const entry = state[payload.charId];
         if (entry) {
           const imageCacheArray = entry.imageCache 
-            ? Array.from(entry.imageCache.entries()) 
+            ? (entry.imageCache instanceof Map ? Array.from(entry.imageCache.entries()) : entry.imageCache) 
             : [];
           localBridge.postMessage({
             type: 'CHARACTER_SYNC',
@@ -1166,7 +1208,7 @@ export const useCharacterManager = (): CharacterManager => {
         if (isOwlbear()) {
           setSyncStatus('connected_tab');
         }
-      } else if (payload.type === 'VTT_FRAME_READY') {
+      } else if (payload.type === 'VTT_FRAME_READY' || payload.type === 'HANDSHAKE_PING') {
         if (payload.roomId) {
           registerCurrentRoom(payload.roomId, payload.roomName || 'Доска Owlbear');
         }
@@ -1174,6 +1216,24 @@ export const useCharacterManager = (): CharacterManager => {
           saveKnownRooms(payload.knownRooms);
         }
         setSyncStatus('connected_tab');
+
+        // Bidirectional Handshake: Broadcast all local characters to sibling tab so both tabs merge missing/updated characters!
+        const state = charactersStateRef.current;
+        for (const [id, entry] of Object.entries(state)) {
+          if (entry && entry.history?.present) {
+            const imageCacheArray = entry.imageCache 
+              ? (entry.imageCache instanceof Map ? Array.from(entry.imageCache.entries()) : entry.imageCache) 
+              : [];
+            localBridge.postMessage({
+              type: 'CHARACTER_SYNC',
+              charId: id,
+              entry: {
+                ...entry,
+                imageCache: imageCacheArray
+              }
+            });
+          }
+        }
       } else if (payload.type === 'STORAGE_EVENT_SYNC') {
         try {
           const data = loadFromLocalStorage();
