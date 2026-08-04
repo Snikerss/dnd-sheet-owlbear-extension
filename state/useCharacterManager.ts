@@ -809,19 +809,24 @@ export const useCharacterManager = (): CharacterManager => {
       }
     }
 
+    const newEntry = {
+      character: charToAdd,
+      log: [],
+      history: { past: [], future: [] },
+      imageCache: []
+    };
+
     dispatch({ type: 'ADD_CHARACTER', payload: { id, character: charToAdd } });
+
+    // Save to LocalStorage, IndexedDB and Owlbear metadata
+    saveCharacterApi(id, newEntry).catch(console.error);
 
     // Instantly sync newly created character to Owlbear iframe and all other open tabs!
     try {
       const syncPayload = {
         type: 'CHARACTER_SYNC',
         charId: id,
-        entry: {
-          character: charToAdd,
-          log: [],
-          history: { past: [], future: [] },
-          imageCache: []
-        },
+        entry: newEntry,
         senderClientId: SESSION_CLIENT_ID,
         senderId: SESSION_CLIENT_ID
       };
