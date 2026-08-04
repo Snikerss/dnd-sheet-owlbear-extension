@@ -374,12 +374,13 @@ const AppContent: React.FC = () => {
   const isGM = userRole === 'GM';
 
   const checkIsReadOnly = useCallback((char?: Character | null) => {
-    if (!char || isGM) return false;
-    if (!char.ownerId) return false; // Unowned characters are editable
+    if (!char) return false;
+    if (userRole === 'GM') return true; // GM is permanently in read-only mode for player character sheets
+    if (!char.ownerId) return false; // Unowned characters are editable by players
     if (userId && char.ownerId === userId) return false;
     if (playerName && char.ownerName === playerName) return false;
     return true;
-  }, [isGM, userId, playerName]);
+  }, [userRole, userId, playerName]);
 
   const handleUpdateCharacter = useCallback((action: CharacterAction) => {
     if (activeCharacterId) {
