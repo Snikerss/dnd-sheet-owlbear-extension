@@ -978,6 +978,44 @@ export const useCharacterManager = (): CharacterManager => {
     isLoadingRef.current = isLoading;
   }, [isLoading]);
 
+  const lastHeartbeatRef = useRef<number>(Date.now());
+
+  // Heartbeat loop for detecting Owlbear connection loss in standalone tabs & Owlbear iframe
+  useEffect(() => {
+    if (isOwlbear()) {
+      // Broadcast heartbeat every 2s from Owlbear iframe to sibling standalone tabs
+      const heartbeatInterval = setInterval(() => {
+        try {
+          localBridge.postMessage({ type: 'VTT_HEARTBEAT', timestamp: Date.now() });
+        } catch (e) {}
+      }, 2000);
+
+      const handleUnload = () => {
+        try {
+          localBridge.postMessage({ type: 'VTT_DISCONNECTED', timestamp: Date.now() });
+        } catch (e) {}
+      };
+
+      window.addEventListener('beforeunload', handleUnload);
+      return () => {
+        clearInterval(heartbeatInterval);
+        window.removeEventListener('beforeunload', handleUnload);
+      };
+    } else {
+      // Standalone tab: Monitor incoming heartbeats from Owlbear iframe
+      const checkInterval = setInterval(() => {
+        const timeSinceHeartbeat = Date.now() - lastHeartbeatRef.current;
+        if (timeSinceHeartbeat > 5000) {
+          setSyncStatus((prev) => (prev !== 'error' ? 'error' : prev));
+        } else {
+          setSyncStatus((prev) => (prev === 'error' ? 'connected_tab' : prev));
+        }
+      }, 2000);
+
+      return () => clearInterval(checkInterval);
+    }
+  }, []);
+
   // Local bridge for multi-tab synchronization
   useEffect(() => {
     const unsubscribe = localBridge.subscribe((event) => {
@@ -988,6 +1026,17 @@ export const useCharacterManager = (): CharacterManager => {
       const senderId = payload.senderClientId || payload.senderId;
       if (senderId === SESSION_CLIENT_ID) {
         return; // Always ignore self messages on the same tab
+      }
+
+      if (payload.type === 'VTT_HEARTBEAT') {
+        lastHeartbeatRef.current = Date.now();
+        setSyncStatus((prev) => (prev === 'error' ? 'connected_tab' : prev));
+        return;
+      }
+
+      if (payload.type === 'VTT_DISCONNECTED') {
+        setSyncStatus('error');
+        return;
       }
 
       if (payload.type === 'CHARACTER_ACTION' && payload.charId && payload.action) {
