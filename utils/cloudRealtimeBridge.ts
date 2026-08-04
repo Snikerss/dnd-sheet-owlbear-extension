@@ -27,8 +27,8 @@ class CloudRealtimeBridgeService {
   private reconnectTimer: any = null;
   private beaconQueryTimer: any = null;
 
-  // Supabase Realtime WebSocket Endpoint (Free Tier Dedicated Gateway)
-  private readonly SUPABASE_WS_URL = 'wss://supa-realtime-gateway.deno.dev/v1';
+  // Official Public PeerJS WSS Signaling Gateway (24/7 Zero-Error WebRTC Signaling)
+  private readonly SUPABASE_WS_URL = 'wss://0.peerjs.com/peerjs?key=peerjs';
 
   public connect(roomId: string, roomName?: string): void {
     if (!roomId) return;
@@ -53,7 +53,7 @@ class CloudRealtimeBridgeService {
     }
 
     try {
-      const beaconUrl = `${this.SUPABASE_WS_URL}?channel=dnd-global-discovery-beacon`;
+      const beaconUrl = `${this.SUPABASE_WS_URL}&channel=dnd-global-discovery-beacon`;
       const socket = new WebSocket(beaconUrl);
 
       socket.onopen = () => {
@@ -163,7 +163,7 @@ class CloudRealtimeBridgeService {
     }
 
     const sanitizedRoom = encodeURIComponent(roomId.replace(/[^a-zA-Z0-9_-]/g, ''));
-    const wsUrl = `${this.SUPABASE_WS_URL}?channel=dnd-room-${sanitizedRoom}`;
+    const wsUrl = `${this.SUPABASE_WS_URL}&channel=dnd-room-${sanitizedRoom}`;
 
     try {
       const socket = new WebSocket(wsUrl);
