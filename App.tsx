@@ -286,10 +286,16 @@ const AppContent: React.FC = () => {
     const newCharacter: Character = structuredClone(defaultCharacterState);
     newCharacter.name = 'Новый персонаж';
     
-    const currentId = userId || (isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_id') : null));
-    const currentName = playerName || 'Игрок';
+    let currentId = userId || (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_id') : null);
+    let currentName = playerName || (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_name') : null) || 'Игрок';
 
-    if (currentId && userRole !== 'GM') {
+    if (isOwlbear() && typeof OBR !== 'undefined') {
+      try {
+        if (!currentId && OBR.player?.id) currentId = OBR.player.id;
+      } catch (e) {}
+    }
+
+    if (userRole !== 'GM' && currentId) {
       newCharacter.ownerId = currentId;
       newCharacter.ownerName = currentName;
     }
@@ -304,7 +310,7 @@ const AppContent: React.FC = () => {
 
     const myId = userId || (isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_id') : ''));
     const isGM = userRole === 'GM';
-    const isOwner = isGM || !characterToDelete.ownerId || !myId || characterToDelete.ownerId === myId;
+    const isOwner = isGM || !characterToDelete.ownerId || !myId || characterToDelete.ownerId === myId || characterToDelete.ownerName === playerName;
 
     if (!isOwner) {
       addNotification('Вы не можете удалить персонажа, принадлежащего другому игроку.', 'error');
@@ -312,7 +318,7 @@ const AppContent: React.FC = () => {
     }
 
     setCharacterPendingDeletion({ id, name: characterToDelete.name });
-  }, [characters, userId, userRole, addNotification]);
+  }, [characters, userId, userRole, playerName, addNotification]);
 
   const handleDuplicateCharacter = useCallback((id: string) => {
     const characterToCopy = characters[id]?.history.present;
@@ -332,7 +338,7 @@ const AppContent: React.FC = () => {
 
     addCharacter(newId, newCharacter);
     setActiveCharacterId(newId);
-  }, [characters, addCharacter, userId, playerName, userRole]);
+  }, [characters, addCharacter, playerName, userId, userRole]);
 
   const handleAddCharacter = useCallback((id: string, character: Character) => {
     const charWithNewOwner = { ...character };
@@ -356,64 +362,54 @@ const AppContent: React.FC = () => {
     return unsubscribe;
   }, []);
 
-  const handleOpenStandalone = useCallback((charId?: string) => {
-    if (typeof window === 'undefined') return;
-    const origin = window.location.origin;
-    let path = window.location.pathname.replace(/\/index\.html.*/i, '');
-    if (!path.endsWith('/')) {
-      path += '/';
-    }
-
-    const currentId = userId || (isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : localStorage.getItem('com.antigravity.dnd-sheet/player_id'));
+  const handleOpenStandalone = useCallback((id: string) => {
+    const charId = id || '';
     const currentName = playerName || 'Игрок';
-    const currentRole = userRole || 'PLAYER';
-
-    let query = `?userId=${encodeURIComponent(currentId || '')}&userRole=${encodeURIComponent(currentRole)}&playerName=${encodeURIComponent(currentName)}`;
-    if (charId) {
-      query += `&charId=${encodeURIComponent(charId)}`;
-    }
-
-    const cleanUrl = origin + path + query;
-
-    const targetName = 'dnd_sheet_vault';
-    const win = window.open(cleanUrl, targetName);
+    const win = window.open(`./index.html?charId=${charId}&userId=${encodeURIComponent(userId || '')}&userRole=${encodeURIComponent(userRole || '')}&playerName=${encodeURIComponent(currentName)}`, `dnd_sheet_${charId || 'vault'}`);
     if (win) {
       localBridge.registerChildWindow(win);
     }
   }, [userId, userRole, playerName]);
 
+  const isGM = userRole === 'GM';
+
+  const checkIsReadOnly = useCallback((char?: Character | null) => {
+    if (!char || isGM) return false;
+    if (!char.ownerId) return false; // Unowned characters are editable
+    if (userId && char.ownerId === userId) return false;
+    if (playerName && char.ownerName === playerName) return false;
+    return true;
+  }, [isGM, userId, playerName]);
+
   const handleUpdateCharacter = useCallback((action: CharacterAction) => {
     if (activeCharacterId) {
       const activeCharacterState = characters[activeCharacterId];
       const activeChar = activeCharacterState?.history.present;
-      const isReadOnly = activeChar && activeChar.ownerId && userId && activeChar.ownerId !== userId;
-      if (isReadOnly) {
+      if (checkIsReadOnly(activeChar)) {
         console.warn('[DND Sheet] Blocked update for read-only character:', activeCharacterId);
         return;
       }
       updateCharacter(activeCharacterId, action);
     }
-  }, [activeCharacterId, updateCharacter, characters, userId]);
+  }, [activeCharacterId, updateCharacter, characters, checkIsReadOnly]);
 
   const handleUndo = useCallback(() => {
     if (activeCharacterId) {
       const activeCharacterState = characters[activeCharacterId];
       const activeChar = activeCharacterState?.history.present;
-      const isReadOnly = activeChar && activeChar.ownerId && userId && activeChar.ownerId !== userId;
-      if (isReadOnly) return;
+      if (checkIsReadOnly(activeChar)) return;
       undo(activeCharacterId);
     }
-  }, [activeCharacterId, undo, characters, userId]);
+  }, [activeCharacterId, undo, characters, checkIsReadOnly]);
 
   const handleRedo = useCallback(() => {
     if (activeCharacterId) {
       const activeCharacterState = characters[activeCharacterId];
       const activeChar = activeCharacterState?.history.present;
-      const isReadOnly = activeChar && activeChar.ownerId && userId && activeChar.ownerId !== userId;
-      if (isReadOnly) return;
+      if (checkIsReadOnly(activeChar)) return;
       redo(activeCharacterId);
     }
-  }, [activeCharacterId, redo, characters, userId]);
+  }, [activeCharacterId, redo, characters, checkIsReadOnly]);
 
   // Преобразуем полное состояние персонажей в упрощенный Record<string, Character> для экрана выбора.
   const characterList = useMemo(() => {
@@ -446,13 +442,11 @@ const AppContent: React.FC = () => {
 
   const activeCharacterState = activeCharacterId ? characters[activeCharacterId] : null;
   const activeCharacter = activeCharacterState?.history.present;
-  const isReadOnly = activeCharacter && activeCharacter.ownerId && userId && activeCharacter.ownerId !== userId;
+  const isReadOnly = checkIsReadOnly(activeCharacter);
   const activeLog: LogEntry[] = activeCharacterState?.log || [];
   const canUndo = !isReadOnly && (activeCharacterState?.history.past.length ?? 0) > 0;
   const canRedo = !isReadOnly && (activeCharacterState?.history.future.length ?? 0) > 0;
   
-  const isGM = userRole === 'GM' || !isOwlbear();
-
   const isConnectionLost = syncStatus === 'error';
 
   return (
