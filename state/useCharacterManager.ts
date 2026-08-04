@@ -1066,131 +1066,13 @@ export const useCharacterManager = (): CharacterManager => {
           setSyncStatus('connected_tab');
         }
       } else if (payload.type === 'VTT_FRAME_READY') {
-        const state = charactersStateRef.current;
-        const localData = loadFromLocalStorage();
-        const combined = { ...localData, ...state };
-
-        for (const [charId, myEntry] of Object.entries(combined)) {
-          if (myEntry) {
-            const entryObj = myEntry as any;
-            const imageCacheArray = Array.isArray(entryObj.imageCache)
-              ? entryObj.imageCache
-              : (entryObj.imageCache instanceof Map ? Array.from(entryObj.imageCache.entries()) : []);
-
-            localBridge.postMessage({
-              type: 'HANDSHAKE_PING',
-              charId,
-              entry: { ...entryObj, imageCache: imageCacheArray },
-              knownRooms: getKnownRooms()
-            });
-          }
-        }
-        setSyncStatus('connected_tab');
-      } else if (payload.type === 'HANDSHAKE_PING') {
         if (payload.roomId) {
           registerCurrentRoom(payload.roomId, payload.roomName || 'Доска Owlbear');
         }
         if (Array.isArray(payload.knownRooms)) {
           saveKnownRooms(payload.knownRooms);
         }
-
-        const getEntryTime = (e: any) => {
-          if (!e) return 0;
-          if (typeof e.lastModified === 'number') return e.lastModified;
-          if (Array.isArray(e.log) && e.log[0] && typeof e.log[0].timestamp === 'number') {
-            return e.log[0].timestamp;
-          }
-          return 0;
-        };
-
-        const state = charactersStateRef.current;
-        const localEntry = payload.charId ? state[payload.charId] : null;
-        let finalEntry = localEntry;
-
-        if (payload.entry && payload.charId) {
-          const incomingTime = getEntryTime(payload.entry);
-          const localTime = getEntryTime(localEntry);
-
-          if (!localEntry || incomingTime >= localTime) {
-            finalEntry = payload.entry;
-            const entryWithMap = {
-              ...payload.entry,
-              imageCache: Array.isArray(payload.entry.imageCache) 
-                ? new Map(payload.entry.imageCache) 
-                : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
-            };
-            const serialized = serializeForCache(entryWithMap);
-            if (lastSerializedRef.current[payload.charId] !== serialized) {
-              lastSerializedRef.current[payload.charId] = serialized;
-              dispatch({
-                type: 'SYNC_REMOTE_CHARACTER',
-                payload: { id: payload.charId, entry: entryWithMap }
-              });
-              saveCharacterApi(payload.charId, entryWithMap);
-              if (isOwlbear()) {
-                broadcastCharacterSync(payload.charId, entryWithMap);
-              }
-            }
-          }
-        }
-
-        const imageCacheArray = finalEntry?.imageCache ? Array.from(finalEntry.imageCache.entries()) : [];
-        
-        localBridge.postMessage({
-          type: 'HANDSHAKE_PONG',
-          charId: payload.charId,
-          entry: finalEntry ? { ...finalEntry, imageCache: imageCacheArray } : undefined,
-          knownRooms: getKnownRooms()
-        });
-
-        if (isOwlbear()) {
-          setSyncStatus('connected_tab');
-        }
-      } else if (payload.type === 'HANDSHAKE_PONG') {
-        if (Array.isArray(payload.knownRooms)) {
-          saveKnownRooms(payload.knownRooms);
-        }
-
-        if (!isOwlbear()) {
-          setSyncStatus('connected_tab');
-        }
-
-        if (payload.entry && payload.charId) {
-          const getEntryTime = (e: any) => {
-            if (!e) return 0;
-            if (typeof e.lastModified === 'number') return e.lastModified;
-            if (Array.isArray(e.log) && e.log[0] && typeof e.log[0].timestamp === 'number') {
-              return e.log[0].timestamp;
-            }
-            return 0;
-          };
-
-          const state = charactersStateRef.current;
-          const localEntry = state[payload.charId];
-          const incomingTime = getEntryTime(payload.entry);
-          const localTime = getEntryTime(localEntry);
-
-          if (!localEntry || incomingTime >= localTime) {
-            const entryWithMap = {
-              ...payload.entry,
-              imageCache: Array.isArray(payload.entry.imageCache) 
-                ? new Map(payload.entry.imageCache) 
-                : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map())
-            };
-            const serialized = serializeForCache(entryWithMap);
-            if (lastSerializedRef.current[payload.charId] !== serialized) {
-              lastSerializedRef.current[payload.charId] = serialized;
-              dispatch({
-                type: 'SYNC_REMOTE_CHARACTER',
-                payload: { id: payload.charId, entry: entryWithMap }
-              });
-              saveCharacterApi(payload.charId, entryWithMap);
-            }
-          }
-          if (isLoadingRef.current) {
-            setIsLoading(false);
-          }
-        }
+        setSyncStatus('connected_tab');
       } else if (payload.type === 'STORAGE_EVENT_SYNC') {
         storageRepository.loadCharacters().then(data => {
           if (data) {
