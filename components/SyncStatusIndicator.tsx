@@ -10,7 +10,7 @@ export interface SyncStatusIndicatorProps {
   onReconnect?: () => void;
   characters?: Array<{ id: string; name: string; characterClass?: string }>;
   activeCharacterId?: string | null;
-  onSelectActiveBoardCharacter?: (charId: string) => void;
+  onSelectActiveBoardCharacter?: (charId: string | null) => void;
   className?: string;
 }
 
@@ -191,16 +191,18 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
                   <label className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
                     <span>📡</span> Персонаж, транслируемый ГМу в этой комнате:
                   </label>
+                  <span className="text-[10px] text-slate-400">
+                    По умолчанию выключено
+                  </span>
                 </div>
                 <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
                   {characters.map((char) => {
                     const isBroadcasting = char.id === activeCharacterId;
                     return (
-                      <button
+                      <div
                         key={char.id}
-                        type="button"
-                        onClick={() => onSelectActiveBoardCharacter(char.id)}
-                        className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between ${
+                        onClick={() => onSelectActiveBoardCharacter(isBroadcasting ? null : char.id)}
+                        className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between cursor-pointer select-none ${
                           isBroadcasting
                             ? 'bg-amber-500/15 border-amber-500/60 text-amber-200 shadow-md'
                             : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
@@ -211,16 +213,32 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
                           <span className="font-semibold text-xs truncate">{char.name}</span>
                           <span className="text-[10px] text-slate-400">({char.characterClass || 'Персонаж'})</span>
                         </div>
-                        {isBroadcasting ? (
-                          <span className="px-2 py-0.5 bg-amber-500 text-slate-950 font-bold text-[10px] rounded-md shadow">
-                            🟢 ТРАНСЛИРУЕТСЯ ГМУ
+
+                        {/* Toggle Switch */}
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-bold ${isBroadcasting ? 'text-emerald-400' : 'text-slate-500'}`}>
+                            {isBroadcasting ? 'ВКЛ' : 'ВЫКЛ'}
                           </span>
-                        ) : (
-                          <span className="text-[10px] text-slate-400 hover:text-amber-300">
-                            Транслировать ГМу ➔
-                          </span>
-                        )}
-                      </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectActiveBoardCharacter(isBroadcasting ? null : char.id);
+                            }}
+                            className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              isBroadcasting ? 'bg-emerald-500' : 'bg-slate-700'
+                            }`}
+                            role="switch"
+                            aria-checked={isBroadcasting}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                isBroadcasting ? 'translate-x-4' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>

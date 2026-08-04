@@ -174,8 +174,36 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
             )}
         </div>
 
-        {/* Row 2: Select & Delete buttons */}
-        <div className={`w-full pt-1 ${canDelete ? 'grid grid-cols-2 gap-2' : 'flex items-center'}`}>
+        {/* Row 2: GM Broadcast Toggle Switch */}
+        {onSelectBroadcastGM && (
+          <div className="w-full bg-[var(--color-surface-well)] px-2.5 py-1.5 rounded-lg border border-[var(--color-border-subtle)] flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold text-[var(--color-text-medium)] flex items-center gap-1.5">
+              <span>📡</span> Трансляция ГМу:
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectBroadcastGM();
+              }}
+              className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                isBroadcastingToGM ? 'bg-emerald-500' : 'bg-slate-700'
+              }`}
+              role="switch"
+              aria-checked={isBroadcastingToGM}
+              title={isBroadcastingToGM ? 'Трансляция ГМу включена' : 'Трансляция ГМу выключена'}
+            >
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  isBroadcastingToGM ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        )}
+
+        {/* Row 3: Select & Delete buttons */}
+        <div className={`w-full pt-0.5 ${canDelete ? 'grid grid-cols-2 gap-2' : 'flex items-center'}`}>
           <button
             onClick={onSelect}
             className="w-full bg-[var(--color-accent-primary)] text-white font-bold py-2 px-2 rounded-lg hover:bg-[var(--color-accent-primary-hover)] transition-all shadow active:scale-95 text-xs sm:text-sm truncate flex items-center justify-center gap-1"

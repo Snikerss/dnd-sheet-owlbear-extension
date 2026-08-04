@@ -15,7 +15,7 @@ interface CharacterSelectionScreenProps {
   syncingCharacters?: Record<string, { status: 'images', pendingImages: string[] }>;
   currentUserId?: string | null;
   activeBoardCharacterId?: string | null;
-  onSelectActiveBoardCharacter?: (id: string) => void;
+  onSelectActiveBoardCharacter?: (id: string | null) => void;
   onSelectCharacter: (id: string) => void;
   onCreateCharacter: () => void;
   onDeleteCharacter: (id: string) => void;

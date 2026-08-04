@@ -455,7 +455,7 @@ const AppContent: React.FC = () => {
           syncingCharacters={syncingCharacters}
           currentUserId={userId}
           activeBoardCharacterId={p2pRoomBridge.getActiveBoardCharacterId()}
-          onSelectActiveBoardCharacter={(charId) => p2pRoomBridge.setActiveBoardCharacter(charId)}
+          onSelectActiveBoardCharacter={(charId) => p2pRoomBridge.setActiveBoardCharacter(charId === p2pRoomBridge.getActiveBoardCharacterId() ? null : charId)}
           onSelectCharacter={handleSelectCharacter}
           onCreateCharacter={handleCreateCharacter}
           onDeleteCharacter={handleDeleteCharacter}
