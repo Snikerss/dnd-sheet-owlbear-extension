@@ -12,6 +12,7 @@ import { CharacterProvider } from './context/CharacterContext';
 import { generateUUID } from './utils/uuid';
 import { isOwlbear, encodeBase64Sync } from './utils/storage';
 import { localBridge } from './utils/bridgeService';
+import { p2pRoomBridge } from './utils/p2pBridge';
 import { TextFormattingContextMenu } from './components/RichTextFormatting';
 
 const AppContent: React.FC = () => {
@@ -453,6 +454,8 @@ const AppContent: React.FC = () => {
           characters={characterList}
           syncingCharacters={syncingCharacters}
           currentUserId={userId}
+          activeBoardCharacterId={p2pRoomBridge.getActiveBoardCharacterId()}
+          onSelectActiveBoardCharacter={(charId) => p2pRoomBridge.setActiveBoardCharacter(charId)}
           onSelectCharacter={handleSelectCharacter}
           onCreateCharacter={handleCreateCharacter}
           onDeleteCharacter={handleDeleteCharacter}
@@ -463,9 +466,6 @@ const AppContent: React.FC = () => {
           onClearLocalCache={clearLocalCache}
           onExportVault={exportVaultData}
           onImportVault={importVaultData}
-          onBindRoom={(charId, roomId, roomName) => updateCharacter(charId, { type: 'BIND_ROOM', payload: { roomId, roomName } })}
-          onUnbindRoom={(charId, roomId) => updateCharacter(charId, { type: 'UNBIND_ROOM', payload: roomId })}
-          onToggleGlobalRoom={(charId, isGlobal) => updateCharacter(charId, { type: 'TOGGLE_GLOBAL_ROOM', payload: isGlobal })}
           isGM={isGM}
         />
       )}

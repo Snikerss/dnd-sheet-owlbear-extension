@@ -11,7 +11,8 @@ interface CharacterCardProps {
   onOpenStandalone?: () => void;
   onSync?: () => void;
   onClearCache?: () => void;
-  onOpenRoomBinding?: () => void;
+  isBroadcastingToGM?: boolean;
+  onSelectBroadcastGM?: () => void;
   isSyncing?: boolean;
   pendingImagesCount?: number;
   currentUserId?: string | null;
@@ -27,7 +28,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
   onOpenStandalone,
   onSync,
   onClearCache,
-  onOpenRoomBinding,
+  isBroadcastingToGM = false,
+  onSelectBroadcastGM,
   isSyncing = false,
   pendingImagesCount = 0,
   currentUserId,
@@ -72,23 +74,17 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
             </svg>
           )}
         </div>
-        {character.isGlobal ? (
+        {/* GM Broadcast Status Badge */}
+        {isBroadcastingToGM ? (
           <div className="absolute top-2 left-2 z-10">
-            <span className="bg-emerald-500/80 text-white text-[10px] px-2 py-0.5 rounded-md backdrop-blur-sm border border-emerald-400/40 font-bold">
-              🌐 Глобальный
-            </span>
-          </div>
-        ) : (character.boundRooms && character.boundRooms.length > 0) ? (
-          <div className="absolute top-2 left-2 z-10 flex flex-wrap gap-1">
-            <span className="bg-teal-600/80 text-white text-[10px] px-2 py-0.5 rounded-md backdrop-blur-sm border border-teal-400/40 font-bold" title={character.boundRooms.map(r => r.roomName).join(', ')}>
-              🎯 {character.boundRooms?.[0]?.roomName || 'Доска'}
-              {character.boundRooms.length > 1 && ` +${character.boundRooms.length - 1}`}
+            <span className="bg-emerald-500/90 text-white text-[10px] px-2 py-0.5 rounded-md backdrop-blur-sm border border-emerald-400/50 font-bold shadow-md flex items-center gap-1">
+              <span>📡</span> Транслируется ГМу
             </span>
           </div>
         ) : (
           <div className="absolute top-2 left-2 z-10">
-            <span className="bg-slate-700/80 text-slate-300 text-[10px] px-2 py-0.5 rounded-md backdrop-blur-sm border border-slate-600/40 font-bold">
-              🔒 Локальный
+            <span className="bg-slate-800/80 text-slate-300 text-[10px] px-2 py-0.5 rounded-md backdrop-blur-sm border border-slate-700/50 font-medium">
+              <span>👤</span> Хранилище
             </span>
           </div>
         )}
@@ -152,13 +148,17 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
                 </svg>
               </button>
             )}
-            {onOpenRoomBinding && (
+            {onSelectBroadcastGM && (
               <button
-                onClick={onOpenRoomBinding}
-                data-tooltip="Привязка к доскам Owlbear"
-                className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-cyan-400 transition-colors flex items-center justify-center"
+                onClick={onSelectBroadcastGM}
+                data-tooltip={isBroadcastingToGM ? "Транслируется ГМу на карту" : "Начать трансляцию ГМу на карту"}
+                className={`p-2 rounded-lg transition-colors flex items-center justify-center ${
+                  isBroadcastingToGM
+                    ? 'text-emerald-400 bg-emerald-500/20'
+                    : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-emerald-400'
+                }`}
               >
-                <span className="text-sm">🎯</span>
+                <span className="text-sm">📡</span>
               </button>
             )}
             {onOpenStandalone && (

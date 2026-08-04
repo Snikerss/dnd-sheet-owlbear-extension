@@ -14,6 +14,8 @@ interface CharacterSelectionScreenProps {
   characters: Record<string, Character>;
   syncingCharacters?: Record<string, { status: 'images', pendingImages: string[] }>;
   currentUserId?: string | null;
+  activeBoardCharacterId?: string | null;
+  onSelectActiveBoardCharacter?: (id: string) => void;
   onSelectCharacter: (id: string) => void;
   onCreateCharacter: () => void;
   onDeleteCharacter: (id: string) => void;
@@ -24,9 +26,6 @@ interface CharacterSelectionScreenProps {
   onClearLocalCache?: (id: string) => void;
   onExportVault?: () => void;
   onImportVault?: (fileContent: string) => void;
-  onBindRoom?: (charId: string, roomId: string, roomName: string) => void;
-  onUnbindRoom?: (charId: string, roomId: string) => void;
-  onToggleGlobalRoom?: (charId: string, isGlobal: boolean) => void;
   isGM?: boolean;
 }
 
@@ -34,6 +33,8 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
   characters,
   syncingCharacters,
   currentUserId,
+  activeBoardCharacterId,
+  onSelectActiveBoardCharacter,
   onSelectCharacter,
   onCreateCharacter,
   onDeleteCharacter,
@@ -44,36 +45,12 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
   onClearLocalCache,
   onExportVault,
   onImportVault,
-  onBindRoom,
-  onUnbindRoom,
-  onToggleGlobalRoom,
   isGM = true,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const vaultInputRef = useRef<HTMLInputElement>(null);
   const { addNotification } = useNotifier();
 
-  const [selectedRoomFilter, setSelectedRoomFilter] = useState<string>('all');
-  const [bindingModalCharId, setBindingModalCharId] = useState<string | null>(null);
-
-  const knownRooms = useMemo(() => getKnownRooms(), []);
-  const currentRoomId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.room?.id : '';
-
-  const characterEntries = useMemo(() => {
-    const all = Object.entries(characters);
-    if (selectedRoomFilter === 'all') return all;
-    if (selectedRoomFilter === 'current' && currentRoomId) {
-      return all.filter(([_, char]) => {
-        if (char.isGlobal) return true;
-        if (!char.boundRooms || char.boundRooms.length === 0) return true;
-        return char.boundRooms.some(r => r.roomId === currentRoomId);
-      });
-    }
-    return all.filter(([_, char]) => {
-      if (char.isGlobal) return true;
-      return char.boundRooms?.some(r => r.roomId === selectedRoomFilter);
-    });
-  }, [characters, selectedRoomFilter, currentRoomId]);
+  const characterEntries = useMemo(() => Object.entries(characters), [characters]);
 
   const handleExportCharacter = (id: string) => {
     const character = characters[id];
@@ -135,8 +112,6 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
     reader.readAsText(file);
   };
 
-  const bindingCharacter = bindingModalCharId ? characters[bindingModalCharId] : null;
-
   return (
     <div className="min-h-screen bg-[var(--color-background)] p-4 md:p-8 flex flex-col">
       <input
@@ -147,23 +122,12 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
         onChange={handleFileImport}
       />
 
-      {bindingCharacter && bindingModalCharId && (
-        <RoomBindingModal
-          isOpen={true}
-          character={bindingCharacter}
-          onClose={() => setBindingModalCharId(null)}
-          onBindRoom={(roomId, roomName) => onBindRoom?.(bindingModalCharId, roomId, roomName)}
-          onUnbindRoom={(roomId) => onUnbindRoom?.(bindingModalCharId, roomId)}
-          onToggleGlobal={(isGlobal) => onToggleGlobalRoom?.(bindingModalCharId, isGlobal)}
-        />
-      )}
-
-      <header className="text-center mb-6">
+      <header className="text-center mb-8">
         <h1 className="text-4xl md:text-5xl font-bold text-[var(--color-text-base)]">
           Мастер-Хранилище Персонажей
         </h1>
         <p className="text-lg text-[var(--color-text-medium)] mt-2">
-          Управляйте персонажами и их привязкой к доскам Owlbear Rodeo
+          Управляйте персонажами и трансляцией ГМу на карту Owlbear Rodeo
         </p>
 
         {/* Action Buttons Toolbar */}
@@ -184,47 +148,6 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
             </button>
           )}
         </div>
-
-        {/* Room Filter Pills */}
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-          <button
-            onClick={() => setSelectedRoomFilter('all')}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${
-              selectedRoomFilter === 'all'
-                ? 'bg-teal-500 text-white border-teal-400 shadow-md'
-                : 'bg-[var(--color-surface-well)] text-[var(--color-text-medium)] border-slate-700/50 hover:border-slate-500'
-            }`}
-          >
-            Все персонажи ({Object.keys(characters).length})
-          </button>
-
-          {currentRoomId && (
-            <button
-              onClick={() => setSelectedRoomFilter('current')}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${
-                selectedRoomFilter === 'current'
-                  ? 'bg-teal-500 text-white border-teal-400 shadow-md'
-                  : 'bg-[var(--color-surface-well)] text-teal-300 border-teal-500/40 hover:border-teal-400'
-              }`}
-            >
-              {(window as any).__currentRoomName ? `🎯 Текущая доска (${(window as any).__currentRoomName})` : '🎯 Текущая доска Owlbear'}
-            </button>
-          )}
-
-          {knownRooms.filter(room => room.roomId !== currentRoomId).map(room => (
-            <button
-              key={room.roomId}
-              onClick={() => setSelectedRoomFilter(room.roomId)}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
-                selectedRoomFilter === room.roomId
-                  ? 'bg-teal-500 text-white border-teal-400 shadow-md'
-                  : 'bg-[var(--color-surface-well)] text-[var(--color-text-medium)] border-slate-700/50 hover:border-slate-500'
-              }`}
-            >
-              🏰 {room.roomName}
-            </button>
-          ))}
-        </div>
       </header>
 
       <main className="flex-grow">
@@ -232,6 +155,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 max-w-screen-2xl mx-auto">
             {characterEntries.map(([id, character]) => {
               const syncState = syncingCharacters?.[id];
+              const isBroadcastingToGM = id === activeBoardCharacterId;
               return (
                 <CharacterCard
                   key={id}
@@ -243,7 +167,8 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
                   onOpenStandalone={() => onOpenStandalone(id)}
                   onSync={onSyncCharacter ? () => onSyncCharacter(id) : undefined}
                   onClearCache={onClearLocalCache ? () => onClearLocalCache(id) : undefined}
-                  onOpenRoomBinding={() => setBindingModalCharId(id)}
+                  isBroadcastingToGM={isBroadcastingToGM}
+                  onSelectBroadcastGM={onSelectActiveBoardCharacter ? () => onSelectActiveBoardCharacter(id) : undefined}
                   isSyncing={!!syncState}
                   pendingImagesCount={syncState?.pendingImages.length || 0}
                   currentUserId={currentUserId}
