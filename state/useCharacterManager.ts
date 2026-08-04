@@ -400,11 +400,19 @@ export const useCharacterManager = (): CharacterManager => {
             const localData = loadFromLocalStorage();
             const cachedVersions = (payload as any).cachedVersions || {};
             const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
-            
+            const isGM = isOwlbear() && typeof OBR !== 'undefined' ? ((window as any).__userRole === 'GM') : false;
+            const activeBroadcastId = p2pRoomBridge.getActiveBoardCharacterId();
+
             for (const [id, charData] of Object.entries(localData)) {
               if (!charData || !(charData as any).character) continue;
               const fullChar = unminifyCharacter((charData as any).character);
               if (!isCharacterOwner(fullChar, myId)) continue;
+
+              // Only broadcast to GM if GM Broadcast toggle is ON for this character
+              if (!isGM && activeBroadcastId !== id) {
+                console.log(`[DND Sheet] Skipping GM broadcast for character ${id} (GM Broadcast toggle is OFF).`);
+                continue;
+              }
 
               const requesterVersion = cachedVersions[id];
                 
