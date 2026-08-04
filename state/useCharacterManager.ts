@@ -1055,6 +1055,7 @@ export const useCharacterManager = (): CharacterManager => {
           delete newCache[payload.charId];
           lastSerializedRef.current = newCache;
         }
+        deleteCharacterApi(payload.charId).catch(console.error);
         return;
       }
 
@@ -1169,28 +1170,21 @@ export const useCharacterManager = (): CharacterManager => {
         }
         setSyncStatus('connected_tab');
       } else if (payload.type === 'STORAGE_EVENT_SYNC') {
-        storageRepository.loadCharacters().then(data => {
-          if (data) {
-            const parsedState = parseCharactersData(data);
-            dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
-            if (isOwlbear()) {
-              for (const [id, entry] of Object.entries(parsedState)) {
-                saveCharacterApi(id, entry);
-              }
-            }
-          }
-        }).catch(console.error);
+        try {
+          const data = loadFromLocalStorage();
+          const parsedState = parseCharactersData(data);
+          dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
+        } catch (e) {}
       }
     });
 
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'dnd-characters' || e.key === null) {
-        storageRepository.loadCharacters().then(data => {
-          if (data) {
-            const parsedState = parseCharactersData(data);
-            dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
-          }
-        }).catch(console.error);
+      if (e.key === 'dnd-characters' || e.key === null || e.key === 'com.antigravity.dnd-sheet/bridge_signal') {
+        try {
+          const data = loadFromLocalStorage();
+          const parsedState = parseCharactersData(data);
+          dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
+        } catch (err) {}
       }
     };
     if (typeof window !== 'undefined') {

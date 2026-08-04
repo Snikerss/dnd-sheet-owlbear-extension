@@ -870,15 +870,9 @@ export async function deleteCharacterApi(id: string): Promise<void> {
   delete inMemoryCharactersCache[id];
 
   // 2. Delete from LocalStorage
-  const localData = { ...inMemoryCharactersCache };
-  const lightLocalData: Record<string, any> = {};
-  for (const [charId, entry] of Object.entries(localData)) {
-    lightLocalData[charId] = {
-      ...entry,
-      imageCache: []
-    };
-  }
-  saveToLocalStorage(lightLocalData);
+  const localData = loadFromLocalStorage();
+  delete localData[id];
+  saveToLocalStorage(localData);
 
   // 3. Delete from IndexedDB
   try {
@@ -891,7 +885,7 @@ export async function deleteCharacterApi(id: string): Promise<void> {
   delete lastSentImagesCache[id];
 
   if (!isOwlbear()) {
-    await saveToLocalDevApi(lightLocalData);
+    await saveToLocalDevApi(localData);
   }
 }
 
