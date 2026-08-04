@@ -45,7 +45,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
       badgeColor = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
       dotColor = 'bg-emerald-400';
       icon = '🟢';
-      label = inOwlbear ? 'Owlbear VTT' : 'Облачный Шлюз Supabase';
+      label = inOwlbear ? 'Owlbear VTT' : 'Прямой P2P (WebRTC)';
       break;
     case 'disconnected':
       badgeColor = 'bg-rose-500/20 text-rose-300 border-rose-500/40 cursor-pointer hover:bg-rose-500/30 transition-colors';
