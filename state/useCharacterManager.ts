@@ -1066,8 +1066,6 @@ export const useCharacterManager = (): CharacterManager => {
           setSyncStatus('connected_tab');
         }
       } else if (payload.type === 'VTT_FRAME_READY') {
-        console.log('[DND Sheet] Bridge Sync: Received VTT_FRAME_READY broadcast.');
-
         const state = charactersStateRef.current;
         const localData = loadFromLocalStorage();
         const combined = { ...localData, ...state };
@@ -1089,7 +1087,6 @@ export const useCharacterManager = (): CharacterManager => {
         }
         setSyncStatus('connected_tab');
       } else if (payload.type === 'HANDSHAKE_PING') {
-        console.log('[DND Sheet] Bridge Sync: Received HANDSHAKE_PING for character:', payload.charId);
         if (payload.roomId) {
           registerCurrentRoom(payload.roomId, payload.roomName || 'Доска Owlbear');
         }
@@ -1150,7 +1147,6 @@ export const useCharacterManager = (): CharacterManager => {
           setSyncStatus('connected_tab');
         }
       } else if (payload.type === 'HANDSHAKE_PONG') {
-        console.log('[DND Sheet] Bridge Sync: Received HANDSHAKE_PONG for character:', payload.charId);
         if (Array.isArray(payload.knownRooms)) {
           saveKnownRooms(payload.knownRooms);
         }
