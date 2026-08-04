@@ -135,6 +135,14 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
         {/* Action Buttons Toolbar */}
         <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
           <button
+            onClick={() => onOpenStandalone('')}
+            className="bg-gradient-to-r from-emerald-700/70 to-teal-700/70 text-emerald-100 border border-emerald-500/40 font-bold py-2 px-5 rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all shadow-md active:scale-95 text-xs sm:text-sm flex items-center gap-2"
+            title="Открыть Хранилище в отдельной вкладке браузера"
+          >
+            <span>🚀</span> Открыть в новой вкладке
+          </button>
+
+          <button
             onClick={() => fileInputRef.current?.click()}
             className="bg-[var(--color-surface-raised)] text-[var(--color-text-base)] font-bold py-2 px-5 rounded-xl hover:bg-[var(--color-surface-raised-hover)] transition-all shadow-md active:scale-95 text-xs sm:text-sm flex items-center gap-2"
           >
@@ -194,16 +202,24 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
             <svg className="w-24 h-24 text-[var(--color-text-subtle)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
-            <h2 className="text-2xl font-bold mt-4">Нет персонажей в выбранной категории</h2>
+            <h2 className="text-2xl font-bold mt-4">В Хранилище пока нет персонажей</h2>
             <p className="text-[var(--color-text-medium)] mt-2">
-              Измените фильтр досок или создайте нового персонажа.
+              Создайте нового персонажа или откройте отдельную вкладку браузера для управления.
             </p>
-            <button
-              onClick={onCreateCharacter}
-              className="mt-6 bg-[var(--color-accent-primary-active)] text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-[var(--color-accent-primary-dark)] transition-all shadow-lg active:scale-95"
-            >
-              Создать персонажа
-            </button>
+            <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
+              <button
+                onClick={onCreateCharacter}
+                className="bg-[var(--color-accent-primary-active)] text-white font-bold py-3 px-6 rounded-xl text-sm sm:text-base hover:bg-[var(--color-accent-primary-dark)] transition-all shadow-lg active:scale-95 flex items-center gap-2"
+              >
+                <span>➕</span> Создать персонажа
+              </button>
+              <button
+                onClick={() => onOpenStandalone('')}
+                className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold py-3 px-6 rounded-xl text-sm sm:text-base hover:from-emerald-500 hover:to-teal-500 transition-all shadow-lg active:scale-95 flex items-center gap-2 border border-emerald-400/30"
+              >
+                <span>🚀</span> Открыть в новой вкладке
+              </button>
+            </div>
           </div>
         )}
       </main>
