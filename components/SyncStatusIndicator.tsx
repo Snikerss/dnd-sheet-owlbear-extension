@@ -303,13 +303,28 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
 
             {/* Actions */}
             <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
+              {inOwlbear ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onReconnect) onReconnect();
+                    setShowModal(false);
+                  }}
+                  className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+                >
+                  <span>🚀</span> Открыть / Переподключить внешнее окно листа
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleManualReconnect}
+                  className="flex-1 py-2 px-4 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+                >
+                  <span>🔄</span> Переподключить мост
+                </button>
+              )}
               <button
-                onClick={handleManualReconnect}
-                className="flex-1 py-2 px-4 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
-              >
-                <span>🔄</span> Переподключить мост
-              </button>
-              <button
+                type="button"
                 onClick={() => setShowModal(false)}
                 className="py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition-colors"
               >
