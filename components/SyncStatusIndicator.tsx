@@ -61,6 +61,38 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
       break;
   }
 
+  const copyToClipboard = async (text: string, btnElement: HTMLButtonElement, successText: string, originalText: string) => {
+    let copied = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+      }
+    } catch (e) {}
+
+    if (!copied) {
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        copied = document.execCommand('copy');
+        document.body.removeChild(textArea);
+      } catch (err) {}
+    }
+
+    if (copied) {
+      btnElement.innerText = successText;
+      setTimeout(() => { btnElement.innerText = originalText; }, 2000);
+    } else {
+      prompt('Скопируйте ID комнаты вручную:', text);
+    }
+  };
+
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowModal(true);
@@ -127,11 +159,8 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (navigator.clipboard && currentRoomId) {
-                        navigator.clipboard.writeText(currentRoomId);
-                        const btn = e.currentTarget;
-                        btn.innerText = '✓ Скопировано';
-                        setTimeout(() => { btn.innerText = '📋 Скопировать ID'; }, 2000);
+                      if (currentRoomId) {
+                        copyToClipboard(currentRoomId, e.currentTarget, '✓ Скопировано', '📋 Скопировать ID');
                       }
                     }}
                     className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-[10px] font-semibold rounded-lg transition-all"
@@ -142,12 +171,9 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (navigator.clipboard && currentRoomId) {
+                      if (currentRoomId) {
                         const joinUrl = `${window.location.origin}${window.location.pathname}?roomId=${currentRoomId}`;
-                        navigator.clipboard.writeText(joinUrl);
-                        const btn = e.currentTarget;
-                        btn.innerText = '✓ Ссылка скопирована';
-                        setTimeout(() => { btn.innerText = '🔗 Скопировать ссылку'; }, 2000);
+                        copyToClipboard(joinUrl, e.currentTarget, '✓ Ссылка скопирована', '🔗 Скопировать ссылку');
                       }
                     }}
                     className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 text-[10px] font-semibold rounded-lg transition-all"
