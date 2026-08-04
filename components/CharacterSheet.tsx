@@ -931,6 +931,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                     onDeleteCharacter={onDeleteCharacter}
                     onOpenStandalone={onOpenStandalone}
                     isGM={isGM}
+                    isReadOnly={isReadOnly}
                 />
 
                 {/* Top Dashboard Grid (Horizontal Panel) */}

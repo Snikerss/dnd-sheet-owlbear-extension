@@ -19,6 +19,7 @@ interface CharacterHeaderProps {
   onDeleteCharacter?: () => void;
   onOpenStandalone?: () => void;
   isGM?: boolean;
+  isReadOnly?: boolean;
 }
 
 const EditableField: React.FC<{ value: string; onChange: (newValue: string) => void; label: string; placeholder: string; isReadOnly?: boolean }> = ({ value, onChange, label, placeholder, isReadOnly = false }) => (
@@ -145,13 +146,15 @@ export const CharacterHeader: React.FC<CharacterHeaderProps> = React.memo(({
   onDeleteCharacter,
   onOpenStandalone,
   isGM = true,
+  isReadOnly: isReadOnlyProp,
 }) => {
   const { character, dispatch } = useCharacter();
 
-  const myPlayerId = isOwlbear() ? OBR.player.id : null;
+  const myPlayerId = isOwlbear() ? OBR.player?.id : null;
   const isReadOnly = useMemo(() => {
+    if (isReadOnlyProp !== undefined) return isReadOnlyProp;
     return !!(character.ownerId && myPlayerId && character.ownerId !== myPlayerId);
-  }, [character.ownerId, myPlayerId]);
+  }, [isReadOnlyProp, character.ownerId, myPlayerId]);
 
   return (
     <div className="bg-[var(--color-surface-opaque)] p-4 rounded-xl shadow-lg border border-[var(--color-border)] flex flex-col md:flex-row items-start gap-4 relative">
