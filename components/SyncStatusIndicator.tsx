@@ -107,7 +107,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
             </div>
 
             {/* Connection Status Overview */}
-            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 flex flex-col gap-2">
+            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 flex flex-col gap-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-slate-400">Текущий статус сети:</span>
                 <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${badgeColor}`}>
@@ -116,10 +116,45 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
               </div>
               <div className="flex items-center justify-between text-xs text-slate-300">
                 <span className="text-slate-400">Комната VTT:</span>
-                <span className="font-mono text-amber-300">{currentRoomName}</span>
+                <span className="font-mono text-amber-300 font-bold">{currentRoomName}</span>
               </div>
-              <div className="text-[11px] text-slate-500 font-mono truncate" title={currentRoomId}>
-                ID: {currentRoomId}
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/80">
+                <div className="text-[11px] text-slate-400 font-mono truncate max-w-[220px]" title={currentRoomId}>
+                  ID: {currentRoomId}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (navigator.clipboard && currentRoomId) {
+                        navigator.clipboard.writeText(currentRoomId);
+                        const btn = e.currentTarget;
+                        btn.innerText = '✓ Скопировано';
+                        setTimeout(() => { btn.innerText = '📋 Скопировать ID'; }, 2000);
+                      }
+                    }}
+                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-[10px] font-semibold rounded-lg transition-all"
+                  >
+                    📋 Скопировать ID
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (navigator.clipboard && currentRoomId) {
+                        const joinUrl = `${window.location.origin}${window.location.pathname}?roomId=${currentRoomId}`;
+                        navigator.clipboard.writeText(joinUrl);
+                        const btn = e.currentTarget;
+                        btn.innerText = '✓ Ссылка скопирована';
+                        setTimeout(() => { btn.innerText = '🔗 Скопировать ссылку'; }, 2000);
+                      }
+                    }}
+                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 text-[10px] font-semibold rounded-lg transition-all"
+                  >
+                    🔗 Скопировать ссылку
+                  </button>
+                </div>
               </div>
             </div>
 
