@@ -264,19 +264,21 @@ const AppContent: React.FC = () => {
 
   const handleSelectCharacter = useCallback((id: string) => {
     const character = characters[id]?.history.present;
-    const currentId = userId || (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_id') : null);
+    const currentId = userId || (isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_id') : ''));
     const currentName = playerName || 'Игрок';
 
-    if (character && !character.ownerId && currentId && userRole !== 'GM') {
-      console.log(`[DND Sheet] Assigning ownership of character "${character.name}" to player:`, currentId);
-      updateCharacter(id, { 
-        type: 'SET_FIELD', 
-        payload: { field: 'ownerId', value: currentId } 
-      });
-      updateCharacter(id, {
-        type: 'SET_FIELD',
-        payload: { field: 'ownerName', value: currentName }
-      });
+    if (character && currentId && userRole !== 'GM') {
+      if (!character.ownerId || (character.ownerName === currentName && character.ownerId !== currentId)) {
+        console.log(`[DND Sheet] Assigning/updating ownership of character "${character.name}" to player:`, currentId);
+        updateCharacter(id, { 
+          type: 'SET_FIELD', 
+          payload: { field: 'ownerId', value: currentId } 
+        });
+        updateCharacter(id, {
+          type: 'SET_FIELD',
+          payload: { field: 'ownerName', value: currentName }
+        });
+      }
     }
     setActiveCharacterId(id);
   }, [characters, updateCharacter, playerName, userRole, userId]);

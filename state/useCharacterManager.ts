@@ -19,9 +19,12 @@ const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/v2/character/';
 const isCharacterOwner = (character: any, currentUserId?: string): boolean => {
   if (!character) return false;
   const myId = currentUserId || (isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '');
+  const myName = typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_name') : '';
   if (!character.ownerId) return true; // Legacy or unclaimed character
   if (!myId) return true;
-  return character.ownerId === myId;
+  if (character.ownerId === myId) return true;
+  if (myName && character.ownerName === myName) return true;
+  return false;
 };
 
 // Helper to safely parse character data structure from raw metadata
