@@ -94,7 +94,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       const setupListener = () => {
         console.log('[DND Sheet] Subscribing to broadcast channel:', ROLL_CHANNEL);
-        unsub = OBR.broadcast.onMessage(ROLL_CHANNEL, (event) => {
+        unsub = OBR.broadcast.onMessage(ROLL_CHANNEL, async (event) => {
           console.log('[DND Sheet] Received broadcast message:', event);
           const payload = event.data as {
             playerName: string;
@@ -132,8 +132,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             const popupWidth = 260;
             const popupHeight = 260;
             
-            // Calculate Top-Center positioning dynamically based on current viewport
-            const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1024;
+            // Calculate Top-Center positioning dynamically based on full Owlbear room viewport width
+            let viewportWidth = 1024;
+            try {
+              if (typeof OBR !== 'undefined' && OBR.viewport) {
+                viewportWidth = (await OBR.viewport.getWidth()) || window.innerWidth || 1024;
+              }
+            } catch (e) {
+              viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1024;
+            }
+
             const popoverX = Math.max(10, Math.floor((viewportWidth - popupWidth) / 2));
             const popoverY = 20; // 20px from top of screen
 
