@@ -50,15 +50,19 @@ class LocalBridgeService {
         }
       });
 
-      // P2P Room Network listener
-      p2pRoomBridge.subscribe((data) => {
-        if (data && typeof data === 'object') {
-          const msgKey = data.msgId ? `p2p-${data.msgId}` : `p2p-${data.type}-${data.sentAt}`;
-          if (!this.isDuplicateMessage(msgKey, 5000)) {
-            this.handleMessage(new MessageEvent('message', { data }));
-          }
+      // P2P Room Network listener (deferred to next tick so p2pRoomBridge instance is fully initialized)
+      setTimeout(() => {
+        if (typeof p2pRoomBridge !== 'undefined' && p2pRoomBridge?.subscribe) {
+          p2pRoomBridge.subscribe((data) => {
+            if (data && typeof data === 'object') {
+              const msgKey = data.msgId ? `p2p-${data.msgId}` : `p2p-${data.type}-${data.sentAt}`;
+              if (!this.isDuplicateMessage(msgKey, 5000)) {
+                this.handleMessage(new MessageEvent('message', { data }));
+              }
+            }
+          });
         }
-      });
+      }, 0);
     }
   }
 
@@ -200,10 +204,11 @@ class LocalBridgeService {
       this.trackStandaloneCharacter(event.data.charId);
     }
 
-    // Автоматическая регистрация отправителя, если это дочернее окно
     if (event.source && event.source !== window && 'postMessage' in event.source) {
       this.registerChildWindow(event.source as Window);
-      p2pRoomBridge.registerWindow(event.source as Window);
+      if (typeof p2pRoomBridge !== 'undefined' && p2pRoomBridge?.registerWindow) {
+        p2pRoomBridge.registerWindow(event.source as Window);
+      }
     }
 
     this.listeners.forEach((listener) => {
