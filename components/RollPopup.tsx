@@ -12,14 +12,14 @@ export const RollPopup: React.FC = () => {
   useEffect(() => {
     // Automatically close the popover after 5.5 seconds
     const timer = setTimeout(() => {
-      OBR.popover.close('com.antigravity.dnd-sheet/roll-popup');
+      OBR.popover.close('com.antigravity.dnd-sheet/roll-toast-popover');
     }, 5500);
 
     return () => clearTimeout(timer);
   }, []);
 
   const handleClose = () => {
-    OBR.popover.close('com.antigravity.dnd-sheet/roll-popup');
+    OBR.popover.close('com.antigravity.dnd-sheet/roll-toast-popover');
   };
 
   return (

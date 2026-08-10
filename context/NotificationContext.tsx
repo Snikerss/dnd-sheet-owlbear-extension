@@ -126,17 +126,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
               `&total=${result.total}` +
               `&rollDetails=${encodeURIComponent(`${rollDetails} ${modSign}`)}`;
 
-            const popupWidth = 240;
-            const popupHeight = 280;
+            const popupWidth = 260;
+            const popupHeight = 260;
             
-            // Calculate bottom-right positioning dynamically based on current viewport
+            // Calculate Top-Center positioning dynamically based on current viewport
             const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1024;
-            const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 768;
-
-            const marginRight = 20;
-            const marginBottom = 20;
-            const popoverX = Math.max(10, viewportWidth - popupWidth - marginRight);
-            const popoverY = Math.max(10, viewportHeight - popupHeight - marginBottom);
+            const popoverX = Math.max(10, Math.floor((viewportWidth - popupWidth) / 2));
+            const popoverY = 20; // 20px from top of screen
 
             OBR.popover.open({
               id: 'com.antigravity.dnd-sheet/roll-toast-popover',
@@ -145,8 +141,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
               width: popupWidth,
               anchorPosition: { left: popoverX, top: popoverY },
               anchorReference: 'POSITION',
-              anchorOrigin: { horizontal: 'LEFT', vertical: 'TOP' },
-              transformOrigin: { horizontal: 'LEFT', vertical: 'TOP' },
+              anchorOrigin: { horizontal: 'CENTER', vertical: 'TOP' },
+              transformOrigin: { horizontal: 'CENTER', vertical: 'TOP' },
               disableClickAway: true
             }).catch(err => {
               console.warn('[DND Sheet] Popover failed, falling back to notification toast:', err);
