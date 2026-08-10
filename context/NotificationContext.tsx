@@ -87,93 +87,106 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Listen for rolls from other players and our own broadcast
   useEffect(() => {
     if (isOwlbear()) {
-      console.log('[DND Sheet] Subscribing to broadcast channel:', ROLL_CHANNEL);
-      const unsubscribe = OBR.broadcast.onMessage(ROLL_CHANNEL, (event) => {
-        console.log('[DND Sheet] Received broadcast message:', event);
-        const payload = event.data as {
-          playerName: string;
-          characterName: string;
-          result: RollResult;
-        };
-
-        if (payload && payload.playerName && payload.result) {
-          const { result, playerName, characterName } = payload;
-          const modSign = result.modifier >= 0 ? `+${result.modifier}` : `${result.modifier}`;
-          
-          let rollDetails = '';
-          if ((result.rollType === RollType.Advantage || result.rollType === RollType.Disadvantage) && result.roll2 !== undefined) {
-            const typeStr = result.rollType === RollType.Advantage ? 'Преимущество' : 'Помеха';
-            rollDetails = `${typeStr}: [${result.roll1}, ${result.roll2}] -> выбор ${result.chosenRoll}`;
-          } else {
-            rollDetails = `кубик: ${result.chosenRoll}`;
-          }
-
-          if (result.bonusDiceRoll) {
-            rollDetails += ` + бонус: ${result.bonusDiceRoll}`;
-          }
-
-          // Open a beautiful custom roll popup window in the bottom-right corner of the VTT
-          // Get the base path dynamically from the current window location to support subdirectory hosting
-          const pathName = window.location.pathname;
-          const basePath = pathName.substring(0, pathName.lastIndexOf('/'));
-          const popoverUrl = window.location.origin + basePath + 
-            `/index.html?mode=roll-popup` +
-            `&playerName=${encodeURIComponent(playerName)}` +
-            `&characterName=${encodeURIComponent(characterName)}` +
-            `&rollName=${encodeURIComponent(result.name)}` +
-            `&total=${result.total}` +
-            `&rollDetails=${encodeURIComponent(`${rollDetails} ${modSign}`)}`;
-
-          const popupWidth = 240;
-          const popupHeight = 280;
-          
-          // Calculate bottom-right positioning dynamically based on current viewport
-          const leftPos = Math.max(10, window.innerWidth - popupWidth - 30);
-          const topPos = Math.max(10, window.innerHeight - popupHeight - 30);
-
-          console.log('[DND Sheet] Launching custom roll popup at:', { leftPos, topPos });
-          
-          OBR.popover.open({
-            id: 'com.antigravity.dnd-sheet/roll-popup',
-            url: popoverUrl,
-            width: popupWidth,
-            height: popupHeight,
-            anchorPosition: { left: leftPos, top: topPos },
-            disableClickAway: true,
-          }).catch((err) => {
-            console.error('[DND Sheet] Failed to open custom roll popup:', err);
-          });
-
-          // Also show React toast within the character sheet as a backup
-          const toastMessageText = `${playerName} (${characterName}) совершил бросок:\n**${result.name}**\n🎲 **${result.total}** (${rollDetails} ${modSign})`;
-          addNotification(toastMessageText, 'info');
-
-          // Broadcast notification to standalone tab
-          const notifPayload = {
-            type: 'SHOW_NOTIFICATION',
-            message: toastMessageText,
-            notificationType: 'info',
-            senderId: SESSION_CLIENT_ID,
-            msgId: Math.random().toString(36).substring(2) + Date.now().toString(36)
+      let unsub: (() => void) | null = null;
+      OBR.onReady(() => {
+        console.log('[DND Sheet] Subscribing to broadcast channel:', ROLL_CHANNEL);
+        unsub = OBR.broadcast.onMessage(ROLL_CHANNEL, (event) => {
+          console.log('[DND Sheet] Received broadcast message:', event);
+          const payload = event.data as {
+            playerName: string;
+            characterName: string;
+            result: RollResult;
           };
-          try {
-            const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
-            channel.postMessage(notifPayload);
-            channel.close();
-          } catch (e) {}
 
-          if (typeof window !== 'undefined') {
-            const opened = (window as any).__dndOpenedWindows || [];
-            opened.forEach((win: any) => {
-              if (win && !win.closed) {
-                win.postMessage(notifPayload, '*');
-              }
+          if (payload && payload.playerName && payload.result) {
+            const { result, playerName, characterName } = payload;
+            const modSign = result.modifier >= 0 ? `+${result.modifier}` : `${result.modifier}`;
+            
+            let rollDetails = '';
+            if ((result.rollType === RollType.Advantage || result.rollType === RollType.Disadvantage) && result.roll2 !== undefined) {
+              const typeStr = result.rollType === RollType.Advantage ? 'Преимущество' : 'Помеха';
+              rollDetails = `${typeStr}: [${result.roll1}, ${result.roll2}] -> выбор ${result.chosenRoll}`;
+            } else {
+              rollDetails = `кубик: ${result.chosenRoll}`;
+            }
+
+            if (result.bonusDiceRoll) {
+              rollDetails += ` + бонус: ${result.bonusDiceRoll}`;
+            }
+
+            // Open a beautiful custom roll popup window in the bottom-right corner of the VTT
+            // Get the base path dynamically from the current window location to support subdirectory hosting
+            const pathName = window.location.pathname;
+            const basePath = pathName.substring(0, pathName.lastIndexOf('/'));
+            const popoverUrl = window.location.origin + basePath + 
+              `/index.html?mode=roll-popup` +
+              `&playerName=${encodeURIComponent(playerName)}` +
+              `&characterName=${encodeURIComponent(characterName)}` +
+              `&rollName=${encodeURIComponent(result.name)}` +
+              `&total=${result.total}` +
+              `&rollDetails=${encodeURIComponent(`${rollDetails} ${modSign}`)}`;
+
+            const popupWidth = 240;
+            const popupHeight = 280;
+            
+            // Calculate bottom-right positioning dynamically based on current viewport
+            const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1024;
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 768;
+
+            const marginRight = 20;
+            const marginBottom = 20;
+            const popoverX = Math.max(10, viewportWidth - popupWidth - marginRight);
+            const popoverY = Math.max(10, viewportHeight - popupHeight - marginBottom);
+
+            OBR.popover.open({
+              id: 'com.antigravity.dnd-sheet/roll-toast-popover',
+              url: popoverUrl,
+              height: popupHeight,
+              width: popupWidth,
+              anchorPosition: { left: popoverX, top: popoverY },
+              anchorReference: 'POSITION',
+              anchorOrigin: { horizontal: 'LEFT', vertical: 'TOP' },
+              transformOrigin: { horizontal: 'LEFT', vertical: 'TOP' },
+              disableClickAway: true
+            }).catch(err => {
+              console.warn('[DND Sheet] Popover failed, falling back to notification toast:', err);
+              addNotification(`${playerName} (${characterName}): ${result.name} = ${result.total} (${rollDetails} ${modSign})`, 'info');
             });
+
+            // Auto-close popover after 4.5 seconds
+            setTimeout(() => {
+              OBR.popover.close('com.antigravity.dnd-sheet/roll-toast-popover').catch(() => {});
+            }, 4500);
+
+            // Send notification over BroadcastChannel to any open standalone tabs
+            const notifPayload = {
+              type: 'SHOW_NOTIFICATION',
+              message: `${playerName} (${characterName}): ${result.name} = ${result.total} (${rollDetails} ${modSign})`,
+              notificationType: 'info',
+              senderId: SESSION_CLIENT_ID,
+              msgId: Math.random().toString(36).substring(2) + Date.now().toString(36)
+            };
+            try {
+              const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
+              channel.postMessage(notifPayload);
+              channel.close();
+            } catch (e) {}
+
+            if (typeof window !== 'undefined') {
+              const opened = (window as any).__dndOpenedWindows || [];
+              opened.forEach((win: any) => {
+                if (win && !win.closed) {
+                  win.postMessage(notifPayload, '*');
+                }
+              });
+            }
           }
-        }
+        });
       });
 
-      return unsubscribe;
+      return () => {
+        if (unsub) unsub();
+      };
     }
   }, [addNotification]);
 

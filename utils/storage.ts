@@ -12,7 +12,7 @@ const inMemoryCharactersCache: Record<string, any> = {};
  * Checks if the application is running inside the Owlbear Rodeo iframe environment.
  */
 export const isOwlbear = (): boolean => {
-  return typeof window !== 'undefined' && window.parent !== window && typeof OBR !== 'undefined' && !!OBR.isReady;
+  return typeof window !== 'undefined' && window.parent !== window && typeof OBR !== 'undefined';
 };
 
 const LEGACY_METADATA_KEY = 'com.antigravity.dnd-sheet/characters';

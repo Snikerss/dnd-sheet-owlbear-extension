@@ -384,356 +384,240 @@ export const useCharacterManager = (): CharacterManager => {
   useEffect(() => {
     if (isOwlbear()) {
       const SYNC_CHANNEL = 'com.antigravity.dnd-sheet/sync';
-      
-      const handleMessage = async (event: any) => {
-        const payload = event.data as {
-          type: string;
-          id?: string;
-          data?: any;
-        };
-        
-        if (!payload) return;
-        
-        if (payload.type === 'REQUEST_FULL_CHARACTERS') {
-          // Someone requested full sheets (e.g. GM joined). Broadcast all our owned sheets!
-          try {
-            const localData = loadFromLocalStorage();
-            const cachedVersions = (payload as any).cachedVersions || {};
-            const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
-            const isGM = isOwlbear() && typeof OBR !== 'undefined' ? ((window as any).__userRole === 'GM') : false;
-            const activeBroadcastId = p2pRoomBridge.getActiveBoardCharacterId();
+      let unsub: (() => void) | null = null;
 
-            for (const [id, charData] of Object.entries(localData)) {
-              if (!charData || !(charData as any).character) continue;
-              const fullChar = unminifyCharacter((charData as any).character);
-              if (!isCharacterOwner(fullChar, myId)) continue;
-
-              // Only broadcast to GM if GM Broadcast toggle is ON for this character
-              if (!isGM && activeBroadcastId !== id) {
-                console.log(`[DND Sheet] Skipping GM broadcast for character ${id} (GM Broadcast toggle is OFF).`);
-                continue;
-              }
-
-              const requesterVersion = cachedVersions[id];
-                
-                if (requesterVersion && typeof requesterVersion === 'object') {
-                  const currentTextHash = getTextChecksum(charData);
-                  const currentImgHashes = getImageChecksums(charData);
-                  
-                  const textMatch = requesterVersion.textChecksum === currentTextHash;
-                  
-                  // Find which images the requester needs
-                  const requesterImgHashes = requesterVersion.imageChecksums || {};
-                  const missingOrChangedImages: string[] = [];
-                  for (const [imgId, imgHash] of Object.entries(currentImgHashes)) {
-                    if (requesterImgHashes[imgId] !== imgHash) {
-                      missingOrChangedImages.push(imgId);
-                    }
-                  }
-                  
-                  if (textMatch && missingOrChangedImages.length === 0) {
-                    console.log(`[DND Sheet] Requester already has up-to-date character ${id}. Skipping sync.`);
-                    continue;
-                  }
-                  
-                  console.log(`[DND Sheet] Checksum mismatch for character ${id}: Text match: ${textMatch} (Requester text: "${requesterVersion.textChecksum}", Current: "${currentTextHash}"). Requester needs ${missingOrChangedImages.length} images: ${JSON.stringify(missingOrChangedImages)}. Syncing...`);
-                  
-                  // Broadcast character sheet with only the images the requester needs
-                  await broadcastCharacterSync(id, charData, missingOrChangedImages);
-                } else {
-                  // Legacy or clean client: send everything!
-                  console.log(`[DND Sheet] Requester has no version info for ${id}. Syncing everything.`);
-                  await broadcastCharacterSync(id, charData, true);
-                }
-              }
-          } catch (err) {
-            console.error('[DND Sheet] Failed to respond to sheet request:', err);
-          }
-        } else if (payload.type === 'CHARACTER_CHUNK_SYNC' && payload.id && (payload as any).chunkData !== undefined) {
-          const charId = payload.id;
-          const { chunkIndex, totalChunks, chunkData } = payload as any;
-          if ((payload as any).senderClientId === SESSION_CLIENT_ID) {
-            return;
-          }
+      OBR.onReady(() => {
+        const handleMessage = async (event: any) => {
+          const payload = event.data as {
+            type: string;
+            id?: string;
+            data?: any;
+          };
           
-          const key = `char-sheet/${charId}`;
-          if (!incomingChunksRef.current[key]) {
-            incomingChunksRef.current[key] = {
-              chunks: Array(totalChunks).fill(''),
-              total: totalChunks
-            };
-          }
+          if (!payload) return;
           
-          incomingChunksRef.current[key].chunks[chunkIndex] = chunkData;
-          
-          const isComplete = incomingChunksRef.current[key].chunks.every(c => c !== '');
-          if (isComplete) {
-            const assembledVal = incomingChunksRef.current[key].chunks.join('');
-            delete incomingChunksRef.current[key];
-            
+          if (payload.type === 'REQUEST_FULL_CHARACTERS') {
+            // Someone requested full sheets (e.g. GM joined). Broadcast all our owned sheets!
             try {
-              const incomingData = JSON.parse(assembledVal);
-              const rawChar = incomingData.character ? unminifyCharacter(incomingData.character) : incomingData;
-              const isRawValid = isCharacter(rawChar);
-              const fullChar = rawChar;
-              const charName = fullChar?.name || incomingData.name || charId;
-              const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
-              const isGM = isOwlbear() && typeof OBR !== 'undefined' ? ((await OBR.player.getRole()) === 'GM') : true;
-
-              const existingEntry = charactersStateRef.current[charId];
-              const existingChar = existingEntry?.history.present;
-              const targetOwnerId = existingChar?.ownerId || fullChar?.ownerId;
-              const senderPlayerId = (incomingData as any).senderPlayerId || (payload as any).senderPlayerId || '';
-
-              // RECEIVER-SIDE VERIFICATION FOR UPDATES:
-              // 1. Recipient check: If recipient is a player (not GM) and does not own this character, discard sync.
-              if (!isGM && !isCharacterOwner(targetOwnerId ? { ownerId: targetOwnerId } : fullChar, myId)) {
-                console.log(`[DND Sheet] Discarding incoming P2P sync for character ${charId} (recipient is a player, not GM or owner).`);
-                return;
-              }
-
-              // 2. Sender check: If sender is a player (not GM) and is NOT the owner of this character, reject unauthorized update.
-              if (senderPlayerId && targetOwnerId && senderPlayerId !== targetOwnerId && !isGM) {
-                console.warn(`[DND Sheet] Rejected unauthorized P2P character update for ${charId} from non-owner sender ${senderPlayerId}.`);
-                return;
-              }
-
-              if (!isRawValid && isGM) {
-                console.warn(`[DND Sheet] Received corrupted character sheet structure for "${charName}". Auto-repairing...`);
-                addNotification(`[Синхронизация] Внимание: Полученные сетевые данные персонажа "${charName}" повреждены и были автоматически восстановлены.`, 'warning');
-              }
-
               const localData = loadFromLocalStorage();
-              
-              // Unminify and restore images if we have them cached locally
-              const restoredCloud = restoreLocalData({ [charId]: incomingData }, localData);
-              const parsedState = parseCharactersData(restoredCloud);
-              const entry = parsedState[charId];
-              
-              if (entry) {
-                console.log(`[DND Sheet] Received fully assembled remote character sync via P2P for ${charId}. Merging...`);
-                
-                if (Array.isArray(incomingData.syncImageIds) && incomingData.syncImageIds.length > 0) {
-                  const neededImages = incomingData.syncImageIds.filter((imgId: string) => {
-                    const localImage = entry.imageCache?.get(imgId);
-                    return !localImage || !localImage.startsWith('data:');
-                  });
+              const cachedVersions = (payload as any).cachedVersions || {};
+              const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
+              const isGM = isOwlbear() && typeof OBR !== 'undefined' ? ((window as any).__userRole === 'GM') : false;
+              const activeBroadcastId = p2pRoomBridge.getActiveBoardCharacterId();
 
-                  if (neededImages.length > 0) {
-                    console.log(`[DND Sheet] Waiting for ${neededImages.length} remote images for ${charId}...`);
-                    setSyncingCharacters(prev => ({
-                      ...prev,
-                      [charId]: {
-                        status: 'images',
-                        pendingImages: neededImages
-                      }
-                    }));
-                  }
+              for (const [id, charData] of Object.entries(localData)) {
+                if (!charData || !(charData as any).character) continue;
+                const fullChar = unminifyCharacter((charData as any).character);
+                if (!isCharacterOwner(fullChar, myId)) continue;
+
+                // Only broadcast to GM if GM Broadcast toggle is ON for this character
+                if (!isGM && activeBroadcastId !== id) {
+                  console.log(`[DND Sheet] Skipping GM broadcast for character ${id} (GM Broadcast toggle is OFF).`);
+                  continue;
                 }
 
-                dispatch({
-                  type: 'SYNC_REMOTE_CHARACTER',
-                  payload: {
-                    id: charId,
-                    entry
+                const requesterVersion = cachedVersions[id];
+                  
+                  if (requesterVersion && typeof requesterVersion === 'object') {
+                    const currentTextHash = getTextChecksum(charData);
+                    const currentImgHashes = getImageChecksums(charData);
+                    
+                    const textMatch = requesterVersion.textChecksum === currentTextHash;
+                    
+                    // Find which images the requester needs
+                    const requesterImgHashes = requesterVersion.imageChecksums || {};
+                    const missingOrChangedImages: string[] = [];
+                    for (const [imgId, imgHash] of Object.entries(currentImgHashes)) {
+                      if (requesterImgHashes[imgId] !== imgHash) {
+                        missingOrChangedImages.push(imgId);
+                      }
+                    }
+                    
+                    if (textMatch && missingOrChangedImages.length === 0) {
+                      console.log(`[DND Sheet] Requester already has up-to-date character ${id}. Skipping sync.`);
+                      continue;
+                    }
+                    
+                    console.log(`[DND Sheet] Checksum mismatch for character ${id}: Text match: ${textMatch} (Requester text: "${requesterVersion.textChecksum}", Current: "${currentTextHash}"). Requester needs ${missingOrChangedImages.length} images: ${JSON.stringify(missingOrChangedImages)}. Syncing...`);
+                    
+                    // Broadcast character sheet with only the images the requester needs
+                    await broadcastCharacterSync(id, charData, missingOrChangedImages);
+                  } else {
+                    // Legacy or clean client: send everything!
+                    console.log(`[DND Sheet] Requester has no version info for ${id}. Syncing everything.`);
+                    await broadcastCharacterSync(id, charData, true);
                   }
-                });
-                // Broadcast to local channel for standalone tab syncing
-                const imageCacheArray = entry.imageCache 
-                  ? Array.from(entry.imageCache.entries()) 
-                  : [];
-                const syncPayload = {
-                  type: 'CHARACTER_SYNC',
-                  charId,
-                  entry: {
-                    ...entry,
-                    imageCache: imageCacheArray
-                  },
-                  senderClientId: SESSION_CLIENT_ID,
-                  senderId: SESSION_CLIENT_ID
-                };
-                
-                try {
-                  localBridge.postMessage(syncPayload);
-                } catch (e) {}
+                }
+            } catch (err) {
+              console.error('[DND Sheet] Failed to respond to sheet request:', err);
+            }
+          } else if (payload.type === 'CHARACTER_CHUNK_SYNC' && payload.id && (payload as any).chunkData !== undefined) {
+            const charId = payload.id;
+            const { chunkIndex, totalChunks, chunkData } = payload as any;
+            if ((payload as any).senderClientId === SESSION_CLIENT_ID) {
+              return;
+            }
+            
+            const key = `char-sheet/${charId}`;
+            if (!incomingChunksRef.current[key]) {
+              incomingChunksRef.current[key] = {
+                chunks: Array(totalChunks).fill(''),
+                total: totalChunks
+              };
+            }
+            
+            incomingChunksRef.current[key].chunks[chunkIndex] = chunkData;
+            
+            const isComplete = incomingChunksRef.current[key].chunks.every(c => c !== '');
+            if (isComplete) {
+              const assembledVal = incomingChunksRef.current[key].chunks.join('');
+              delete incomingChunksRef.current[key];
+              
+              try {
+                const incomingData = JSON.parse(assembledVal);
+                const rawChar = incomingData.character ? unminifyCharacter(incomingData.character) : incomingData;
+                const isRawValid = isCharacter(rawChar);
+                const fullChar = rawChar;
+                const charName = fullChar?.name || incomingData.name || charId;
+                const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
+                const isGM = isOwlbear() && typeof OBR !== 'undefined' ? ((await OBR.player.getRole()) === 'GM') : true;
 
-                if (typeof window !== 'undefined') {
-                  const opened = (window as any).__dndOpenedWindows || [];
-                  opened.forEach((win: any) => {
-                    if (win && !win.closed) {
-                      win.postMessage(syncPayload, '*');
+                const existingEntry = charactersStateRef.current[charId];
+                const existingChar = existingEntry?.history.present;
+                const targetOwnerId = existingChar?.ownerId || fullChar?.ownerId;
+                const senderPlayerId = (incomingData as any).senderPlayerId || (payload as any).senderPlayerId || '';
+
+                // RECEIVER-SIDE VERIFICATION FOR UPDATES:
+                // 1. Recipient check: If recipient is a player (not GM) and does not own this character, discard sync.
+                if (!isGM && !isCharacterOwner(targetOwnerId ? { ownerId: targetOwnerId } : fullChar, myId)) {
+                  console.log(`[DND Sheet] Discarding incoming P2P sync for character ${charId} (recipient is a player, not GM or owner).`);
+                  return;
+                }
+
+                // 2. Sender check: If sender is a player (not GM) and is NOT the owner of this character, reject unauthorized update.
+                if (senderPlayerId && targetOwnerId && senderPlayerId !== targetOwnerId && !isGM) {
+                  console.warn(`[DND Sheet] Rejected unauthorized P2P character update for ${charId} from non-owner sender ${senderPlayerId}.`);
+                  return;
+                }
+
+                if (!isRawValid && isGM) {
+                  console.warn(`[DND Sheet] Received corrupted character sheet structure for "${charName}". Auto-repairing...`);
+                  addNotification(`[Синхронизация] Внимание: Полученные сетевые данные персонажа "${charName}" повреждены и были автоматически восстановлены.`, 'warning');
+                }
+
+                const localData = loadFromLocalStorage();
+                
+                // Unminify and restore images if we have them cached locally
+                const restoredCloud = restoreLocalData({ [charId]: incomingData }, localData);
+                const parsedState = parseCharactersData(restoredCloud);
+                const entry = parsedState[charId];
+                
+                if (entry) {
+                  console.log(`[DND Sheet] Received fully assembled remote character sync via P2P for ${charId}. Merging...`);
+                  
+                  if (Array.isArray(incomingData.syncImageIds) && incomingData.syncImageIds.length > 0) {
+                    const neededImages = incomingData.syncImageIds.filter((imgId: string) => {
+                      const localImage = entry.imageCache?.get(imgId);
+                      return !localImage || !localImage.startsWith('data:');
+                    });
+
+                    if (neededImages.length > 0) {
+                      console.log(`[DND Sheet] Waiting for ${neededImages.length} remote images for ${charId}...`);
+                      setSyncingCharacters(prev => ({
+                        ...prev,
+                        [charId]: {
+                          status: 'images',
+                          pendingImages: neededImages
+                        }
+                      }));
+                    }
+                  }
+
+                  dispatch({
+                    type: 'SYNC_REMOTE_CHARACTER',
+                    payload: {
+                      id: charId,
+                      entry
                     }
                   });
-                }
-                // Cache to our local LocalStorage
-                try {
-                  const currentLocal = loadFromLocalStorage();
-                  currentLocal[charId] = restoredCloud[charId];
-                  saveToLocalStorage(currentLocal);
-                } catch (err) {
-                  console.error('Failed to cache remote character to LocalStorage:', err);
-                }
-                // Also update serialization cache to match so we don't trigger save
-                const obrCharData = {
-                  character: entry.history.present,
-                  log: entry.log || [],
-                  history: { past: [], future: [] },
-                  imageCache: entry.imageCache ? Array.from(entry.imageCache.entries()) : []
-                };
-                lastSerializedRef.current[charId] = serializeForCache(obrCharData);
-              } else if (isGM) {
-                addNotification(`[Синхронизация] Ошибка: Не удалось загрузить персонажа (${charName}). Данные не прошли валидацию.`, 'error');
-              }
-            } catch (err) {
-              console.error('[DND Sheet] Failed to parse unified character sync JSON:', err);
-              addNotification(`[Синхронизация] Ошибка: Получены поврежденные данные персонажа (${charId}). Синхронизация отменена.`, 'error');
-            }
-          }
-        } else if (payload.type === 'IMAGE_CHUNK_SYNC' && payload.id && (payload as any).imgId && (payload as any).chunkData !== undefined) {
-          const charId = payload.id;
-          const { imgId, isPortrait, chunkIndex, totalChunks, chunkData } = payload as any;
-          if ((payload as any).senderClientId === SESSION_CLIENT_ID) {
-            return;
-          }
+                  // Broadcast to local channel for standalone tab syncing
+                  const imageCacheArray = entry.imageCache 
+                    ? Array.from(entry.imageCache.entries()) 
+                    : [];
+                  const syncPayload = {
+                    type: 'CHARACTER_SYNC',
+                    charId,
+                    entry: {
+                      ...entry,
+                      imageCache: imageCacheArray
+                    },
+                    senderClientId: SESSION_CLIENT_ID,
+                    senderId: SESSION_CLIENT_ID
+                  };
+                  
+                  try {
+                    localBridge.postMessage(syncPayload);
+                  } catch (e) {}
 
-          const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
-          const isGM = isOwlbear() && typeof OBR !== 'undefined' ? ((await OBR.player.getRole()) === 'GM') : true;
-          const charEntry = charactersStateRef.current[charId];
-          const fullChar = charEntry?.history.present;
-
-          if (!isGM && !isCharacterOwner(fullChar, myId)) {
-            return; // Discard incoming image chunk if recipient is a player and not owner!
-          }
-          
-          const key = `img-${charId}/${imgId}`;
-          console.log(`[DND Sheet] Received chunk ${chunkIndex + 1}/${totalChunks} for image ${imgId} of character ${charId}.`);
-          if (!incomingChunksRef.current[key]) {
-            incomingChunksRef.current[key] = {
-              chunks: Array(totalChunks).fill(''),
-              total: totalChunks
-            };
-          }
-          
-          incomingChunksRef.current[key].chunks[chunkIndex] = chunkData;
-          
-          const isComplete = incomingChunksRef.current[key].chunks.every(c => c !== '');
-          if (isComplete) {
-            const assembledVal = incomingChunksRef.current[key].chunks.join('');
-            delete incomingChunksRef.current[key];
-
-            setSyncingCharacters(prev => {
-              const current = prev[charId];
-              if (!current) return prev;
-              const pending = current.pendingImages.filter((id: string) => id !== imgId);
-              if (pending.length === 0) {
-                console.log(`[DND Sheet] All remote images for character ${charId} received successfully!`);
-                const next = { ...prev };
-                delete next[charId];
-                return next;
-              }
-              return {
-                ...prev,
-                [charId]: {
-                  ...current,
-                  pendingImages: pending
-                }
-              };
-            });
-            
-            const saveImageToDbAndCache = async (imgIdKey: string, imgVal: string) => {
-              try {
-                const currentLocal = loadFromLocalStorage();
-                if (currentLocal[charId]) {
-                  const imageCacheList = Array.isArray(currentLocal[charId].imageCache) ? currentLocal[charId].imageCache : [];
-                  const map = new Map<string, string>(imageCacheList);
-                  map.set(imgIdKey, imgVal);
-                  const updatedList = Array.from(map.entries());
-                  currentLocal[charId].imageCache = updatedList;
-                  saveToLocalStorage(currentLocal);
-                  await imageDb.set('char-images/' + charId, updatedList);
+                  if (typeof window !== 'undefined') {
+                    const opened = (window as any).__dndOpenedWindows || [];
+                    opened.forEach((win: any) => {
+                      if (win && !win.closed) {
+                        win.postMessage(syncPayload, '*');
+                      }
+                    });
+                  }
+                  // Cache to our local LocalStorage
+                  try {
+                    const currentLocal = loadFromLocalStorage();
+                    currentLocal[charId] = restoredCloud[charId];
+                    saveToLocalStorage(currentLocal);
+                  } catch (err) {
+                    console.error('Failed to cache remote character to LocalStorage:', err);
+                  }
+                  // Also update serialization cache to match so we don't trigger save
+                  const obrCharData = {
+                    character: entry.history.present,
+                    log: entry.log || [],
+                    history: { past: [], future: [] },
+                    imageCache: entry.imageCache ? Array.from(entry.imageCache.entries()) : []
+                  };
+                  lastSerializedRef.current[charId] = serializeForCache(obrCharData);
+                } else if (isGM) {
+                  addNotification(`[Синхронизация] Ошибка: Не удалось загрузить персонажа (${charName}). Данные не прошли валидацию.`, 'error');
                 }
               } catch (err) {
-                console.error(`Failed to cache remote image ${imgIdKey} to IndexedDB:`, err);
+                console.error('[DND Sheet] Failed to parse unified character sync JSON:', err);
+                addNotification(`[Синхронизация] Ошибка: Получены поврежденные данные персонажа (${charId}). Синхронизация отменена.`, 'error');
               }
+            }
+          }
+        };
+
+        console.log('[DND Sheet] Subscribing to P2P sync channel:', SYNC_CHANNEL);
+        unsub = OBR.broadcast.onMessage(SYNC_CHANNEL, handleMessage);
+        
+        // Request full sheets on startup to sync with already online players
+        const localData = loadFromLocalStorage();
+        const cachedVersions: Record<string, any> = {};
+        for (const [id, entry] of Object.entries(localData)) {
+          if (entry) {
+            cachedVersions[id] = {
+              textChecksum: getTextChecksum(entry),
+              imageChecksums: getImageChecksums(entry)
             };
-
-            if (isPortrait) {
-              console.log(`[DND Sheet] Received fully assembled remote portrait for ${charId}.`);
-              dispatch({
-                type: 'SYNC_REMOTE_CHARACTER_PORTRAIT',
-                payload: { id: charId, portraitUrl: assembledVal }
-              });
-              saveImageToDbAndCache('img:ref:portrait', assembledVal);
-            } else {
-              console.log(`[DND Sheet] Received fully assembled remote image ${imgId} for ${charId}.`);
-              dispatch({
-                type: 'SYNC_REMOTE_CHARACTER_IMAGE',
-                payload: { id: charId, imgId, imgVal: assembledVal }
-              });
-              saveImageToDbAndCache(imgId, assembledVal);
-            }
-          }
-        } else if (payload.type === 'DELETE_CHARACTER_SYNC' && payload.id) {
-          const charId = payload.id;
-          if ((payload as any).senderClientId === SESSION_CLIENT_ID) {
-            return;
-          }
-
-          const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
-          const isGM = isOwlbear() && typeof OBR !== 'undefined' ? ((await OBR.player.getRole()) === 'GM') : true;
-          const senderPlayerId = (payload as any).senderPlayerId || '';
-          
-          const existingEntry = charactersStateRef.current[charId];
-          const existingChar = existingEntry?.history.present;
-          const targetOwnerId = existingChar?.ownerId;
-
-          // RECEIVER-SIDE AUTHORIZATION CHECK FOR DELETION:
-          // A deletion signal via OBR network broadcast is authorized ONLY if:
-          // - The receiver is GM (GM processes legitimate player deletion requests).
-          // - OR the sender is the owner of the character (senderPlayerId === targetOwnerId).
-          // - OR the character has no owner (!targetOwnerId).
-          const isAuthorizedDelete = isGM || !targetOwnerId || (senderPlayerId && targetOwnerId === senderPlayerId);
-          if (!isAuthorizedDelete) {
-            console.warn(`[DND Sheet] Rejected unauthorized DELETE_CHARACTER_SYNC for character ${charId} from non-owner sender ${senderPlayerId}.`);
-            return;
-          }
-
-          console.log(`[DND Sheet] Received authorized remote deletion sync via P2P for ${charId}. Removing...`);
-          dispatch({ type: 'DELETE_CHARACTER', payload: { id: charId } });
-          
-          try {
-            const localData = loadFromLocalStorage();
-            if (localData[charId]) {
-              delete localData[charId];
-              saveToLocalStorage(localData);
-            }
-          } catch (err) {
-            console.error('Failed to sync deletion to LocalStorage:', err);
           }
         }
+
+        OBR.broadcast.sendMessage(SYNC_CHANNEL, { 
+          type: 'REQUEST_FULL_CHARACTERS',
+          cachedVersions
+        }).catch(err => console.warn('[DND Sheet] Initial request broadcast failed:', err));
+      });
+
+      return () => {
+        if (unsub) unsub();
       };
-
-      console.log('[DND Sheet] Subscribing to P2P sync channel:', SYNC_CHANNEL);
-      const unsubscribe = OBR.broadcast.onMessage(SYNC_CHANNEL, handleMessage);
-      
-      // Request full sheets on startup to sync with already online players
-      const localData = loadFromLocalStorage();
-      const cachedVersions: Record<string, any> = {};
-      for (const [id, entry] of Object.entries(localData)) {
-        if (entry) {
-          cachedVersions[id] = {
-            textChecksum: getTextChecksum(entry),
-            imageChecksums: getImageChecksums(entry)
-          };
-        }
-      }
-
-      OBR.broadcast.sendMessage(SYNC_CHANNEL, { 
-        type: 'REQUEST_FULL_CHARACTERS',
-        cachedVersions
-      }).catch(err => console.warn('[DND Sheet] Initial request broadcast failed:', err));
-
-      return unsubscribe;
     }
   }, []);
 
