@@ -4,10 +4,9 @@
  */
 
 import { p2pRoomBridge } from './p2pBridge';
+import { SESSION_CLIENT_ID } from './sessionId';
 
-export const SESSION_CLIENT_ID = typeof window !== 'undefined'
-  ? ((window as any).__dndSessionId || ((window as any).__dndSessionId = Math.random().toString(36).substring(2)))
-  : '';
+export { SESSION_CLIENT_ID };
 
 type BridgeMessageHandler = (event: MessageEvent) => void;
 

@@ -1,4 +1,4 @@
-import { SESSION_CLIENT_ID } from './bridgeService';
+import { SESSION_CLIENT_ID } from './sessionId';
 import { webrtcP2pEngine } from './webrtcP2pEngine';
 
 export interface RoomHandshakePayload {

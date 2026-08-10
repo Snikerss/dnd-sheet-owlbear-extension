@@ -19,9 +19,8 @@ export const isOwlbear = (): boolean => {
 const LEGACY_METADATA_KEY = 'com.antigravity.dnd-sheet/characters';
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/v2/character/';
 
-export const SESSION_CLIENT_ID = typeof window !== 'undefined'
-  ? ((window as any).__dndSessionId || ((window as any).__dndSessionId = Math.random().toString(36).substring(2)))
-  : '';
+import { SESSION_CLIENT_ID } from './sessionId';
+export { SESSION_CLIENT_ID };
 
 /**
  * Minifies a full Character sheet to a lightweight format to save space in VTT metadata (under 1KB).
