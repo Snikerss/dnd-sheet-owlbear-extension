@@ -37,21 +37,24 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const broadcastRoll = useCallback(async (characterName: string, result: RollResult) => {
     if (isOwlbear()) {
       try {
-        let playerName = 'Игрок';
+        let playerName = typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_name') || 'Игрок' : 'Игрок';
         try {
-          playerName = await OBR.player.getName() || 'Игрок';
+          if (typeof OBR !== 'undefined' && OBR.player) {
+            const obrName = await OBR.player.getName();
+            if (obrName) playerName = obrName;
+          }
         } catch (e) {
           console.warn('Failed to retrieve player name from OBR:', e);
         }
         
-        // Send to ALL clients in the room (both local and remote)
-        console.log('[DND Sheet] Broadcasting roll data to ALL destination:', { playerName, characterName, result });
+        // Send broadcast to all other clients in the room
+        console.log('[DND Sheet] Broadcasting roll data to room players:', { playerName, characterName, result });
         await OBR.broadcast.sendMessage(ROLL_CHANNEL, {
           playerName,
           characterName,
           result,
           msgId: Math.random().toString(36).substring(2) + Date.now().toString(36)
-        }, { destination: 'ALL' });
+        });
       } catch (err) {
         console.error('[DND Sheet] Failed to send roll broadcast:', err);
       }
@@ -88,7 +91,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     if (isOwlbear()) {
       let unsub: (() => void) | null = null;
-      OBR.onReady(() => {
+
+      const setupListener = () => {
         console.log('[DND Sheet] Subscribing to broadcast channel:', ROLL_CHANNEL);
         unsub = OBR.broadcast.onMessage(ROLL_CHANNEL, (event) => {
           console.log('[DND Sheet] Received broadcast message:', event);
@@ -114,8 +118,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
               rollDetails += ` + бонус: ${result.bonusDiceRoll}`;
             }
 
-            // Open a beautiful custom roll popup window in the bottom-right corner of the VTT
-            // Get the base path dynamically from the current window location to support subdirectory hosting
+            // Open a beautiful custom roll popup window at top-center of the VTT
             const pathName = window.location.pathname;
             const basePath = pathName.substring(0, pathName.lastIndexOf('/'));
             const popoverUrl = window.location.origin + basePath + 
@@ -178,7 +181,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             }
           }
         });
-      });
+      };
+
+      if (typeof OBR !== 'undefined' && OBR.isReady) {
+        setupListener();
+      } else if (typeof OBR !== 'undefined') {
+        OBR.onReady(setupListener);
+      }
 
       return () => {
         if (unsub) unsub();

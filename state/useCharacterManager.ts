@@ -389,7 +389,7 @@ export const useCharacterManager = (): CharacterManager => {
       const SYNC_CHANNEL = 'com.antigravity.dnd-sheet/sync';
       let unsub: (() => void) | null = null;
 
-      OBR.onReady(() => {
+      const setupListener = () => {
         const handleMessage = async (event: any) => {
           const payload = event.data as {
             type: string;
@@ -594,6 +594,115 @@ export const useCharacterManager = (): CharacterManager => {
                 addNotification(`[Синхронизация] Ошибка: Получены поврежденные данные персонажа (${charId}). Синхронизация отменена.`, 'error');
               }
             }
+          } else if (payload.type === 'CHARACTER_IMAGE_CHUNK_SYNC' && payload.id && (payload as any).imgId && (payload as any).chunkData !== undefined) {
+            const charId = payload.id;
+            const imgId = (payload as any).imgId;
+            const isPortrait = imgId === 'img:ref:portrait';
+            const { chunkIndex, totalChunks, chunkData } = payload as any;
+            if ((payload as any).senderClientId === SESSION_CLIENT_ID) {
+              return;
+            }
+            
+            const key = `char-img/${charId}/${imgId}`;
+            if (!incomingChunksRef.current[key]) {
+              incomingChunksRef.current[key] = {
+                chunks: Array(totalChunks).fill(''),
+                total: totalChunks
+              };
+            }
+            
+            incomingChunksRef.current[key].chunks[chunkIndex] = chunkData;
+            
+            const isComplete = incomingChunksRef.current[key].chunks.every(c => c !== '');
+            if (isComplete) {
+              const assembledVal = incomingChunksRef.current[key].chunks.join('');
+              delete incomingChunksRef.current[key];
+
+              setSyncingCharacters(prev => {
+                const current = prev[charId];
+                if (!current) return prev;
+                const pending = current.pendingImages.filter((id: string) => id !== imgId);
+                if (pending.length === 0) {
+                  console.log(`[DND Sheet] All remote images for character ${charId} received successfully!`);
+                  const next = { ...prev };
+                  delete next[charId];
+                  return next;
+                }
+                return {
+                  ...prev,
+                  [charId]: {
+                    ...current,
+                    pendingImages: pending
+                  }
+                };
+              });
+              
+              const saveImageToDbAndCache = async (imgIdKey: string, imgVal: string) => {
+                try {
+                  const currentLocal = loadFromLocalStorage();
+                  if (currentLocal[charId]) {
+                    const imageCacheList = Array.isArray(currentLocal[charId].imageCache) ? currentLocal[charId].imageCache : [];
+                    const map = new Map<string, string>(imageCacheList);
+                    map.set(imgIdKey, imgVal);
+                    const updatedList = Array.from(map.entries());
+                    currentLocal[charId].imageCache = updatedList;
+                    saveToLocalStorage(currentLocal);
+                    await imageDb.set('char-images/' + charId, updatedList);
+                  }
+                } catch (err) {
+                  console.error(`Failed to cache remote image ${imgIdKey} to IndexedDB:`, err);
+                }
+              };
+
+              if (isPortrait) {
+                console.log(`[DND Sheet] Received fully assembled remote portrait for ${charId}.`);
+                dispatch({
+                  type: 'SYNC_REMOTE_CHARACTER_PORTRAIT',
+                  payload: { id: charId, portraitUrl: assembledVal }
+                });
+                saveImageToDbAndCache('img:ref:portrait', assembledVal);
+              } else {
+                console.log(`[DND Sheet] Received fully assembled remote image ${imgId} for ${charId}.`);
+                dispatch({
+                  type: 'SYNC_REMOTE_CHARACTER_IMAGE',
+                  payload: { id: charId, imgId, imgVal: assembledVal }
+                });
+                saveImageToDbAndCache(imgId, assembledVal);
+              }
+            }
+          } else if (payload.type === 'DELETE_CHARACTER_SYNC' && payload.id) {
+            const charId = payload.id;
+            if ((payload as any).senderClientId === SESSION_CLIENT_ID) {
+              return;
+            }
+
+            const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
+            const isGM = isOwlbear() && typeof OBR !== 'undefined' ? ((await OBR.player.getRole()) === 'GM') : true;
+            const senderPlayerId = (payload as any).senderPlayerId || '';
+            
+            const existingEntry = charactersStateRef.current[charId];
+            const existingChar = existingEntry?.history.present;
+            const targetOwnerId = existingChar?.ownerId;
+
+            // RECEIVER-SIDE AUTHORIZATION CHECK FOR DELETION:
+            const isAuthorizedDelete = isGM || !targetOwnerId || (senderPlayerId && targetOwnerId === senderPlayerId);
+            if (!isAuthorizedDelete) {
+              console.warn(`[DND Sheet] Rejected unauthorized DELETE_CHARACTER_SYNC for character ${charId} from non-owner sender ${senderPlayerId}.`);
+              return;
+            }
+
+            console.log(`[DND Sheet] Received authorized remote deletion sync via P2P for ${charId}. Removing...`);
+            dispatch({ type: 'DELETE_CHARACTER', payload: { id: charId } });
+            
+            try {
+              const localData = loadFromLocalStorage();
+              if (localData[charId]) {
+                delete localData[charId];
+                saveToLocalStorage(localData);
+              }
+            } catch (err) {
+              console.error('Failed to sync deletion to LocalStorage:', err);
+            }
           }
         };
 
@@ -616,7 +725,13 @@ export const useCharacterManager = (): CharacterManager => {
           type: 'REQUEST_FULL_CHARACTERS',
           cachedVersions
         }).catch(err => console.warn('[DND Sheet] Initial request broadcast failed:', err));
-      });
+      };
+
+      if (typeof OBR !== 'undefined' && OBR.isReady) {
+        setupListener();
+      } else if (typeof OBR !== 'undefined') {
+        OBR.onReady(setupListener);
+      }
 
       return () => {
         if (unsub) unsub();
