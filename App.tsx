@@ -11,7 +11,7 @@ import { defaultCharacterState } from './state/defaultCharacterState';
 import { NotificationProvider, useNotifier } from './context/NotificationContext';
 import { CharacterProvider } from './context/CharacterContext';
 import { generateUUID } from './utils/uuid';
-import { isOwlbear, encodeBase64Sync } from './utils/storage';
+import { isOwlbear, encodeBase64Sync, loadFromLocalStorage, broadcastCharacterSync, SESSION_CLIENT_ID } from './utils/storage';
 import { localBridge } from './utils/bridgeService';
 import { p2pRoomBridge } from './utils/p2pBridge';
 import { TextFormattingContextMenu } from './components/RichTextFormatting';
@@ -32,10 +32,42 @@ const AppContent: React.FC = () => {
     return unsubscribe;
   }, []);
 
-  const handleToggleActiveBoardCharacter = (charId: string | null) => {
-    p2pRoomBridge.setActiveBoardCharacter(charId);
-    setActiveBoardCharacterId(charId);
-  };
+  const handleToggleActiveBoardCharacter = useCallback((charId: string | null) => {
+    if (!charId) {
+      p2pRoomBridge.setActiveBoardCharacter(null);
+      setActiveBoardCharacterId(null);
+      return;
+    }
+
+    setActiveBoardCharacterId(prevId => {
+      const nextId = prevId === charId ? null : charId;
+      p2pRoomBridge.setActiveBoardCharacter(nextId);
+
+      if (isOwlbear() && typeof OBR !== 'undefined') {
+        if (nextId === charId) {
+          // Toggled ON: Force immediate sync to GM
+          const localData = loadFromLocalStorage();
+          const charData = localData[charId];
+          if (charData) {
+            broadcastCharacterSync(charId, charData, true);
+            addNotification('Трансляция ГМу включена. Персонаж отправлен Мастеру.', 'info');
+          }
+        } else {
+          // Toggled OFF: Send deletion broadcast so GM removes character from view
+          try {
+            OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
+              type: 'DELETE_CHARACTER_SYNC',
+              id: charId,
+              senderClientId: SESSION_CLIENT_ID,
+              senderPlayerId: OBR.player?.id || ''
+            });
+            addNotification('Трансляция ГМу выключена.', 'info');
+          } catch (e) {}
+        }
+      }
+      return nextId;
+    });
+  }, [addNotification]);
 
   const [characterPendingDeletion, setCharacterPendingDeletion] = useState<{id: string, name: string} | null>(null);
   const [isHistoryLogOpen, setIsHistoryLogOpen] = useState(false);

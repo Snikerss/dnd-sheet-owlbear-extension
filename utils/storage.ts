@@ -5,6 +5,7 @@ import { compressBase64Image } from './imageCompress';
 import { extractImages } from './imageStore';
 import { imageDb } from './indexedDbStore';
 import { CHARACTER_BASIC_FIELDS } from './characterSchema';
+import { p2pRoomBridge } from './p2pBridge';
 
 const inMemoryCharactersCache: Record<string, any> = {};
 
@@ -689,6 +690,15 @@ export async function broadcastLargeString(id: string, imgId: string, isPortrait
  */
 export async function broadcastCharacterSync(id: string, minifiedCharData: any, forceSyncImages: boolean | string[] = false): Promise<void> {
   if (!isOwlbear()) return;
+
+  const isGM = (typeof window !== 'undefined' && (window as any).__userRole === 'GM');
+  const activeBroadcastId = p2pRoomBridge.getActiveBoardCharacterId();
+
+  if (!isGM && activeBroadcastId !== id) {
+    console.log(`[DND Sheet] Skipping broadcastCharacterSync for character ${id} (GM Broadcast toggle is OFF).`);
+    return;
+  }
+
   try {
     // 1. Initialize our sent tracker for this character if not present
     if (!lastSentImagesCache[id]) {
