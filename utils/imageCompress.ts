@@ -1,3 +1,4 @@
+import { logger } from './logger';
 /**
  * Utility to compress and resize a base64 image string using an offscreen canvas.
  */
@@ -43,10 +44,10 @@ export function compressBase64Image(base64Str: string, maxDimension = 256, quali
         ctx.drawImage(img, 0, 0, width, height);
         // Compress as WebP
         const compressed = canvas.toDataURL('image/webp', quality);
-        console.log(`[DND Sheet] Compressed image from ${Math.round(base64Str.length / 1024)}KB to ${Math.round(compressed.length / 1024)}KB`);
+        logger.debug(`[DND Sheet] Compressed image from ${Math.round(base64Str.length / 1024)}KB to ${Math.round(compressed.length / 1024)}KB`);
         resolve(compressed);
       } catch (err) {
-        console.warn('[DND Sheet] Image compression failed, using original:', err);
+        logger.warn('[DND Sheet] Image compression failed, using original:', err);
         resolve(base64Str);
       }
     };

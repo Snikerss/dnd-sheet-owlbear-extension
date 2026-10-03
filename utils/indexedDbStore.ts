@@ -1,3 +1,4 @@
+import { logger } from './logger';
 class ImageIndexedDB {
   private dbName = 'dnd-sheet-images';
   private storeName = 'images';
@@ -27,12 +28,12 @@ class ImageIndexedDB {
           resolve(this.db);
         };
         request.onerror = () => {
-          console.warn('[DND Sheet] IndexedDB not accessible, using in-memory fallback.');
+          logger.warn('[DND Sheet] IndexedDB not accessible, using in-memory fallback.');
           this.isSupported = false;
           resolve(null);
         };
       } catch (err) {
-        console.warn('[DND Sheet] IndexedDB open threw exception, using in-memory fallback:', err);
+        logger.warn('[DND Sheet] IndexedDB open threw exception, using in-memory fallback:', err);
         this.isSupported = false;
         resolve(null);
       }

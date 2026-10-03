@@ -1,4 +1,5 @@
 import { Character, CharacterAction, DropLocation, InventoryItem, RecoveryType, EquipSlot } from '../../types';
+import { logger } from '../../utils/logger';
 import { recoverItemCharges } from '../../utils/inventory';
 
 const findItemAndList = (state: Character, location: DropLocation): [ (InventoryItem|null)[] | null, InventoryItem | null, number ] => {
@@ -248,7 +249,7 @@ export const inventoryReducer = (state: Character, action: CharacterAction): Cha
             // Validation: Prevent putting a chest inside another chest.
             // This is handled here in the reducer to keep the logic pure and centralized.
             if (sourceItemPre?.isChest && destination.container === 'chest') {
-                console.warn("Attempted to move a chest into another chest. Operation cancelled.");
+                logger.warn("Attempted to move a chest into another chest. Operation cancelled.");
                 return state; // Return original state without changes.
             }
 

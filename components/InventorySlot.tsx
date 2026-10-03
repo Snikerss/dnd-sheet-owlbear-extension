@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { InventoryItem, Rarity, ItemBonuses } from '../types';
 import { RARITY_COLORS, RARITY_NAMES, RECOVERY_TYPE_NAMES } from '../constants';
 import { calculateItemWeight } from '../utils/inventory';
+import { computeTooltipPosition } from '../hooks/useGlobalTooltips';
 import { FormattedText } from './RichTextFormatting';
 
 interface InventorySlotProps {
@@ -85,7 +86,7 @@ const getBonusStrings = (bonuses?: ItemBonuses): string[] => {
   return parts;
 };
 
-export const InventorySlot: React.FC<InventorySlotProps> = ({
+const InventorySlotComponent: React.FC<InventorySlotProps> = ({
   item,
   isDragOver,
   isBeingDragged,
@@ -128,13 +129,13 @@ export const InventorySlot: React.FC<InventorySlotProps> = ({
 
   const updateCoords = () => {
     if (slotRef.current) {
-      const rect = slotRef.current.getBoundingClientRect();
       const placeBelow = index !== undefined && index < 20;
-      const top = placeBelow 
-        ? rect.bottom + window.scrollY + 8 
-        : rect.top + window.scrollY - 8;
-      const left = rect.left + window.scrollX + rect.width / 2;
-      setCoords({ top, left, placeBelow });
+      const base = computeTooltipPosition(slotRef.current, placeBelow ? 'bottom' : 'top');
+      setCoords({
+        top: base.top + (placeBelow ? 8 : -8),
+        left: base.left,
+        placeBelow
+      });
     }
   };
 
@@ -383,3 +384,9 @@ export const InventorySlot: React.FC<InventorySlotProps> = ({
     </div>
   );
 };
+
+// React.memo: пропсы — примитивы (item-ссылка, флаги, index) и ссылочно
+// стабильные хендлеры (InventoryGrid стабилизирует их через useCallback +
+// пер-индексные useMemo-бандлы), поэтому слот перерисовывается только при
+// изменении СВОЕГО предмета или drag-состояния, а не при любом рендере листа.
+export const InventorySlot = React.memo(InventorySlotComponent);

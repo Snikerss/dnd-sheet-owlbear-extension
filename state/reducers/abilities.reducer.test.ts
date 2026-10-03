@@ -41,13 +41,13 @@ describe('abilitiesReducer — SET_PROFICIENCY', () => {
         const cycle: CharacterAction = { type: 'SET_PROFICIENCY', payload: 'Атлетика' };
 
         char = abilitiesReducer(char, cycle);
-        expect(char.skills['Атлетика'].proficiency).toBe(ProficiencyLevel.Proficient);
+        expect(char.skills['Атлетика']!.proficiency).toBe(ProficiencyLevel.Proficient);
 
         char = abilitiesReducer(char, cycle);
-        expect(char.skills['Атлетика'].proficiency).toBe(ProficiencyLevel.Expert);
+        expect(char.skills['Атлетика']!.proficiency).toBe(ProficiencyLevel.Expert);
 
         char = abilitiesReducer(char, cycle);
-        expect(char.skills['Атлетика'].proficiency).toBe(ProficiencyLevel.None);
+        expect(char.skills['Атлетика']!.proficiency).toBe(ProficiencyLevel.None);
     });
 
     it('не падает на неизвестном навыке', () => {

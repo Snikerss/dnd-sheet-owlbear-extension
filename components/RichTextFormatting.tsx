@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import DOMPurify from 'dompurify';
 
 // Preset Palette Colors
 export const TEXT_COLORS = [
@@ -451,6 +452,11 @@ export const RichTextToolbar: React.FC<RichTextToolbarProps> = ({
 /**
  * Safely renders HTML formatted strings (b, i, u, s, mark, span style, font, br).
  */
+const SANITIZE_CONFIG = {
+  ALLOWED_TAGS: ['b', 'i', 'u', 's', 'mark', 'span', 'br', 'h3', 'strong', 'em'],
+  ALLOWED_ATTR: ['style', 'class'],
+};
+
 export const FormattedText: React.FC<{ content: string; className?: string; placeholder?: string }> = ({
   content,
   className = '',
@@ -466,7 +472,7 @@ export const FormattedText: React.FC<{ content: string; className?: string; plac
   return (
     <div
       className={`formatted-text-content ${className}`}
-      dangerouslySetInnerHTML={{ __html: formattedHtml }}
+      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(formattedHtml, SANITIZE_CONFIG) }}
     />
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { logger } from './utils/logger';
 import OBR from '@owlbear-rodeo/sdk';
 import { CharacterSelectionScreen } from './components/CharacterSelectionScreen';
 import { CharacterSheet } from './components/CharacterSheet';
@@ -11,15 +12,20 @@ import { defaultCharacterState } from './state/defaultCharacterState';
 import { NotificationProvider, useNotifier } from './context/NotificationContext';
 import { CharacterProvider } from './context/CharacterContext';
 import { generateUUID } from './utils/uuid';
-import { isOwlbear, encodeBase64Sync, loadFromLocalStorage, broadcastCharacterSync, SESSION_CLIENT_ID } from './utils/storage';
+import { isOwlbear, loadFromLocalStorage, broadcastCharacterSync, SESSION_CLIENT_ID } from './utils/storage';
+import { SYNC_CHANNEL } from './protocol/messages';
+import { computePermissions } from './hooks/usePermissions';
 import { localBridge } from './utils/bridgeService';
 import { p2pRoomBridge } from './utils/p2pBridge';
+import { useGlobalTooltips } from './hooks/useGlobalTooltips';
 import { TextFormattingContextMenu } from './components/RichTextFormatting';
 
 const AppContent: React.FC = () => {
   const { addNotification } = useNotifier();
   const { characters, isLoading, syncStatus, syncingCharacters, addCharacter, deleteCharacter, updateCharacter, undo, redo, syncCharacter, clearLocalCache, exportVaultData, importVaultData } = useCharacterManager();
-  
+
+  useGlobalTooltips();
+
   const [activeCharacterId, setActiveCharacterId] = useState<string | null>(null);
   const [activeBoardCharacterId, setActiveBoardCharacterId] = useState<string | null>(p2pRoomBridge.getActiveBoardCharacterId());
 
@@ -39,35 +45,34 @@ const AppContent: React.FC = () => {
       return;
     }
 
-    setActiveBoardCharacterId(prevId => {
-      const nextId = prevId === charId ? null : charId;
-      p2pRoomBridge.setActiveBoardCharacter(nextId);
+    // Чистое вычисление следующего состояния БЕЗ side-effects внутри updater'а:
+    // React/StrictMode может вызывать updater-функции повторно, что дублировало
+    // broadcast и DELETE-команды (баг аудита #8).
+    const nextId = activeBoardCharacterId === charId ? null : charId;
+    setActiveBoardCharacterId(nextId);
+    p2pRoomBridge.setActiveBoardCharacter(nextId);
 
-      if (isOwlbear() && typeof OBR !== 'undefined') {
-        if (nextId === charId) {
-          // Toggled ON: Force immediate sync to GM
-          const localData = loadFromLocalStorage();
-          const charData = localData[charId];
-          if (charData) {
-            broadcastCharacterSync(charId, charData, true);
-            addNotification('Трансляция ГМу включена. Персонаж отправлен Мастеру.', 'info');
-          }
-        } else {
-          // Toggled OFF: Send deletion broadcast so GM removes character from view
-          try {
-            OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
-              type: 'DELETE_CHARACTER_SYNC',
-              id: charId,
-              senderClientId: SESSION_CLIENT_ID,
-              senderPlayerId: OBR.player?.id || ''
-            });
-            addNotification('Трансляция ГМу выключена.', 'info');
-          } catch (e) {}
+    if (isOwlbear() && typeof OBR !== 'undefined') {
+      if (nextId === charId) {
+        // Toggled ON: Force immediate sync to GM
+        const localData = loadFromLocalStorage();
+        const charData = localData[charId];
+        if (charData) {
+          void broadcastCharacterSync(charId, charData, true);
+          addNotification('Трансляция ГМу включена. Персонаж отправлен Мастеру.', 'info');
         }
+      } else {
+        // Toggled OFF: Send deletion broadcast so GM removes character from view
+        OBR.broadcast.sendMessage(SYNC_CHANNEL, {
+          type: 'DELETE_CHARACTER_SYNC',
+          id: charId,
+          senderClientId: SESSION_CLIENT_ID,
+          senderPlayerId: OBR.player?.id || ''
+        }).catch(() => {});
+        addNotification('Трансляция ГМу выключена.', 'info');
       }
-      return nextId;
-    });
-  }, [addNotification]);
+    }
+  }, [activeBoardCharacterId, addNotification]);
 
   const [characterPendingDeletion, setCharacterPendingDeletion] = useState<{id: string, name: string} | null>(null);
   const [isHistoryLogOpen, setIsHistoryLogOpen] = useState(false);
@@ -175,125 +180,6 @@ const AppContent: React.FC = () => {
     }
   }, [characters, activeCharacterId, isLoading]);
 
-  useEffect(() => {
-    const tooltipEl = document.createElement('div');
-    tooltipEl.className = 'global-tooltip';
-    document.body.appendChild(tooltipEl);
-
-    let activeEl: HTMLElement | null = null;
-
-    const handleMouseOver = (e: MouseEvent) => {
-      // Disable mouse-over tooltips on touch screens to prevent phantom tooltips and layout shifts
-      if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-        return;
-      }
-      const target = e.target as HTMLElement;
-      const tooltipTarget = target.closest('[data-tooltip]') as HTMLElement | null;
-
-      if (!tooltipTarget) {
-        if (activeEl) {
-          tooltipEl.classList.remove('visible');
-          activeEl = null;
-        }
-        return;
-      }
-
-      if (tooltipTarget === activeEl) return;
-      activeEl = tooltipTarget;
-
-      const text = tooltipTarget.getAttribute('data-tooltip');
-      if (!text) {
-        tooltipEl.classList.remove('visible');
-        return;
-      }
-
-      const pos = tooltipTarget.getAttribute('data-tooltip-pos') || 'top';
-      
-      tooltipEl.textContent = text;
-      tooltipEl.className = `global-tooltip global-tooltip-${pos}`;
-      
-      const rect = tooltipTarget.getBoundingClientRect();
-      const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
-      const scrollY = window.pageYOffset || document.documentElement.scrollTop;
-
-      let top = 0;
-      let left = 0;
-
-      if (pos === 'top') {
-        left = rect.left + rect.width / 2 + scrollX;
-        top = rect.top + scrollY;
-      } else if (pos === 'bottom') {
-        left = rect.left + rect.width / 2 + scrollX;
-        top = rect.bottom + scrollY;
-      } else if (pos === 'left') {
-        left = rect.left + scrollX;
-        top = rect.top + rect.height / 2 + scrollY;
-      } else if (pos === 'right') {
-        left = rect.right + scrollX;
-        top = rect.top + rect.height / 2 + scrollY;
-      }
-
-      tooltipEl.style.left = `${left}px`;
-      tooltipEl.style.top = `${top}px`;
-      
-      // Force reflow
-      tooltipEl.offsetHeight;
-      tooltipEl.classList.add('visible');
-    };
-
-    const handleMouseOut = (e: MouseEvent) => {
-      const relatedTarget = e.relatedTarget as HTMLElement | null;
-      if (activeEl && (!relatedTarget || !activeEl.contains(relatedTarget))) {
-        tooltipEl.classList.remove('visible');
-        activeEl = null;
-      }
-    };
-
-    const handleScrollOrResize = () => {
-      if (activeEl) {
-        const rect = activeEl.getBoundingClientRect();
-        const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
-        const scrollY = window.pageYOffset || document.documentElement.scrollTop;
-        const pos = activeEl.getAttribute('data-tooltip-pos') || 'top';
-
-        let top = 0;
-        let left = 0;
-
-        if (pos === 'top') {
-          left = rect.left + rect.width / 2 + scrollX;
-          top = rect.top + scrollY;
-        } else if (pos === 'bottom') {
-          left = rect.left + rect.width / 2 + scrollX;
-          top = rect.bottom + scrollY;
-        } else if (pos === 'left') {
-          left = rect.left + scrollX;
-          top = rect.top + rect.height / 2 + scrollY;
-        } else if (pos === 'right') {
-          left = rect.right + scrollX;
-          top = rect.top + rect.height / 2 + scrollY;
-        }
-
-        tooltipEl.style.left = `${left}px`;
-        tooltipEl.style.top = `${top}px`;
-      }
-    };
-
-    document.addEventListener('mouseover', handleMouseOver);
-    document.addEventListener('mouseout', handleMouseOut);
-    window.addEventListener('scroll', handleScrollOrResize, true);
-    window.addEventListener('resize', handleScrollOrResize);
-
-    return () => {
-      document.removeEventListener('mouseover', handleMouseOver);
-      document.removeEventListener('mouseout', handleMouseOut);
-      window.removeEventListener('scroll', handleScrollOrResize, true);
-      window.removeEventListener('resize', handleScrollOrResize);
-      if (document.body.contains(tooltipEl)) {
-        document.body.removeChild(tooltipEl);
-      }
-    };
-  }, []);
-
   const handleSelectCharacter = useCallback((id: string) => {
     const character = characters[id]?.history.present;
     const currentId = userId || (isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_id') : ''));
@@ -301,7 +187,7 @@ const AppContent: React.FC = () => {
 
     if (character && currentId && userRole !== 'GM') {
       if (!character.ownerId || (character.ownerName === currentName && character.ownerId !== currentId)) {
-        console.log(`[DND Sheet] Assigning/updating ownership of character "${character.name}" to player:`, currentId);
+        logger.debug(`[DND Sheet] Assigning/updating ownership of character "${character.name}" to player:`, currentId);
         updateCharacter(id, { 
           type: 'SET_FIELD', 
           payload: { field: 'ownerId', value: currentId } 
@@ -321,7 +207,7 @@ const AppContent: React.FC = () => {
     newCharacter.name = 'Новый персонаж';
     
     let currentId = userId || (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_id') : null);
-    let currentName = playerName || (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_name') : null) || 'Игрок';
+    const currentName = playerName || (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_name') : null) || 'Игрок';
 
     if (isOwlbear() && typeof OBR !== 'undefined') {
       try {
@@ -344,7 +230,8 @@ const AppContent: React.FC = () => {
 
     const myId = userId || (isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_id') : ''));
     const isGM = userRole === 'GM';
-    const isOwner = isGM || !characterToDelete.ownerId || !myId || characterToDelete.ownerId === myId || characterToDelete.ownerName === playerName;
+    // План 3.4: формула владельца — из computePermissions (canManage).
+    const isOwner = computePermissions(characterToDelete, { role: userRole, userId: myId, userName: playerName }).canManage;
 
     if (!isOwner) {
       addNotification('Вы не можете удалить персонажа, принадлежащего другому игроку.', 'error');
@@ -414,7 +301,7 @@ const AppContent: React.FC = () => {
     }
 
     const cleanUrl = origin + path + query;
-    console.log('[DND Sheet] Opening standalone window:', cleanUrl);
+    logger.debug('[DND Sheet] Opening standalone window:', cleanUrl);
     const win = window.open(cleanUrl, '_blank');
     if (win) {
       localBridge.registerChildWindow(win);
@@ -423,13 +310,9 @@ const AppContent: React.FC = () => {
 
   const isGM = userRole === 'GM';
 
+  // План 3.4: единый источник прав (hooks/usePermissions) вместо локальной формулы.
   const checkIsReadOnly = useCallback((char?: Character | null) => {
-    if (!char) return false;
-    if (userRole === 'GM') return true; // GM is permanently in read-only mode for player character sheets
-    if (!char.ownerId) return false; // Unowned characters are editable by players
-    if (userId && char.ownerId === userId) return false;
-    if (playerName && char.ownerName === playerName) return false;
-    return true;
+    return computePermissions(char, { role: userRole, userId, userName: playerName }).isReadOnly;
   }, [userRole, userId, playerName]);
 
   const handleUpdateCharacter = useCallback((action: CharacterAction) => {
@@ -437,7 +320,7 @@ const AppContent: React.FC = () => {
       const activeCharacterState = characters[activeCharacterId];
       const activeChar = activeCharacterState?.history.present;
       if (checkIsReadOnly(activeChar)) {
-        console.warn('[DND Sheet] Blocked update for read-only character:', activeCharacterId);
+        logger.warn('[DND Sheet] Blocked update for read-only character:', activeCharacterId);
         return;
       }
       updateCharacter(activeCharacterId, action);
@@ -461,6 +344,26 @@ const AppContent: React.FC = () => {
       redo(activeCharacterId);
     }
   }, [activeCharacterId, redo, characters, checkIsReadOnly]);
+
+  const handleSyncActiveCharacter = useCallback(() => {
+    if (!activeCharacterId) return;
+    syncCharacter(activeCharacterId);
+  }, [activeCharacterId, syncCharacter]);
+
+  const handleClearActiveLocalCache = useCallback(() => {
+    if (!activeCharacterId) return;
+    clearLocalCache(activeCharacterId);
+  }, [activeCharacterId, clearLocalCache]);
+
+  const handleDeleteActiveCharacter = useCallback(() => {
+    if (!activeCharacterId) return;
+    handleDeleteCharacter(activeCharacterId);
+  }, [activeCharacterId, handleDeleteCharacter]);
+
+  const handleOpenStandaloneForActive = useCallback(() => {
+    if (!activeCharacterId) return;
+    handleOpenStandalone(activeCharacterId);
+  }, [activeCharacterId, handleOpenStandalone]);
 
   // Преобразуем полное состояние персонажей в упрощенный Record<string, Character> для экрана выбора.
   const characterList = useMemo(() => {
@@ -569,10 +472,10 @@ const AppContent: React.FC = () => {
               onOpenHistoryLog={() => setIsHistoryLogOpen(true)}
               isReadOnly={!!isReadOnly}
               syncStatus={syncStatus}
-              onSyncCharacter={() => syncCharacter(activeCharacterId)}
-              onClearLocalCache={() => clearLocalCache(activeCharacterId)}
-              onDeleteCharacter={() => handleDeleteCharacter(activeCharacterId)}
-              onOpenStandalone={() => handleOpenStandalone(activeCharacterId)}
+              onSyncCharacter={handleSyncActiveCharacter}
+              onClearLocalCache={handleClearActiveLocalCache}
+              onDeleteCharacter={handleDeleteActiveCharacter}
+              onOpenStandalone={handleOpenStandaloneForActive}
               isGM={isGM}
             />
         </CharacterProvider>

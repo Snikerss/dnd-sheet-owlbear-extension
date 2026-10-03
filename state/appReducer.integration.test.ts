@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { charactersReducer, CharactersState } from './appReducer';
+import { charactersReducer, CharactersAction, CharactersState } from './appReducer';
 import { makeTestCharacter } from './testFixtures';
-import { CharacterAction, Currency, InventoryItem, Rarity } from '../types';
+import { Character, CharacterAction, Currency, InventoryItem, Rarity } from '../types';
 
 const makeItemWithImage = (id: string, imageUrl: string): InventoryItem => ({
     id,
@@ -30,7 +30,7 @@ describe('appReducer — интеграция изоляции изображе�
         const state = makeState(char);
 
         // Диспатчим любое действие, изменяющее state (например, SET_FIELD name)
-        const action = {
+        const action: CharactersAction = {
             type: 'DISPATCH_CHARACTER_ACTION',
             payload: {
                 id: 'char-1',

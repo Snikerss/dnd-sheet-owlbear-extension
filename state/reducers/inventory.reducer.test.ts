@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { inventoryReducer } from './inventory.reducer';
 import { makeTestCharacter } from '../testFixtures';
-import { CharacterAction, Currency, InventoryItem, RecoveryType, CharacterSize } from '../../types';
+import { CharacterAction, Currency, InventoryItem, RecoveryType, CharacterSize, Ability, DamageType } from '../../types';
 
 const makeItem = (id: string, overrides: Partial<InventoryItem> = {}): InventoryItem => ({
     id,
@@ -34,7 +34,7 @@ describe('inventoryReducer — SET_ATTUNEMENT_SLOTS', () => {
     });
 
     it('не превышает 10', () => {
-        const char = makeTestCharacter({ attunementSlots: 3, attunementItems: [null, null, null] });
+        const char = makeTestCharacter({ attunementSlots: 3 });
         const action: CharacterAction = { type: 'SET_ATTUNEMENT_SLOTS', payload: 100 };
         const result = inventoryReducer(char, action);
         expect(result.attunementSlots).toBe(10);
@@ -177,8 +177,8 @@ describe('inventoryReducer — PLACE/MOVE/UNEQUIP on doll', () => {
         const result = inventoryReducer(char, action);
         expect(result.inventory[0]).toBeNull();
         expect(result.equippedItems).toHaveLength(1);
-        expect(result.equippedItems[0].equippedX).toBe(10);
-        expect(result.equippedItems[0].isEquipped).toBe(true);
+        expect(result.equippedItems[0]!.equippedX).toBe(10);
+        expect(result.equippedItems[0]!.isEquipped).toBe(true);
     });
 
     it('MOVE_ITEM_ON_DOLL обновляет координаты экипированного предмета', () => {
@@ -186,8 +186,8 @@ describe('inventoryReducer — PLACE/MOVE/UNEQUIP on doll', () => {
         const char = makeTestCharacter({ equippedItems: [item] });
         const action: CharacterAction = { type: 'MOVE_ITEM_ON_DOLL', payload: { itemIndex: 0, x: 50, y: 60 } };
         const result = inventoryReducer(char, action);
-        expect(result.equippedItems[0].equippedX).toBe(50);
-        expect(result.equippedItems[0].equippedY).toBe(60);
+        expect(result.equippedItems[0]!.equippedX).toBe(50);
+        expect(result.equippedItems[0]!.equippedY).toBe(60);
     });
 
     it('UNEQUIP_ITEM_FROM_DOLL возвращает предмет в инвентарь', () => {
@@ -207,7 +207,7 @@ describe('inventoryReducer — иммутабельность (баг #2: struct
         const oldItem = makeItem('i1', { name: 'Старый' });
         const char = makeTestCharacter({
             inventory: [oldItem, null],
-            attacks: [{ id: 'a1', name: 'Атака', imageUrl: '', attackType: 0, rangeNormal: 5, rangeLong: null, hitAbility: 'STR', damageAbility: 'STR', isProficient: true, hitBonus: 5, damageDice: '1d8', damageBonus: 3, damageType: 'Slashing', notes: '' }],
+            attacks: [{ id: 'a1', name: 'Атака', imageUrl: '', attackType: 0, rangeNormal: 5, rangeLong: null, hitAbility: Ability.STR, damageAbility: Ability.STR, isProficient: true, hitBonus: 5, damageDice: '1d8', damageBonus: 3, damageType: DamageType.Slashing, notes: '' }],
             spells: [],
         });
         const action: CharacterAction = { type: 'UPDATE_ITEM', payload: { location: { container: 'inventory', index: 0 }, itemData: makeItem('i1', { name: 'Новый' }) } };

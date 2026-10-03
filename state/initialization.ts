@@ -1,4 +1,5 @@
 import { Character, Ability, InventoryItem, ProficiencyLevel, Rarity, Currency, CharacterSize, Feature, RecoveryType, Attack, AttackType, DamageType, Spell, MagicSchool, Note } from '../types';
+import { logger } from '../utils/logger';
 import { SKILLS } from '../constants';
 import { defaultCharacterState } from './defaultCharacterState';
 
@@ -156,7 +157,7 @@ export const migrateCharacterData = (characterData: any): any => {
     if (typeof migrated.maxHpBonus !== 'number') {
         migrated.maxHpBonus = 0;
     }
-    if (migrated.hasOwnProperty('globalAttackBonus')) {
+    if (Object.prototype.hasOwnProperty.call(migrated, 'globalAttackBonus')) {
         delete migrated.globalAttackBonus;
     }
     
@@ -438,7 +439,7 @@ const isNote = (note: any): note is Note => {
  */
 export const isCharacter = (data: any): data is Character => {
     if (typeof data !== 'object' || data === null) {
-        console.warn('[DND Sheet] isCharacter failed: data is null or not an object');
+        logger.warn('[DND Sheet] isCharacter failed: data is null or not an object');
         return false;
     }
 
@@ -482,7 +483,7 @@ export const isCharacter = (data: any): data is Character => {
 
     const failedCore = Object.entries(coreChecks).filter(([_, passed]) => !passed).map(([name]) => name);
     if (failedCore.length > 0) {
-        console.warn(`[DND Sheet] isCharacter failed core fields validation. Failed fields: ${failedCore.join(', ')}`, data);
+        logger.warn(`[DND Sheet] isCharacter failed core fields validation. Failed fields: ${failedCore.join(', ')}`, data);
         return false;
     }
 
@@ -499,13 +500,13 @@ export const isCharacter = (data: any): data is Character => {
 
     const failedObjects = Object.entries(objectChecks).filter(([_, passed]) => !passed).map(([name]) => name);
     if (failedObjects.length > 0) {
-        console.warn(`[DND Sheet] isCharacter failed nested objects validation. Failed: ${failedObjects.join(', ')}`, data);
+        logger.warn(`[DND Sheet] isCharacter failed nested objects validation. Failed: ${failedObjects.join(', ')}`, data);
         return false;
     }
 
     const validHitDies = [6, 8, 10, 12];
     if (!validHitDies.includes(data.hitDie)) {
-        console.warn(`[DND Sheet] isCharacter failed hitDie validation: ${data.hitDie}`, data);
+        logger.warn(`[DND Sheet] isCharacter failed hitDie validation: ${data.hitDie}`, data);
         return false;
     }
     
@@ -524,7 +525,7 @@ export const isCharacter = (data: any): data is Character => {
     const hasAllAcSources = abilities.every(ability => typeof acSources[ability] === 'boolean');
 
     if (!hasAllScores || !hasAllSavingThrowProfs || !hasAllAbilityBonuses || !hasAllSavingThrowBonuses || !hasAllCurrencies || !hasAllAcSources) {
-        console.warn('[DND Sheet] isCharacter failed map keys type checks.', {
+        logger.warn('[DND Sheet] isCharacter failed map keys type checks.', {
             hasAllScores, hasAllSavingThrowProfs, hasAllAbilityBonuses, hasAllSavingThrowBonuses, hasAllCurrencies, hasAllAcSources
         }, data);
         return false;
@@ -541,13 +542,13 @@ export const isCharacter = (data: any): data is Character => {
     const hasAllSkillBonuses = skillNames.every(skillName => typeof data.skillBonuses[skillName] === 'number');
 
     if (!hasAllSkills || !hasAllSkillBonuses) {
-        console.warn('[DND Sheet] isCharacter failed skills or skillBonuses checks.', { hasAllSkills, hasAllSkillBonuses }, data);
+        logger.warn('[DND Sheet] isCharacter failed skills or skillBonuses checks.', { hasAllSkills, hasAllSkillBonuses }, data);
         return false;
     }
 
     for (let i = 1; i <= 9; i++) {
         if (typeof data.spellSlots[i] !== 'object' || data.spellSlots[i] === null || typeof data.spellSlots[i].total !== 'number' || typeof data.spellSlots[i].used !== 'number') {
-            console.warn(`[DND Sheet] isCharacter failed spellSlots level ${i} checks.`, data.spellSlots[i]);
+            logger.warn(`[DND Sheet] isCharacter failed spellSlots level ${i} checks.`, data.spellSlots[i]);
             return false;
         }
     }
@@ -560,7 +561,7 @@ export const isCharacter = (data: any): data is Character => {
         Array.isArray(data.notes);
 
     if (!hasValidArrays) {
-        console.warn('[DND Sheet] isCharacter failed array type validations.');
+        logger.warn('[DND Sheet] isCharacter failed array type validations.');
         return false;
     }
 
@@ -571,7 +572,7 @@ export const isCharacter = (data: any): data is Character => {
     const areNotesValid = data.notes.every(isNote);
 
     if (!isInventoryValid || !areFeaturesValid || !areAttacksValid || !areSpellsValid || !areNotesValid) {
-        console.warn('[DND Sheet] isCharacter failed arrays content validations.', {
+        logger.warn('[DND Sheet] isCharacter failed arrays content validations.', {
             isInventoryValid, areFeaturesValid, areAttacksValid, areSpellsValid, areNotesValid
         });
         return false;

@@ -3,8 +3,11 @@
  * Инкапсулирует обработку ошибок песочницы, SESSION_CLIENT_ID, дедупликацию и непрерывную синхронизацию.
  */
 
+import { logger } from './logger';
 import { p2pRoomBridge } from './p2pBridge';
 import { SESSION_CLIENT_ID } from './sessionId';
+import { SAME_ORIGIN, isTrustedMessageOrigin } from './environment';
+import { BridgeMessageType, P2pMessageType } from '../protocol/messages';
 
 export { SESSION_CLIENT_ID };
 
@@ -22,12 +25,16 @@ class LocalBridgeService {
         this.channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
         this.channel.onmessage = (event) => this.handleMessage(event);
       } catch (err) {
-        console.warn('[DND Sheet Bridge] BroadcastChannel disabled or blocked by sandbox policies:', err);
+        logger.warn('[DND Sheet Bridge] BroadcastChannel disabled or blocked by sandbox policies:', err);
       }
     }
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('message', (event) => this.handleMessage(event));
+      window.addEventListener('message', (event) => {
+        // Origin-фильтр (аудит #4.1): посторонние сайты не могут инъецировать команды.
+        if (!isTrustedMessageOrigin(event.origin)) return;
+        this.handleMessage(event);
+      });
       
       // Fallback listener for browser storage events across tabs on the same origin
       window.addEventListener('storage', (event) => {
@@ -40,12 +47,12 @@ class LocalBridgeService {
           } catch (e) {}
         } else if (event.key.startsWith('com.antigravity.dnd-sheet/v2/character/') || event.key === 'com.antigravity.dnd-sheet/characters') {
           try {
-            this.handleMessage(new MessageEvent('message', {
-              data: {
-                type: 'STORAGE_EVENT_SYNC',
-                senderClientId: 'storage-event'
-              }
-            }));
+              this.handleMessage(new MessageEvent('message', {
+                data: {
+                  type: BridgeMessageType.STORAGE_EVENT_SYNC,
+                  senderClientId: 'storage-event'
+                }
+              }));
           } catch (e) {}
         }
       });
@@ -75,25 +82,16 @@ class LocalBridgeService {
     }
   }
 
-  private knownStandaloneCharIds: Set<string> = new Set();
-
-  /**
-   * Отмечает ID персонажа как открытого в отдельной вкладке
-   */
-  public trackStandaloneCharacter(charId: string): void {
-    if (charId) {
-      this.knownStandaloneCharIds.add(charId);
-    }
-  }
-
   /**
    * Находит и восстанавливает прямые связи с открытыми отдельными вкладками.
-   * Проверяет targetName окон в браузерном реестре. Если окно не было открыто и браузер создал blank-окно, мгновенно закрывает его.
+   * (Мёртвый реестр knownStandaloneCharIds удалён — план 2.7: единственным
+   * потребителем был сам handleMessage; восстановление связи выполняет
+   * heartbeat VTT_FRAME_READY.)
    */
   public reconnectStandaloneWindows(_charIds?: string[]): void {
     if (typeof window === 'undefined') return;
     this.postMessage({
-      type: 'VTT_FRAME_READY',
+      type: BridgeMessageType.VTT_FRAME_READY,
       senderClientId: SESSION_CLIENT_ID
     });
   }
@@ -124,9 +122,24 @@ class LocalBridgeService {
   }
 
   /**
+   * Высокочастотные типы сообщений (heartbeat/handshake), которые НЕ пишутся
+   * в localStorage-шину: каждая запись bridge_signal триггерила у соседних
+   * вкладок storage-event и полный перезагрузочный dispatch состояния
+   * каждые 2–3 секунды (баг аудита #9). Эти сообщения доставляются через
+   * BroadcastChannel / postMessage, шина для них избыточна.
+   */
+  private static readonly STORAGE_BUS_SKIP_TYPES: Set<string> = new Set<string>([
+    BridgeMessageType.VTT_HEARTBEAT,
+    BridgeMessageType.HEARTBEAT_PING,
+    BridgeMessageType.VTT_FRAME_READY,
+    P2pMessageType.PRESENCE_QUERY,
+    P2pMessageType.STATE_RESPONSE,
+  ]);
+
+  /**
    * Отправляет сообщение во все открытые вкладки и дочерние/родительские окна браузера.
    */
-  public postMessage(data: any): void {
+  public postMessage(data: any, opts?: { skipStorageBus?: boolean }): void {
     const msgId = Math.random().toString(36).substring(2) + Date.now().toString(36);
     const payload = {
       ...data,
@@ -141,7 +154,7 @@ class LocalBridgeService {
       try {
         this.channel.postMessage(payload);
       } catch (err) {
-        console.warn('[DND Sheet Bridge] Failed to postMessage via BroadcastChannel:', err);
+        logger.warn('[DND Sheet Bridge] Failed to postMessage via BroadcastChannel:', err);
       }
     }
 
@@ -152,18 +165,22 @@ class LocalBridgeService {
       } catch (err) {}
     }
 
-    // 3. Opener window (если открыты из другого окна/вкладки)
+    // 3. Opener window (если открыты из другого окна/вкладки).
+    // '*' оставлен намеренно: opener — это окно Owlbear (чужой origin),
+    // точный origin которого зависит от окружения. Приём защищён
+    // isTrustedMessageOrigin, утечка ограничена полем данных сообщения.
     if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
       try {
         window.opener.postMessage(payload, '*');
       } catch (err) {}
     }
 
-    // 4. Child windows (окна, открытые из текущего)
+    // 4. Child windows — ВСЕГДА наш собственный origin: окна открываются
+    // только через window.open из этого приложения.
     this.childWindows.forEach((win) => {
       if (win && !win.closed) {
         try {
-          win.postMessage(payload, '*');
+          win.postMessage(payload, SAME_ORIGIN || '*');
         } catch (err) {}
       } else {
         this.childWindows.delete(win);
@@ -176,7 +193,9 @@ class LocalBridgeService {
     } catch (e) {}
 
     // 6. LocalStorage Bus Signal for cross-tab sync on same domain
-    if (typeof window !== 'undefined' && window.localStorage) {
+    const skipBus = opts?.skipStorageBus === true
+      || LocalBridgeService.STORAGE_BUS_SKIP_TYPES.has(data?.type);
+    if (!skipBus && typeof window !== 'undefined' && window.localStorage) {
       try {
         window.localStorage.setItem('com.antigravity.dnd-sheet/bridge_signal', JSON.stringify({ ...payload, _seq: Date.now() + Math.random() }));
       } catch (e) {}
@@ -195,14 +214,18 @@ class LocalBridgeService {
 
   private handleMessage(event: MessageEvent): void {
     if (!event.data || typeof event.data !== 'object') return;
-    
+
     // Игнорируем собственные сообщения от той же вкладки
     const senderId = event.data.senderClientId || event.data.senderId;
     if (senderId && senderId === SESSION_CLIENT_ID) return;
 
-    if (event.data.charId) {
-      this.trackStandaloneCharacter(event.data.charId);
+    // Универсальный дедуп по msgId: одно сообщение может прийти одновременно
+    // через BroadcastChannel, postMessage и storage-шину (веер каналов аудита).
+    if (event.data.msgId && this.isDuplicateMessage(`bridge-${event.data.msgId}`, 10000)) {
+      return;
     }
+
+    // (Реестр trackStandaloneCharacter удалён вместе с полем — план 2.7.)
 
     if (event.source && event.source !== window && 'postMessage' in event.source) {
       this.registerChildWindow(event.source as Window);
@@ -215,7 +238,7 @@ class LocalBridgeService {
       try {
         listener(event);
       } catch (err) {
-        console.error('[DND Sheet Bridge] Error in bridge message listener:', err);
+        logger.error('[DND Sheet Bridge] Error in bridge message listener:', err);
       }
     });
   }

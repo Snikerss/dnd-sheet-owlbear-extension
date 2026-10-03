@@ -1,26 +1,82 @@
 import OBR from '@owlbear-rodeo/sdk';
-import { Character, Ability, Skill, ProficiencyLevel, InventoryItem, Currency } from '../types';
+import { logger } from './logger';
+import { Character, Ability, ProficiencyLevel, Currency } from '../types';
 import { defaultCharacterState } from '../state/defaultCharacterState';
-import { compressBase64Image } from './imageCompress';
 import { extractImages } from './imageStore';
 import { imageDb } from './indexedDbStore';
 import { CHARACTER_BASIC_FIELDS } from './characterSchema';
 import { p2pRoomBridge } from './p2pBridge';
+import { isOwlbear } from './environment';
+import { generateUUID } from './uuid';
+import { SYNC_CHANNEL, SyncMessageType } from '../protocol/messages';
+import { getCachedRole } from '../auth/roleService';
+import { restoreStrippedCharacter, mergeImageCacheEntries } from './restoreStripped';
+
+export { isOwlbear };
 
 const inMemoryCharactersCache: Record<string, any> = {};
 
 /**
- * Checks if the application is running inside the Owlbear Rodeo iframe environment.
+ * Удаляет персонажа из синхронного in-memory кэша.
+ * Вызывается при очистке локальной копии: без этого следующий
+ * saveCharacterApi перезаписывал бы «удалённого» обратно в localStorage
+ * (баг воскрешения из аудита #5).
  */
-export const isOwlbear = (): boolean => {
-  return typeof window !== 'undefined' && window.parent !== window && typeof OBR !== 'undefined';
-};
+export function removeFromMemoryCache(id: string): void {
+  delete inMemoryCharactersCache[id];
+}
 
-const LEGACY_METADATA_KEY = 'com.antigravity.dnd-sheet/characters';
+/**
+ * Checks if the application is running inside the Owlbear Rodeo iframe environment.
+ * Реализация перенесена в utils/environment.ts (реэкспорт выше) — единая точка
+ * для auth/модулей без циклических импортов.
+ */
+
 const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/v2/character/';
+
+/**
+ * Гранулярная запись лёгкого зеркала ОДНОГО персонажа в отдельный ключ
+ * localStorage. Главное зеркало 'dnd-characters' при обычных сейвах больше
+ * НЕ переписывается целиком: вместо сериализации всех персонажей пишется
+ * один маленький ключ (главный фикс записи).
+ *
+ * lightEntry — запись БЕЗ imageCache: { character, log, history:{past,future}, lastModified }.
+ */
+export function saveCharacterMirrorToGranularKey(id: string, lightEntry: any): void {
+  if (typeof window === 'undefined' || !id) return;
+  const key = GRANULAR_KEY_PREFIX + id;
+  try {
+    localStorage.setItem(key, JSON.stringify(lightEntry));
+  } catch (e) {
+    if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+      logger.warn(`[DND Sheet] LocalStorage quota exceeded for granular key "${key}". Retrying without base64...`);
+      try {
+        localStorage.setItem(key, JSON.stringify(stripBase64(lightEntry)));
+        logger.debug('[DND Sheet] Granular key saved after stripping base64.');
+      } catch (innerErr) {
+        logger.error('[DND Sheet] Failed to save granular key even after stripping base64:', innerErr);
+      }
+    } else {
+      logger.error('[DND Sheet] Granular localStorage save failed with unexpected error:', e);
+    }
+  }
+}
+
+/**
+ * Удаляет гранулярные ключи зеркала персонажа из localStorage.
+ * Вызывается на всех путях удаления персонажа.
+ */
+export function removeCharacterMirrorKeys(id: string): void {
+  if (typeof window === 'undefined' || !id) return;
+  try {
+    localStorage.removeItem(GRANULAR_KEY_PREFIX + id);
+  } catch (e) {}
+}
 
 import { SESSION_CLIENT_ID } from './sessionId';
 export { SESSION_CLIENT_ID };
+
+// isOwlbear импортируется из ./environment и реэкспортируется выше (см. шапку файла)
 
 /**
  * Minifies a full Character sheet to a lightweight format to save space in VTT metadata (under 1KB).
@@ -260,57 +316,9 @@ export function unminifyCharacter(min: any): Character {
 }
 
 // Compresses any JSON object into a Gzip base64 string if supported
-export async function compressData(data: any): Promise<any> {
-  try {
-    if (typeof window === 'undefined' || typeof window.CompressionStream === 'undefined') {
-      return data;
-    }
-    const jsonStr = JSON.stringify(data);
-    const stream = new Blob([jsonStr]).stream();
-    const compressedStream = stream.pipeThrough(new CompressionStream('gzip'));
-    const response = new Response(compressedStream);
-    const blob = await response.blob();
-    const base64 = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        const parts = result ? result.split(',') : [];
-        resolve(parts[1] || '');
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-    return { compressed: base64 };
-  } catch (err) {
-    console.error('[DND Sheet] Compression failed, saving raw:', err);
-    return data;
-  }
-}
-
-// Decompresses a Gzip base64 string back into a JSON object if supported
-export async function decompressData(data: any): Promise<any> {
-  if (data && typeof data === 'object' && typeof data.compressed === 'string') {
-    try {
-      if (typeof window === 'undefined' || typeof window.DecompressionStream === 'undefined') {
-        throw new Error('DecompressionStream not supported');
-      }
-      const binaryString = atob(data.compressed);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      const stream = new Blob([bytes]).stream();
-      const decompressedStream = stream.pipeThrough(new DecompressionStream('gzip'));
-      const response = new Response(decompressedStream);
-      const jsonStr = await response.text();
-      return JSON.parse(jsonStr);
-    } catch (err) {
-      console.error('[DND Sheet] Decompression failed:', err);
-      return null;
-    }
-  }
-  return data;
-}
+// (compressData/decompressData удалены вместе с мёртвым metadata-слоем:
+// Room Metadata больше не используется для хранения персонажей — только
+// локальные localStorage + IndexedDB.)
 
 // Helper to clean base64 data URLs recursively from any object
 export function stripBase64(obj: any): any {
@@ -322,11 +330,11 @@ export function stripBase64(obj: any): any {
     }
     return obj;
   }
-  
+
   if (Array.isArray(obj)) {
     return obj.map(stripBase64);
   }
-  
+
   const cleaned: any = {};
   for (const [key, value] of Object.entries(obj)) {
     cleaned[key] = stripBase64(value);
@@ -334,228 +342,32 @@ export function stripBase64(obj: any): any {
   return cleaned;
 }
 
-const MAX_CHUNK_SIZE = 10000; // 10KB chunks, well below the 16KB OBR limit
-
-// Generic helper to chunk any compressed object across multiple keys to bypass OBR 16KB transaction limit
-export async function saveChunkedMetadata(baseKey: string, data: any): Promise<void> {
-  const compressed = await compressData(data);
-  const jsonStr = JSON.stringify(compressed);
-  
-  const totalLength = jsonStr.length;
-  const chunkCount = Math.ceil(totalLength / MAX_CHUNK_SIZE);
-  
-  // 1. Clear any old chunks first if the new save has fewer chunks
-  const oldMetadataUpdate: Record<string, any> = {};
-  if (OBR.isReady) {
-    const currentMetadata = await OBR.room.getMetadata();
-    let index = chunkCount;
-    while (currentMetadata[`${baseKey}/chunk_${index}`] !== undefined && currentMetadata[`${baseKey}/chunk_${index}`] !== null) {
-      oldMetadataUpdate[`${baseKey}/chunk_${index}`] = null;
-      index++;
-    }
-  }
-
-  // 2. Perform separate setMetadata calls for each chunk to keep each update transaction strictly under 10KB
-  for (let i = 0; i < chunkCount; i++) {
-    const chunkStr = jsonStr.slice(i * MAX_CHUNK_SIZE, (i + 1) * MAX_CHUNK_SIZE);
-    await OBR.room.setMetadata({ [`${baseKey}/chunk_${i}`]: chunkStr });
-  }
-
-  // 3. Clear obsolete chunks
-  if (Object.keys(oldMetadataUpdate).length > 0) {
-    await OBR.room.setMetadata(oldMetadataUpdate);
-  }
-
-  // 4. Update the info control key (this is the final step to signal completion)
-  await OBR.room.setMetadata({ [`${baseKey}/info`]: { chunkCount } });
-}
-
-// Generic helper to load chunked metadata and decompress it back into an object
-export async function loadChunkedMetadata(baseKey: string, metadata: any): Promise<any | null> {
-  const info = metadata[`${baseKey}/info`];
-  if (!info || typeof info.chunkCount !== 'number') {
-    // Fall back to legacy non-chunked key if it exists
-    const legacyValue = metadata[baseKey];
-    if (legacyValue) {
-      return decompressData(legacyValue);
-    }
-    return null;
-  }
-
-  const chunkCount = info.chunkCount;
-  let jsonStr = '';
-  for (let i = 0; i < chunkCount; i++) {
-    const chunk = metadata[`${baseKey}/chunk_${i}`];
-    if (chunk === undefined || chunk === null) {
-      console.warn(`[DND Sheet] Missing chunk ${i} for key ${baseKey}`);
-      return null;
-    }
-    jsonStr += chunk;
-  }
-
-  try {
-    const compressed = JSON.parse(jsonStr);
-    return decompressData(compressed);
-  } catch (err) {
-    console.error(`[DND Sheet] Failed to parse chunked metadata for ${baseKey}:`, err);
-    return null;
-  }
-}
-
-// Kept as pass-through for compatibility
-export function mergeCharacter(main: any, texts: any, images: any): any {
-  return main;
-}
-
-// Helper to recursively strip any large text fields by key
-function stripKeysRecursively(obj: any): any {
-  if (typeof obj !== 'object' || obj === null) {
-    return obj;
-  }
-  if (Array.isArray(obj)) {
-    return obj.map(stripKeysRecursively);
-  }
-  const cleaned: any = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (
-      key === 'description' || 
-      key === 'content' || 
-      key === 'materialDescription' ||
-      (key === 'notes' && typeof value === 'string')
-    ) {
-      cleaned[key] = ''; // Strip description/text fields completely to protect the 16KB room limit
-    } else {
-      cleaned[key] = stripKeysRecursively(value);
-    }
-  }
-  return cleaned;
-}
-
-// Strips heavy properties from minified character data recursively to stay below OBR's 16KB metadata limit
-export function stripLargeTexts(minifiedChar: any): any {
-  return stripKeysRecursively(stripBase64(minifiedChar));
-}
-
-// Merges local base64 images and stripped description texts from LocalStorage back into loaded cloud data
+// Merges local base64 images and stripped description texts from LocalStorage back into loaded cloud data.
+// (План 2.5: логика восстановления вынесена в utils/restoreStripped.ts —
+// единая точка для дискового и memory-бэкапов.)
 export const restoreLocalData = (cloudData: any, localBackup: any) => {
   if (!cloudData) return cloudData;
   if (!localBackup) return cloudData;
-
-  const restoreItemImages = (cloudItem: any, localItem: any) => {
-    if (!cloudItem || !localItem) return;
-    const cloudImgIsToken = typeof cloudItem.imageUrl === 'string' && cloudItem.imageUrl.startsWith('img:ref:');
-    if (localItem.imageUrl?.startsWith('data:image/') && (!cloudItem.imageUrl || cloudImgIsToken)) {
-      cloudItem.imageUrl = localItem.imageUrl;
-    }
-    if (localItem.description && !cloudItem.description) {
-      cloudItem.description = localItem.description;
-    }
-    if (cloudItem.isChest && Array.isArray(cloudItem.chestInventory) && Array.isArray(localItem.chestInventory)) {
-      cloudItem.chestInventory.forEach((subItem: any, idx: number) => {
-        restoreItemImages(subItem, localItem.chestInventory[idx]);
-      });
-    }
-  };
 
   const restored = { ...cloudData };
   for (const [id, item] of Object.entries(restored)) {
     const cloudEntry = item as any;
     const localEntry = localBackup[id];
     if (cloudEntry && localEntry && cloudEntry.character && localEntry.character) {
-      const cloudChar = cloudEntry.character;
-      const localChar = localEntry.character;
-
-      // 1. Restore imageCache safely without overwriting valid data URLs with empty values
-      const cloudCacheMap = new Map<string, string>();
-      const cloudCacheList = Array.isArray(cloudEntry.imageCache) ? cloudEntry.imageCache : [];
-      for (const [k, v] of cloudCacheList) {
-        if (k) cloudCacheMap.set(k, v);
-      }
-
-      const localCacheList = Array.isArray(localEntry.imageCache) ? localEntry.imageCache : [];
-      for (const [k, v] of localCacheList) {
-        if (k && v && v.startsWith('data:image/')) {
-          const currentVal = cloudCacheMap.get(k);
-          if (!currentVal || !currentVal.startsWith('data:image/')) {
-            cloudCacheMap.set(k, v);
-          }
-        }
-      }
-      cloudEntry.imageCache = Array.from(cloudCacheMap.entries());
-
-      // 2. Restore portraitUrl if it was stripped or tokenized
-      const cloudPortraitIsToken = typeof cloudChar.portraitUrl === 'string' && cloudChar.portraitUrl.startsWith('img:ref:');
-      if (localChar.portraitUrl?.startsWith('data:image/') && (!cloudChar.portraitUrl || cloudPortraitIsToken)) {
-        cloudChar.portraitUrl = localChar.portraitUrl;
-      }
-
-      // 3. Restore note contents if stripped
-      if (Array.isArray(cloudChar.notes) && Array.isArray(localChar.notes)) {
-        cloudChar.notes.forEach((n: any) => {
-          const match = localChar.notes.find((ln: any) => ln.id === n.id);
-          if (match && match.content && !n.content) n.content = match.content;
-        });
-      }
-
-      // 4. Restore spell descriptions & material descriptions if stripped
-      if (Array.isArray(cloudChar.spells) && Array.isArray(localChar.spells)) {
-        cloudChar.spells.forEach((s: any) => {
-          const match = localChar.spells.find((ls: any) => ls.id === s.id);
-          if (match) {
-            restoreItemImages(s, match);
-            if (match.description && !s.description) s.description = match.description;
-            if (s.components && match.components && match.components.materialDescription && !s.components.materialDescription) {
-              s.components.materialDescription = match.components.materialDescription;
-            }
-          }
-        });
-      }
-
-      // 5. Restore feature descriptions if stripped
-      if (Array.isArray(cloudChar.features) && Array.isArray(localChar.features)) {
-        cloudChar.features.forEach((f: any) => {
-          const match = localChar.features.find((lf: any) => lf.id === f.id);
-          if (match && match.description && !f.description) f.description = match.description;
-        });
-      }
-
-      // 6. Restore attack notes if stripped
-      if (Array.isArray(cloudChar.attacks) && Array.isArray(localChar.attacks)) {
-        cloudChar.attacks.forEach((a: any) => {
-          const match = localChar.attacks.find((la: any) => la.id === a.id);
-          if (match) {
-            restoreItemImages(a, match);
-            if (match.notes && !a.notes) a.notes = match.notes;
-          }
-        });
-      }
-
-      // 7. Restore inventory item images & descriptions (including chests)
-      if (Array.isArray(cloudChar.inventory) && Array.isArray(localChar.inventory)) {
-        cloudChar.inventory.forEach((invItem: any, idx: number) => {
-          const localInvItem = localChar.inventory[idx];
-          if (invItem && localInvItem && invItem.item && localInvItem.item) {
-            restoreItemImages(invItem.item, localInvItem.item);
-          }
-        });
-      }
-
-      // 8. Restore equipped item images & descriptions
-      if (Array.isArray(cloudChar.equippedItems) && Array.isArray(localChar.equippedItems)) {
-        cloudChar.equippedItems.forEach((eqItem: any) => {
-          const match = localChar.equippedItems.find((le: any) => le.id === eqItem.id);
-          if (match) {
-            restoreItemImages(eqItem, match);
-          }
-        });
-      }
+      cloudEntry.imageCache = mergeImageCacheEntries(
+        Array.isArray(cloudEntry.imageCache) ? cloudEntry.imageCache : [],
+        Array.isArray(localEntry.imageCache) ? localEntry.imageCache : [],
+      );
+      // Обе стороны — минифицированные записи инвентаря {index,item}.
+      restoreStrippedCharacter(cloudEntry.character, localEntry.character, true, true);
     }
   }
   return restored;
 };
 
 /**
- * Loads character data from OBR room metadata (filtering by granular keys) or local storage / Vite dev server fallback.
+ * Loads character data from local stores (IndexedDB primary + localStorage mirror)
+ * / Vite dev server fallback.
  */
 export async function loadCharactersApi(): Promise<any> {
   const restoreGranularData = (rawData: any) => {
@@ -574,21 +386,21 @@ export async function loadCharactersApi(): Promise<any> {
   };
 
   const localBackup = loadFromLocalStorage();
-  const rawData = { ...localBackup };
+  const rawData: Record<string, any> = { ...localBackup };
 
   // 1. Auto-recover characters from granular localStorage keys
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith('com.antigravity.dnd-sheet/v2/character/')) {
-          const charId = key.replace('com.antigravity.dnd-sheet/v2/character/', '');
+        if (key && key.startsWith(GRANULAR_KEY_PREFIX)) {
+          const charId = key.replace(GRANULAR_KEY_PREFIX, '');
           if (charId && (!rawData[charId] || !rawData[charId].character)) {
             const rawVal = localStorage.getItem(key);
             if (rawVal) {
               try {
                 rawData[charId] = JSON.parse(rawVal);
-                console.log(`[DND Sheet Recovery] Restored character ${charId} from granular localStorage key.`);
+                logger.debug(`[DND Sheet Recovery] Restored character ${charId} from granular localStorage key.`);
               } catch (e) {}
             }
           }
@@ -597,28 +409,37 @@ export async function loadCharactersApi(): Promise<any> {
     } catch (e) {}
   }
 
-  // 2. Auto-recover characters from Owlbear Room Metadata if running in Owlbear
-  if (isOwlbear() && typeof OBR !== 'undefined' && OBR.isReady) {
+  // 2. IndexedDB — ПЕРВИЧНОЕ долговременное хранилище записей (решение аудита:
+  // Room Metadata не используется из-за малого лимита; localStorage — лишь
+  // лёгкое зеркало без base64). Записи в IDB приоритетнее зеркала.
+  const idbKeys = await imageDb.keys().catch(() => [] as string[]);
+  const idbCoveredIds = new Set<string>();
+  for (const key of idbKeys) {
+    if (typeof key !== 'string' || !key.startsWith(CHAR_FULL_PREFIX)) continue;
+    const charId = key.slice(CHAR_FULL_PREFIX.length);
+    if (!charId) continue;
     try {
-      const metadata = await OBR.room.getMetadata();
-      for (const [key] of Object.entries(metadata)) {
-        if (key.startsWith('com.antigravity.dnd-sheet/v2/character/') && key.endsWith('/info')) {
-          const charId = key.replace('com.antigravity.dnd-sheet/v2/character/', '').replace('/info', '');
-          if (charId && (!rawData[charId] || !rawData[charId].character)) {
-            const cloudChar = await loadChunkedMetadata(`com.antigravity.dnd-sheet/v2/character/${charId}`, metadata);
-            if (cloudChar) {
-              rawData[charId] = cloudChar;
-              console.log(`[DND Sheet Recovery] Restored character ${charId} from Owlbear Room Metadata.`);
-            }
-          }
-        }
+      const fullEntry = await imageDb.get(key);
+      if (fullEntry && typeof fullEntry === 'object' && (fullEntry as any).character) {
+        rawData[charId] = { ...(fullEntry as any) };
+        idbCoveredIds.add(charId);
       }
     } catch (e) {}
   }
 
-  // Save recovered items back to main dnd-characters key
-  if (Object.keys(rawData).length > Object.keys(localBackup).length) {
-    saveToLocalStorage(rawData);
+  // 3. Одноразовая миграция легаси-записей (есть локально, нет в IDB) → IDB.
+  let migratedCount = 0;
+  for (const [id, entry] of Object.entries(rawData)) {
+    if (idbCoveredIds.has(id) || !entry?.character) continue;
+    try {
+      await saveCharacterFullToIndexedDb(id, entry);
+      migratedCount++;
+    } catch (e) {}
+  }
+
+  // Save recovered/migrated items back to the light localStorage mirror
+  if (Object.keys(rawData).length > Object.keys(localBackup).length || migratedCount > 0) {
+    saveToLocalStorage(toLightMirror(rawData));
   }
 
   // Asynchronously load imageCache lists from IndexedDB and merge them with local storage
@@ -642,9 +463,9 @@ export async function loadCharactersApi(): Promise<any> {
         rawData[id].imageCache = Array.from(existingCacheMap.entries());
       }
     } catch (err) {
-      console.error(`Failed to load images from IndexedDB for ${id}:`, err);
+      logger.error(`Failed to load images from IndexedDB for ${id}:`, err);
     }
-    
+
     // Update our synchronous in-memory cache with the full data
     inMemoryCharactersCache[id] = rawData[id];
   }
@@ -652,35 +473,111 @@ export async function loadCharactersApi(): Promise<any> {
   return restoreGranularData(rawData);
 }
 
-const MAX_BROADCAST_CHUNK_SIZE = 20000;
+/** Префикс ключей полного хранения записей персонажей в IndexedDB. */
+const CHAR_FULL_PREFIX = 'char-full/';
+
+/**
+ * Сохраняет запись персонажа в IndexedDB БЕЗ base64-изображений
+ * (они живут отдельно в `char-images/{id}`). Это первичное долговременное
+ * хранилище: у IndexedDB нет лимитов localStorage.
+ */
+async function saveCharacterFullToIndexedDb(id: string, characterData: any): Promise<void> {
+  const { imageCache, ...lightEntry } = characterData ?? {};
+  void imageCache;
+  await imageDb.set(CHAR_FULL_PREFIX + id, lightEntry);
+}
+
+/**
+ * Строит лёгкое зеркало кэша для localStorage: записи без imageCache,
+ * чтобы base64-картинки не выедали квоту (аудит #16). Картинки восстанавливаются
+ * при загрузке из `char-images/{id}`.
+ */
+function toLightMirror(cache: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(cache)) {
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      const { imageCache, ...rest } = v;
+      void imageCache;
+      out[k] = rest;
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+/** Размер чанка полезной нагрузки при вещании в комнату (лимит VTT ~64KB на пакет). */
+export const MAX_BROADCAST_CHUNK_SIZE = 20000;
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Global in-memory cache to track what has already been broadcasted to peers in the current session
 const lastSentImagesCache: Record<string, { portraitUrl: string, imageCacheKeys: Set<string> }> = {};
 
+// P2 аудита: картинки, отклонённые по размеру (>500KB). Не рекламируются
+// повторно, пока не изменятся; очищается вместе с персонажем.
+const oversizedImageSkip: Record<string, Set<string>> = {};
+
+// Повторы при rate-limit Owlbear SDK: 3 попытки с экспоненциальной задержкой.
+const BROADCAST_SEND_RETRIES = 3;
+
+/**
+ * Отправляет сообщение в sync-канал с retry/backoff вместо тихого обрыва
+ * (баг аудита #3b): раньше один rate-limit рвал передачу без повторов,
+ * и получатель вечно ждал недостающий чанк.
+ */
+async function sendSyncMessageWithRetry(payload: Record<string, unknown>): Promise<boolean> {
+  for (let attempt = 0; attempt < BROADCAST_SEND_RETRIES; attempt++) {
+    try {
+      await OBR.broadcast.sendMessage(SYNC_CHANNEL, payload);
+      return true;
+    } catch {
+      if (attempt === BROADCAST_SEND_RETRIES - 1) break;
+      await delay(250 * Math.pow(2, attempt)); // 250 → 500 → 1000ms
+    }
+  }
+  return false;
+}
+
 /**
  * Broadcasts a large string by splitting it into smaller chunks under the 64KB VTT broadcast limit.
+ *
+ * @param syncId Идентификатор передачи — все чанки одной картинки/листа несут его,
+ *               чтобы получатель собирал их вместе и отличал от других передач.
+ * @returns true, если все чанки доставлены; false — если передача оборвалась
+ *          (получатель подчистит частичный буфер через stale-GC).
  */
-export async function broadcastLargeString(id: string, imgId: string, isPortrait: boolean, fullString: string): Promise<void> {
-  if (!fullString) return;
+export async function broadcastLargeString(
+  id: string,
+  imgId: string,
+  isPortrait: boolean,
+  fullString: string,
+  syncId: string = generateUUID(),
+): Promise<boolean> {
+  if (!fullString) return true;
   const totalLength = fullString.length;
   const chunkCount = Math.ceil(totalLength / MAX_BROADCAST_CHUNK_SIZE);
-  
+
   for (let i = 0; i < chunkCount; i++) {
     const chunkStr = fullString.slice(i * MAX_BROADCAST_CHUNK_SIZE, (i + 1) * MAX_BROADCAST_CHUNK_SIZE);
-    await OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
-      type: 'IMAGE_CHUNK_SYNC',
+    // Фикс бага #1 аудита: тип 'CHARACTER_IMAGE_CHUNK_SYNC' — ровно тот же литерал,
+    // что слушает приёмник. Раньше отправитель слал 'IMAGE_CHUNK_SYNC' и картинки
+    // никогда не доходили.
+    const ok = await sendSyncMessageWithRetry({
+      type: SyncMessageType.CHARACTER_IMAGE_CHUNK_SYNC,
       id,
       senderClientId: SESSION_CLIENT_ID,
       imgId,
       isPortrait,
+      syncId,
       chunkIndex: i,
       totalChunks: chunkCount,
-      chunkData: chunkStr
+      chunkData: chunkStr,
     });
+    if (!ok) return false;
     // Add a small delay between chunks to avoid RateLimitHit (Too many requests)
     await delay(80);
   }
+  return true;
 }
 
 /**
@@ -690,29 +587,26 @@ export async function broadcastLargeString(id: string, imgId: string, isPortrait
 export async function broadcastCharacterSync(id: string, minifiedCharData: any, forceSyncImages: boolean | string[] = false): Promise<void> {
   if (!isOwlbear()) return;
 
-  const isGM = (typeof window !== 'undefined' && (window as any).__userRole === 'GM');
+  // Фикс бага #2 аудита: роль берётся из roleService (кэш + OBR.player.onChange),
+  // а не из window.__userRole, который никогда нигде не записывался.
+  const isGM = getCachedRole() === 'GM';
   const activeBroadcastId = p2pRoomBridge.getActiveBoardCharacterId();
 
   if (!isGM && activeBroadcastId !== id) {
-    console.log(`[DND Sheet] Skipping broadcastCharacterSync for character ${id} (GM Broadcast toggle is OFF).`);
+    logger.debug(`[DND Sheet] Skipping broadcastCharacterSync for character ${id} (GM Broadcast toggle is OFF).`);
     return;
   }
 
   try {
-    // 1. Initialize our sent tracker for this character if not present
+    // Initialize our sent tracker for this character if not present
     if (!lastSentImagesCache[id]) {
-      lastSentImagesCache[id] = {
-        portraitUrl: '',
-        imageCacheKeys: new Set()
-      };
+      lastSentImagesCache[id] = { portraitUrl: '', imageCacheKeys: new Set() };
     }
-    
-    // 2. Create the lightweight sheet data by extracting images into tokens.
-    // Since minifiedCharData.character is minified, we must unminify it first so extractImages can run,
-    // and then minify it back for optimal VTT storage/network footprint.
+
+    // Create the lightweight sheet data by extracting images into tokens.
     const fullChar = unminifyCharacter(minifiedCharData.character);
     const { light, images: newExtractedImages } = extractImages(fullChar);
-    
+
     // Merge new extracted images with the existing imageCache list
     const combinedImageCacheMap = new Map<string, string>();
     if (Array.isArray(minifiedCharData.imageCache)) {
@@ -724,24 +618,23 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
       combinedImageCacheMap.set(imgId, imgVal);
     }
 
-    // Initialize session cache if not present
-    if (!lastSentImagesCache[id]) {
-      lastSentImagesCache[id] = { portraitUrl: '', imageCacheKeys: new Set() };
-    }
-
     // Determine which images actually need to be sent (changed or forced)
+    const oversizeSkipped = oversizedImageSkip[id];
     const imagesToSync: string[] = [];
     for (const [imgId, imgVal] of combinedImageCacheMap.entries()) {
       if (imgVal && imgVal.startsWith('data:')) {
+        // P2 аудита: недоставляемые (>500KB) картинки не рекламируем повторно
+        if (oversizeSkipped?.has(imgId)) continue;
+
         const isPortrait = imgId === 'img:ref:portrait';
-        const hasChanged = isPortrait 
-          ? imgVal !== lastSentImagesCache[id].portraitUrl 
+        const hasChanged = isPortrait
+          ? imgVal !== lastSentImagesCache[id].portraitUrl
           : !lastSentImagesCache[id].imageCacheKeys.has(imgId);
-          
-        const mustSync = (forceSyncImages === true) || 
-                         (Array.isArray(forceSyncImages) && forceSyncImages.includes(imgId)) || 
+
+        const mustSync = (forceSyncImages === true) ||
+                         (Array.isArray(forceSyncImages) && forceSyncImages.includes(imgId)) ||
                          hasChanged;
-                         
+
         if (mustSync) {
           imagesToSync.push(imgId);
         }
@@ -759,55 +652,75 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
       strippedData.history.past = [];
       strippedData.history.future = [];
     }
-    
+
+    // Все чанки этой передачи (лист + картинки) несут общий syncId — приёмник
+    // собирает их в отдельном буфере и не смешивает со следующей версией листа.
+    const syncId = generateUUID();
+
     // Broadcast the lightweight sheet (extremely small, usually <3KB, so it's 1 chunk)
     const jsonStr = JSON.stringify(strippedData);
     const totalLength = jsonStr.length;
     const chunkCount = Math.ceil(totalLength / MAX_BROADCAST_CHUNK_SIZE);
-    
+
+    let senderPlayerId = '';
+    try {
+      senderPlayerId = OBR.player?.id || '';
+    } catch {
+      /* player API недоступен */
+    }
+
     for (let i = 0; i < chunkCount; i++) {
       const chunkStr = jsonStr.slice(i * MAX_BROADCAST_CHUNK_SIZE, (i + 1) * MAX_BROADCAST_CHUNK_SIZE);
-      try {
-        await OBR.broadcast.sendMessage('com.antigravity.dnd-sheet/sync', {
-          type: 'CHARACTER_CHUNK_SYNC',
-          id,
-          senderClientId: SESSION_CLIENT_ID,
-          senderPlayerId: isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '',
-          chunkIndex: i,
-          totalChunks: chunkCount,
-          chunkData: chunkStr
-        });
-      } catch (err) {
-        // Owlbear SDK rate limit or no active listeners - fail gracefully
-        break;
+      const ok = await sendSyncMessageWithRetry({
+        type: SyncMessageType.CHARACTER_CHUNK_SYNC,
+        id,
+        senderClientId: SESSION_CLIENT_ID,
+        senderPlayerId,
+        syncId,
+        chunkIndex: i,
+        totalChunks: chunkCount,
+        chunkData: chunkStr,
+      });
+      if (!ok) {
+        logger.warn(`[DND Sheet] Не удалось доставить лист ${id} (чанк ${i}/${chunkCount}) после ${BROADCAST_SEND_RETRIES} попыток.`);
+        return; // частичная передача будет подчистена stale-GC у приёмников
       }
     }
-    
-    // 3. Broadcast portrait and all other imageCache entries if they are new, changed, or forceSyncImages is true
+
+    // Broadcast portrait and all other imageCache entries that need syncing.
+    // ВАЖНО: изображение помечается «отправленным» ТОЛЬКО после успешной доставки
+    // (раньше метка ставилась до отправки — сбой сети навсегда терял картинку).
     for (const imgId of imagesToSync) {
       const imgVal = combinedImageCacheMap.get(imgId);
-      if (imgVal) {
-        const isPortrait = imgId === 'img:ref:portrait';
-        // Immediately record that this image version was processed for this session
-        if (isPortrait) {
-          lastSentImagesCache[id].portraitUrl = imgVal;
-        } else {
-          lastSentImagesCache[id].imageCacheKeys.add(imgId);
-        }
+      if (!imgVal) continue;
 
-        // Only attempt room broadcast if image size is within reasonable VTT limits
-        if (imgVal.length < 500000) {
-          try {
-            await broadcastLargeString(id, imgId, isPortrait, imgVal);
-          } catch (err) {
-            console.warn(`[DND Sheet] Skipped room broadcast for large image ${imgId}`);
-          }
-        }
-        await delay(150);
+      const isPortrait = imgId === 'img:ref:portrait';
+
+      // Only attempt room broadcast if image size is within reasonable VTT limits.
+      // P2 аудита: заносим в skip-list, чтобы не спамить warn и syncImageIds
+      // на каждом сейве — картинка физически недоставляема этим каналом.
+      if (imgVal.length >= 500000) {
+        if (!oversizedImageSkip[id]) oversizedImageSkip[id] = new Set();
+        oversizedImageSkip[id].add(imgId);
+        logger.warn(`[DND Sheet] Изображение ${imgId} (${Math.round(imgVal.length / 1024)}KB) превышает лимит вещания — исключено из синка до изменения.`);
+        continue;
       }
+
+      const ok = await broadcastLargeString(id, imgId, isPortrait, imgVal, syncId);
+      if (!ok) {
+        logger.warn(`[DND Sheet] Доставка изображения ${imgId} для ${id} прервана — будет повторено при следующем синке.`);
+        break; // последующие картинки тоже считаются неотправленными
+      }
+
+      if (isPortrait) {
+        lastSentImagesCache[id].portraitUrl = imgVal;
+      } else {
+        lastSentImagesCache[id].imageCacheKeys.add(imgId);
+      }
+      await delay(150);
     }
   } catch (error) {
-    console.warn(`[DND Sheet] Owlbear broadcast skipped for ${id} (VTT room offline or disconnected).`);
+    logger.warn(`[DND Sheet] Owlbear broadcast skipped for ${id} (VTT room offline or disconnected).`);
   }
 }
 
@@ -858,11 +771,29 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
   try {
     await imageDb.set('char-images/' + id, imageCacheArray);
   } catch (err) {
-    console.error(`Failed to save images to IndexedDB for ${id}:`, err);
+    logger.error(`Failed to save images to IndexedDB for ${id}:`, err);
   }
 
-  // 3. Save complete character data including imageCache to LocalStorage
-  saveToLocalStorage(inMemoryCharactersCache);
+  // 3. Save the full entry (без base64) в PRIMARY хранилище — IndexedDB.
+  try {
+    await saveCharacterFullToIndexedDb(id, minifiedCharData);
+  } catch (err) {
+    logger.error(`Failed to save character entry to IndexedDB for ${id}:`, err);
+  }
+
+  // 4. Лёгкое зеркало (без base64 и без imageCache) — ОДИН гранулярный ключ
+  // для этого персонажа. Главное зеркало 'dnd-characters' при обычных сейвах
+  // больше НЕ переписывается (читается с наложением гранулярных записей).
+  const entryLog = Array.isArray(characterData.log) ? characterData.log : [];
+  saveCharacterMirrorToGranularKey(id, {
+    character: minifiedCharData.character,
+    log: entryLog,
+    history: {
+      past: characterData.history?.past || [],
+      future: characterData.history?.future || [],
+    },
+    lastModified: characterData.lastModified || (entryLog[0] as any)?.timestamp || Date.now(),
+  });
 
   if (isOwlbear()) {
     await broadcastCharacterSync(id, minifiedCharData);
@@ -872,28 +803,51 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
 }
 
 /**
+ * ПОЛНАЯ зачистка персонажа со ВСЕХ локальных хранилищ (P0 финального аудита).
+ *
+ * Единственная точка правды для всех путей удаления. До этого три из четырёх
+ * путей чистили подмножество сторов, из-за чего персонаж «воскресал»:
+ *  - memory-cache overlay в loadFromLocalStorage возвращал его живой вкладке;
+ *  - IndexedDB `char-full/{id}` как PRIMARY хранилище воскрешал после reload.
+ *
+ * Порядок важен: removeFromMemoryCache СТРОГО до чтения зеркала, иначе
+ * memory-overlay запишет «удалённого» обратно при сохранении.
+ */
+export async function purgeLocalCharacter(id: string): Promise<void> {
+  // 1. Память первой (см. порядок выше)
+  removeFromMemoryCache(id);
+
+  // 2. Главное зеркало
+  const localData = loadFromLocalStorage();
+  if (localData[id]) {
+    delete localData[id];
+    saveToLocalStorage(localData);
+  }
+
+  // 3. Granular ключ-зеркало
+  removeCharacterMirrorKeys(id);
+
+  // 4. IndexedDB: картинки + полная запись
+  try {
+    await imageDb.delete('char-images/' + id);
+    await imageDb.delete(CHAR_FULL_PREFIX + id);
+  } catch (err) {
+    logger.error(`Failed to purge IndexedDB data for ${id}:`, err);
+  }
+
+  // 5. Сессионный кеш отправленных картинок + skip-list недоставляемых
+  delete lastSentImagesCache[id];
+  delete oversizedImageSkip[id];
+}
+
+/**
  * Deletes a single character's data from local storage.
  */
 export async function deleteCharacterApi(id: string): Promise<void> {
-  // 1. Delete from in-memory cache
-  delete inMemoryCharactersCache[id];
-
-  // 2. Delete from LocalStorage
-  const localData = loadFromLocalStorage();
-  delete localData[id];
-  saveToLocalStorage(localData);
-
-  // 3. Delete from IndexedDB
-  try {
-    await imageDb.delete('char-images/' + id);
-  } catch (err) {
-    console.error(`Failed to delete images from IndexedDB for ${id}:`, err);
-  }
-
-  // Clear in-memory sent cache for deleted character
-  delete lastSentImagesCache[id];
+  await purgeLocalCharacter(id);
 
   if (!isOwlbear()) {
+    const localData = loadFromLocalStorage();
     await saveToLocalDevApi(localData);
   }
 }
@@ -907,6 +861,24 @@ export function loadFromLocalStorage(): any {
       diskData = JSON.parse(raw);
     }
   } catch (e) {}
+
+  // Гранулярные записи свежее главного зеркала: обычные сейвы пишут только
+  // в отдельные ключи. Накладываем их ПОВЕРХ 'dnd-characters', чтобы все
+  // читатели loadFromLocalStorage() видели актуальные данные без правок.
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith(GRANULAR_KEY_PREFIX)) continue;
+      const charId = key.slice(GRANULAR_KEY_PREFIX.length);
+      if (!charId) continue;
+      const rawVal = localStorage.getItem(key);
+      if (!rawVal) continue;
+      try {
+        diskData[charId] = JSON.parse(rawVal);
+      } catch (e) {}
+    }
+  } catch (e) {}
+
   return { ...diskData, ...inMemoryCharactersCache };
 }
 
@@ -916,7 +888,7 @@ export function saveToLocalStorage(characters: any) {
     localStorage.setItem('dnd-characters', JSON.stringify(characters));
   } catch (e) {
     if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
-      console.warn('[DND Sheet] LocalStorage quota exceeded. Stripping base64 from all local backups to free space...');
+      logger.warn('[DND Sheet] LocalStorage quota exceeded. Stripping base64 from all local backups to free space...');
       // Strip base64 from all characters in the object to shrink them down
       const cleaned: any = {};
       for (const [key, val] of Object.entries(characters)) {
@@ -924,24 +896,13 @@ export function saveToLocalStorage(characters: any) {
       }
       try {
         localStorage.setItem('dnd-characters', JSON.stringify(cleaned));
-        console.log('[DND Sheet] LocalStorage successfully cleared of giant images and saved.');
+        logger.debug('[DND Sheet] LocalStorage successfully cleared of giant images and saved.');
       } catch (innerErr) {
-        console.error('[DND Sheet] Failed to save even after stripping base64:', innerErr);
+        logger.error('[DND Sheet] Failed to save even after stripping base64:', innerErr);
       }
     } else {
-      console.error('[DND Sheet] LocalStorage save failed with unexpected error:', e);
+      logger.error('[DND Sheet] LocalStorage save failed with unexpected error:', e);
     }
-  }
-}
-
-async function loadFromLocalDevApi(): Promise<any> {
-  try {
-    const res = await fetch('/api/characters');
-    if (!res.ok) throw new Error("Сетевая ошибка при загрузке данных.");
-    return res.json();
-  } catch (err) {
-    console.warn("Dev server API unavailable, falling back to LocalStorage:", err);
-    return loadFromLocalStorage();
   }
 }
 
@@ -966,34 +927,8 @@ async function saveToLocalDevApi(characters: any): Promise<any> {
   }
 }
 
-// Synchronous base64 encoding/decoding for safe URL payload passing
-export function encodeBase64Sync(obj: any): string {
-  try {
-    const jsonStr = JSON.stringify(obj);
-    const utf8Bytes = encodeURIComponent(jsonStr).replace(/%([0-9A-F]{2})/g, (_match, p1) => {
-      return String.fromCharCode(parseInt(p1, 16));
-    });
-    return btoa(utf8Bytes);
-  } catch (err) {
-    console.error('[DND Sheet] Sync base64 encoding failed:', err);
-    return '';
-  }
-}
-
-export function decodeBase64Sync(base64: string): any {
-  try {
-    const binary = atob(base64);
-    const charCodes: string[] = [];
-    for (let i = 0; i < binary.length; i++) {
-      charCodes.push('%' + ('00' + binary.charCodeAt(i).toString(16)).slice(-2));
-    }
-    const utf8Str = decodeURIComponent(charCodes.join(''));
-    return JSON.parse(utf8Str);
-  } catch (err) {
-    console.error('[DND Sheet] Sync base64 decoding failed:', err);
-    return null;
-  }
-}
+// Synchronous base64 encoding/decoding удалены: единственный потребитель
+// (URL payload) больше не использует их.
 
 const KNOWN_ROOMS_KEY = 'com.antigravity.dnd-sheet/known_rooms';
 

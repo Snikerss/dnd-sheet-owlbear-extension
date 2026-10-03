@@ -1,4 +1,5 @@
 import React, { useRef, useCallback, useMemo } from 'react';
+import { logger } from '../utils/logger';
 import { useNotifier } from '../context/NotificationContext';
 import { useCharacter } from '../context/CharacterContext';
 import { isOwlbear } from '../utils/storage';
@@ -73,7 +74,7 @@ const PortraitUploader: React.FC = React.memo(() => {
             };
             reader.readAsDataURL(file);
         } catch (error) {
-            console.error("Ошибка при обработке портрета:", error);
+            logger.error("Ошибка при обработке портрета:", error);
             addNotification("Не удалось обработать изображение. Файл может быть поврежден.", 'error');
         } finally {
             resetInput();

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../utils/logger';
 import { Spell, MagicSchool } from '../types';
 import { CustomIconPicker } from './CustomIconPicker';
 import { MAGIC_SCHOOL_NAMES } from '../constants';
@@ -171,7 +172,7 @@ ${isOfficial ? `
                 tools: [{ googleSearch: {} }],
             });
         } catch (groundingErr) {
-            console.warn(`Gemini API call with Google Search failed (${(groundingErr as Error).message}). Retrying without search grounding...`);
+            logger.warn(`Gemini API call with Google Search failed (${(groundingErr as Error).message}). Retrying without search grounding...`);
             jsonText = await generateWithGemini('gemini-2.0-flash', prompt, {
                 responseMimeType: 'application/json',
             });
@@ -207,7 +208,7 @@ ${isOfficial ? `
         setIsSearchPanelOpen(false);
         addNotification(isOfficial ? `Заклинание "${parsedSpell.name}" успешно импортировано!` : `Заклинание "${parsedSpell.name}" успешно сгенерировано ИИ!`, 'info');
     } catch (err: any) {
-        console.error(err);
+        logger.error(err);
         setAiError(`Не удалось сгенерировать заклинание: ${err.message || 'ошибка сети или неверный API-ключ'}`);
     } finally {
         setIsAiGenerating(false);
@@ -229,7 +230,7 @@ ${isOfficial ? `
         try {
             englishPrompt = await translateQueryToEnglish(promptToUse);
         } catch (transErr) {
-            console.warn("Could not translate image prompt: ", transErr);
+            logger.warn("Could not translate image prompt: ", transErr);
         }
 
         const finalPrompt = `D&D high fantasy game icon style, detailed spell illustration, ${englishPrompt}, digital art, highly detailed, clean background, magical lighting`;
@@ -248,7 +249,7 @@ ${isOfficial ? `
         setShowAiImagePrompt(false);
         addNotification('Изображение успешно сгенерировано ИИ!', 'success');
     } catch (err: any) {
-        console.error(err);
+        logger.error(err);
         setAiImageError(err.message || 'Ошибка генерации изображения');
     } finally {
         setIsAiGeneratingImage(false);
@@ -347,7 +348,7 @@ ${isOfficial ? `
             );
         }
     } catch (err) {
-        console.error(err);
+        logger.error(err);
         setSearchError(activeRuleset === '2024'
             ? 'Ошибка поиска. Возможно, редакция 2024 еще не поддерживает данный поиск. Попробуйте переключить на 2014.'
             : 'Не удалось выполнить поиск. Проверьте соединение.'
@@ -394,7 +395,7 @@ ${isOfficial ? `
                 translatedDesc = tDesc;
                 translatedMaterialDesc = tMat;
             } catch (transErr) {
-                console.error("Async translation failed, falling back to English desc.", transErr);
+                logger.error("Async translation failed, falling back to English desc.", transErr);
             }
         }
         
@@ -421,7 +422,7 @@ ${isOfficial ? `
         // Close search panel after selection
         setIsSearchPanelOpen(false);
     } catch (err) {
-        console.error(err);
+        logger.error(err);
         setSearchError('Не удалось загрузить детальную информацию о заклинании.');
     } finally {
         setIsSearching(false);

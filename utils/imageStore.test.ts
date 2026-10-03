@@ -45,7 +45,7 @@ describe('imageStore — extractImages & applyImages (баг #11)', () => {
         expect(light.portraitUrl).toBe('img:ref:portrait');
         expect(light.inventory[0]?.imageUrl).toBe('img:ref:i1');
         expect(light.inventory[2]?.imageUrl).toBe('https://external.com/non-data.png'); // не затронут
-        expect(light.equippedItems?.[0].imageUrl).toBe('img:ref:i3');
+        expect(light.equippedItems?.[0]!.imageUrl).toBe('img:ref:i3');
 
         // Карта содержит правильные соответствия
         expect(images.get('img:ref:portrait')).toBe('data:image/png;base64,portrait_data');

@@ -1,4 +1,5 @@
 import { MagicSchool, Rarity, Currency } from '../types';
+import { logger } from './logger';
 import { generateWithGemini, getGeminiApiKey } from './gemini';
 
 // Magic School mapping
@@ -210,14 +211,14 @@ export const translateText = async (text: string): Promise<string> => {
                     );
                     return translatedChunks.join(' ');
                 } catch (gtErr) {
-                    console.warn("Google Translate paragraph translation failed, trying Gemini or MyMemory:", gtErr);
+                    logger.warn("Google Translate paragraph translation failed, trying Gemini or MyMemory:", gtErr);
 
                     // Try Gemini next if key is available (через единый сервис — ключ в заголовке)
                     if (geminiKey) {
                         try {
                             return await translateWithGemini(trimmed);
                         } catch (geminiErr) {
-                            console.warn("Gemini fallback translation failed, falling back to MyMemory:", geminiErr);
+                            logger.warn("Gemini fallback translation failed, falling back to MyMemory:", geminiErr);
                         }
                     }
 
@@ -248,7 +249,7 @@ export const translateText = async (text: string): Promise<string> => {
         );
         return translatedParagraphs.join('\n\n');
     } catch (error) {
-        console.error("Translation helper completely failed:", error);
+        logger.error("Translation helper completely failed:", error);
         return text;
     }
 };
@@ -325,7 +326,7 @@ export const translateQueryToEnglish = async (query: string): Promise<string> =>
         }
         throw new Error("Invalid GT response");
     } catch (err) {
-        console.warn("Google Translate query translation failed, trying MyMemory fallback:", err);
+        logger.warn("Google Translate query translation failed, trying MyMemory fallback:", err);
         try {
             const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(clean)}&langpair=ru|en`;
             const response = await fetch(url);
@@ -337,7 +338,7 @@ export const translateQueryToEnglish = async (query: string): Promise<string> =>
             }
             return translated.replace(/^["']|["']$/g, '').trim();
         } catch (mymemoryErr) {
-            console.error("MyMemory fallback also failed:", mymemoryErr);
+            logger.error("MyMemory fallback also failed:", mymemoryErr);
             return clean;
         }
     }
@@ -412,6 +413,6 @@ export const parseRobustJSON = (text: string): any => {
     try {
         return JSON.parse(cleanText);
     } catch (e: any) {
-        throw new Error(`Invalid JSON format: ${e.message}. Raw text: ${text.substring(0, 150)}...`);
+        throw new Error(`Invalid JSON format: ${e.message}. Raw text: ${text.substring(0, 150)}...`, { cause: e });
     }
 };

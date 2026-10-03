@@ -100,7 +100,7 @@ describe('P2PRoomBridgeService (Native Browser Bridge)', () => {
     });
 
     expect(mockChild.postMessage).toHaveBeenCalled();
-    const [payload] = mockChild.postMessage.mock.calls[0];
+    const [payload] = mockChild.postMessage.mock.calls[0]!;
     expect(payload.entry.imageCache).toBeUndefined();
   });
 });

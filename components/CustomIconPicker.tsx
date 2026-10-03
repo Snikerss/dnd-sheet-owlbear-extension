@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { logger } from '../utils/logger';
 import { useNotifier } from '../context/NotificationContext';
 
 interface CustomIconPickerProps {
@@ -79,7 +80,7 @@ export const CustomIconPicker: React.FC<CustomIconPickerProps> = ({ icons, onSel
             onUpload(compressedDataUrl);
 
         } catch (error) {
-            console.error("Произошла ошибка при обработке изображения:", error);
+            logger.error("Произошла ошибка при обработке изображения:", error);
             addNotification("Не удалось обработать изображение. Файл может быть поврежден.", 'error');
         } finally {
             resetInput();

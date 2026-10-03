@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Character } from '../types';
 import { useNotifier } from '../context/NotificationContext';
+import { computePermissions } from '../hooks/usePermissions';
 
 interface CharacterCardProps {
   character: Character;
@@ -41,7 +42,13 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
 }) => {
   const { addNotification } = useNotifier();
 
-  const canDelete = isGM || !character.ownerId || !currentUserId || character.ownerId === currentUserId || (!!currentUserName && character.ownerName === currentUserName);
+  // План 3.4: формула владельца — из единого источника прав.
+  const canManage = computePermissions(character, {
+    role: isGM ? 'GM' : 'PLAYER',
+    userId: currentUserId,
+    userName: currentUserName,
+  }).canManage;
+  const canDelete = canManage;
 
   const handleOpenClick = () => {
     if (onOpenStandalone) {
@@ -126,6 +133,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
             <button
                 onClick={onExport}
                 data-tooltip="Экспортировать персонажа"
+                aria-label="Экспортировать персонажа"
                 className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-base)] transition-colors"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -135,6 +143,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
             <button
               onClick={onDuplicate}
               data-tooltip="Дублировать персонажа"
+              aria-label="Дублировать персонажа"
               className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-base)] transition-colors"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -146,6 +155,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
               <button
                 onClick={onSync}
                 data-tooltip="Повторно синхронизировать"
+                aria-label="Повторно синхронизировать"
                 className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-teal-400 transition-colors"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -157,6 +167,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
               <button
                 onClick={onClearCache}
                 data-tooltip={isGM ? "Удалить локальную копию у ГМа" : "Удалить чужую локальную копию"}
+                aria-label={isGM ? "Удалить локальную копию у ГМа" : "Удалить чужую локальную копию"}
                 className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-amber-400 transition-colors"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -168,6 +179,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
               <button
                 onClick={handleOpenClick}
                 data-tooltip="Открыть в новой вкладке"
+                aria-label="Открыть в новой вкладке"
                 className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-base)] transition-colors flex items-center justify-center"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

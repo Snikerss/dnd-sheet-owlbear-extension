@@ -134,7 +134,7 @@ describe('combatReducer — SHORT_REST', () => {
         const char = makeCombatCharacter({ currentHitPoints: 10, features: [feature] });
         const action: CharacterAction = { type: 'SHORT_REST', payload: { diceResults: [], conModifier: 0 } };
         const result = combatReducer(char, action);
-        expect(result.features[0].currentUses).toBe(3);
+        expect(result.features[0]!.currentUses).toBe(3);
     });
 
     it('не тратит больше костей, чем доступно', () => {
@@ -183,8 +183,8 @@ describe('combatReducer — LONG_REST', () => {
         });
         const action: CharacterAction = { type: 'LONG_REST' };
         const result = combatReducer(char, action);
-        expect(result.spellSlots[1].used).toBe(0);
-        expect(result.spellSlots[2].used).toBe(0);
+        expect(result.spellSlots[1]!.used).toBe(0);
+        expect(result.spellSlots[2]!.used).toBe(0);
     });
 });
 

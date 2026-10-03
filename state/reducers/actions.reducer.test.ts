@@ -55,14 +55,14 @@ describe('actionsReducer — FEATURES', () => {
         const action: CharacterAction = { type: 'ADD_FEATURE', payload: makeFeature('f1') };
         const result = actionsReducer(char, action);
         expect(result.features).toHaveLength(1);
-        expect(result.featureGroups?.[0].featureIds).toContain('f1');
+        expect(result.featureGroups?.[0]!.featureIds).toContain('f1');
     });
 
     it('UPDATE_FEATURE обновляет существующую способность', () => {
         const char = makeTestCharacter({ features: [makeFeature('f1', { currentUses: 2 })] });
         const action: CharacterAction = { type: 'UPDATE_FEATURE', payload: makeFeature('f1', { currentUses: 1 }) };
         const result = actionsReducer(char, action);
-        expect(result.features[0].currentUses).toBe(1);
+        expect(result.features[0]!.currentUses).toBe(1);
     });
 
     it('DELETE_FEATURE удаляет способность из всех групп', () => {
@@ -73,14 +73,14 @@ describe('actionsReducer — FEATURES', () => {
         const action: CharacterAction = { type: 'DELETE_FEATURE', payload: 'f1' };
         const result = actionsReducer(char, action);
         expect(result.features).toHaveLength(1);
-        expect(result.featureGroups?.[0].featureIds).toEqual(['f2']);
+        expect(result.featureGroups?.[0]!.featureIds).toEqual(['f2']);
     });
 
     it('USE_FEATURE обновляет currentUses', () => {
         const char = makeTestCharacter({ features: [makeFeature('f1', { currentUses: 3, totalUses: 3 })] });
         const action: CharacterAction = { type: 'USE_FEATURE', payload: { id: 'f1', newUses: 1 } };
         const result = actionsReducer(char, action);
-        expect(result.features[0].currentUses).toBe(1);
+        expect(result.features[0]!.currentUses).toBe(1);
     });
 
     it('REORDER_FEATURES меняет порядок', () => {
@@ -111,8 +111,8 @@ describe('actionsReducer — FEATURES', () => {
         });
         const action: CharacterAction = { type: 'MOVE_FEATURE', payload: { featureId: 'f1', sourceGroupId: 'g1', targetGroupId: 'g2', targetIndex: 0 } };
         const result = actionsReducer(char, action);
-        expect(result.featureGroups?.[0].featureIds).toEqual([]);
-        expect(result.featureGroups?.[1].featureIds).toEqual(['f1', 'f2']);
+        expect(result.featureGroups?.[0]!.featureIds).toEqual([]);
+        expect(result.featureGroups?.[1]!.featureIds).toEqual(['f1', 'f2']);
     });
 });
 
@@ -149,21 +149,21 @@ describe('actionsReducer — SPELLS', () => {
         const char = makeTestCharacter({ spells: [makeSpell('s1', { isPrepared: false })] });
         const action: CharacterAction = { type: 'TOGGLE_SPELL_PREPARED', payload: 's1' };
         const result = actionsReducer(char, action);
-        expect(result.spells[0].isPrepared).toBe(true);
+        expect(result.spells[0]!.isPrepared).toBe(true);
     });
 
     it('SET_SPELL_SLOTS устанавливает количество ячеек', () => {
         const char = makeTestCharacter();
         const action: CharacterAction = { type: 'SET_SPELL_SLOTS', payload: { level: 1, total: 4 } };
         const result = actionsReducer(char, action);
-        expect(result.spellSlots[1].total).toBe(4);
+        expect(result.spellSlots[1]!.total).toBe(4);
     });
 
     it('USE_SPELL_SLOT отмечает использованные ячейки', () => {
         const char = makeTestCharacter();
         const action: CharacterAction = { type: 'USE_SPELL_SLOT', payload: { level: 1, used: 2 } };
         const result = actionsReducer(char, action);
-        expect(result.spellSlots[1].used).toBe(2);
+        expect(result.spellSlots[1]!.used).toBe(2);
     });
 
     it('MOVE_AND_REORDER_SPELL перемещает заклинание перед целевым', () => {
@@ -178,7 +178,7 @@ describe('actionsReducer — SPELLS', () => {
         const char = makeTestCharacter({ spells: [makeSpell('s1', { level: 1 })] });
         const action: CharacterAction = { type: 'MOVE_AND_REORDER_SPELL', payload: { spellId: 's1', targetLevel: 3 } };
         const result = actionsReducer(char, action);
-        expect(result.spells[0].level).toBe(3);
+        expect(result.spells[0]!.level).toBe(3);
     });
 
     it('MOVE_AND_REORDER_SPELL игнорирует, если spellId не найден', () => {
@@ -196,14 +196,14 @@ describe('actionsReducer — NOTES', () => {
         const result = actionsReducer(char, action);
         expect(result.notes).toHaveLength(1);
         expect(result.activeNoteId).toBe('n1');
-        expect(result.noteGroups?.[0].noteIds).toContain('n1');
+        expect(result.noteGroups?.[0]!.noteIds).toContain('n1');
     });
 
     it('UPDATE_NOTE обновляет содержимое', () => {
         const char = makeTestCharacter({ notes: [makeNote('n1')] });
         const action: CharacterAction = { type: 'UPDATE_NOTE', payload: { id: 'n1', updates: { title: 'Новое имя' } } };
         const result = actionsReducer(char, action);
-        expect(result.notes[0].title).toBe('Новое имя');
+        expect(result.notes[0]!.title).toBe('Новое имя');
     });
 
     it('DELETE_NOTE удаляет заметку и переключает активную', () => {
@@ -215,7 +215,7 @@ describe('actionsReducer — NOTES', () => {
         const action: CharacterAction = { type: 'DELETE_NOTE', payload: 'n1' };
         const result = actionsReducer(char, action);
         expect(result.notes).toHaveLength(1);
-        expect(result.notes[0].id).toBe('n2');
+        expect(result.notes[0]!.id).toBe('n2');
         expect(result.activeNoteId).toBe('n2');
     });
 
@@ -239,17 +239,17 @@ describe('actionsReducer — NOTES', () => {
         const action: CharacterAction = { type: 'ADD_NOTE_TO_GROUP', payload: { note: makeNote('n1'), groupId: 'g1' } };
         const result = actionsReducer(char, action);
         expect(result.notes).toHaveLength(1);
-        expect(result.noteGroups?.[0].noteIds).toEqual(['n1']);
+        expect(result.noteGroups?.[0]!.noteIds).toEqual(['n1']);
     });
 
     it('TOGGLE_NOTE_GROUP_COLLAPSE сворачивает и разворачивает папку заметок', () => {
         const char = makeTestCharacter({ noteGroups: [{ id: 'g1', name: 'Папка', isCollapsed: false, noteIds: [] }] });
         const collapseAction: CharacterAction = { type: 'TOGGLE_NOTE_GROUP_COLLAPSE', payload: 'g1' };
         const collapsedResult = actionsReducer(char, collapseAction);
-        expect(collapsedResult.noteGroups?.[0].isCollapsed).toBe(true);
+        expect(collapsedResult.noteGroups?.[0]!.isCollapsed).toBe(true);
 
         const expandResult = actionsReducer(collapsedResult, collapseAction);
-        expect(expandResult.noteGroups?.[0].isCollapsed).toBe(false);
+        expect(expandResult.noteGroups?.[0]!.isCollapsed).toBe(false);
     });
 });
 

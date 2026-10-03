@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import type { InventoryItem, DropLocation } from '../types';
 import { InventorySlot } from './InventorySlot';
 
@@ -14,6 +14,18 @@ interface InventoryGridProps {
   showDisabledSlots: boolean;
 }
 
+// Стабильная пустая функция для пропсов пустых слотов (не создаёт новую
+// ссылку на каждый рендер — иначе React.memo на InventorySlot бесполезен).
+const noop = () => {};
+
+interface SlotHandlers {
+  onClick: (e: React.MouseEvent) => void;
+  onDragStart: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDragEnd: (e: React.DragEvent<HTMLDivElement>) => void;
+}
+
 export const InventoryGrid: React.FC<InventoryGridProps> = ({
   items,
   filteredItems,
@@ -27,34 +39,54 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({
 }) => {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>, index: number) => {
+  // Родители отдают свежие замыкания (inline-стрелки) на каждый рендер.
+  // Храним последние версии в ref и вызываем через него: пер-слотовые
+  // бандлы ниже остаются ссылочно стабильными между рендерами.
+  const callbacksRef = useRef({ onSlotClick, onItemDragStart, onItemDrop, onItemDragEnd });
+  callbacksRef.current = { onSlotClick, onItemDragStart, onItemDrop, onItemDragEnd };
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverIndex(null);
+  }, []);
+
+  const handleSlotDragOver = useCallback((e: React.DragEvent<HTMLDivElement>, index: number) => {
     e.preventDefault();
-    if (index !== dragOverIndex) {
-      setDragOverIndex(index);
-    }
-  };
+    setDragOverIndex(prev => (prev === index ? prev : index));
+  }, []);
 
-  const handleDragLeave = () => {
-    setDragOverIndex(null);
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>, destinationIndex: number) => {
+  const handleSlotDrop = useCallback((e: React.DragEvent<HTMLDivElement>, destinationIndex: number) => {
     e.preventDefault();
-    onItemDrop(destinationIndex);
+    callbacksRef.current.onItemDrop(destinationIndex);
     setDragOverIndex(null);
-  };
+  }, []);
 
-  const handleDragEnd = () => {
-    onItemDragEnd();
+  const handleSlotDragEnd = useCallback(() => {
+    callbacksRef.current.onItemDragEnd();
     setDragOverIndex(null);
-  };
-  
+  }, []);
+
+  // Один стабильный набор хендлеров на индекс: пересоздаётся только когда
+  // реально меняется массив предметов (не при каждом рендере таблицы).
+  const slotHandlers = useMemo<SlotHandlers[]>(() => (
+    items.map((_, index) => ({
+      onClick: (e: React.MouseEvent) => callbacksRef.current.onSlotClick(index, e),
+      onDragStart: (e: React.DragEvent<HTMLDivElement>) => {
+        e.dataTransfer.effectAllowed = 'move';
+        callbacksRef.current.onItemDragStart(index);
+      },
+      onDragOver: (e: React.DragEvent<HTMLDivElement>) => handleSlotDragOver(e, index),
+      onDrop: (e: React.DragEvent<HTMLDivElement>) => handleSlotDrop(e, index),
+      onDragEnd: (e: React.DragEvent<HTMLDivElement>) => handleSlotDragEnd(),
+    }))
+  ), [items, handleSlotDragOver, handleSlotDrop, handleSlotDragEnd]);
+
   const containerId = container.type === 'chest' ? container.chestId : 'inventory';
 
   return (
     <div className="grid grid-cols-10 gap-2" onDragLeave={handleDragLeave}>
       {items.map((originalItem, index) => {
         const item = filteredItems[index];
+        const handlers = slotHandlers[index] as SlotHandlers | undefined;
 
         if (showDisabledSlots && originalItem && !item) {
           // Render a disabled/empty slot if it doesn't match search
@@ -69,11 +101,11 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({
               item={null}
               isDragOver={index === dragOverIndex}
               isBeingDragged={false}
-              onClick={(e) => onSlotClick(index, e)}
-              onDragStart={() => {}}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDrop={(e) => handleDrop(e, index)}
-              onDragEnd={handleDragEnd}
+              onClick={handlers?.onClick ?? noop}
+              onDragStart={noop}
+              onDragOver={handlers?.onDragOver ?? noop}
+              onDrop={handlers?.onDrop ?? noop}
+              onDragEnd={handlers?.onDragEnd ?? noop}
               index={index}
             />
           );
@@ -89,14 +121,11 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({
             item={originalItem}
             isDragOver={index === dragOverIndex}
             isBeingDragged={isBeingDragged}
-            onClick={(e) => onSlotClick(index, e)}
-            onDragStart={(e) => {
-              e.dataTransfer.effectAllowed = 'move';
-              onItemDragStart(index);
-            }}
-            onDragOver={(e) => handleDragOver(e, index)}
-            onDrop={(e) => handleDrop(e, index)}
-            onDragEnd={handleDragEnd}
+            onClick={handlers?.onClick ?? noop}
+            onDragStart={handlers?.onDragStart ?? noop}
+            onDragOver={handlers?.onDragOver ?? noop}
+            onDrop={handlers?.onDrop ?? noop}
+            onDragEnd={handlers?.onDragEnd ?? noop}
             index={index}
           />
         );

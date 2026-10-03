@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { parseAndRoll } from './dice';
+import { parseAndRoll, rollFormula, DiceFormulaError } from './dice';
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -91,5 +91,73 @@ describe('parseAndRoll', () => {
         vi.spyOn(Math, 'random').mockReturnValue(0);
         const result = parseAndRoll('1d20');
         expect(result.diceResult).toBe(1); // floor(0*20)+1
+    });
+});
+
+describe('parseAndRoll — фиксы аудита (#11)', () => {
+    it('умножение считается, а не превращается в сложение', () => {
+        vi.spyOn(Math, 'random').mockReturnValue(0.999);
+        const result = parseAndRoll('2d6*2');
+        expect(result.diceResult).toBe(24); // 12 * 2, а не 12+2
+        expect(result.total).toBe(24);
+    });
+
+    it('умножение с модификатором: 1d4*3+1', () => {
+        vi.spyOn(Math, 'random').mockReturnValue(0.999);
+        const result = parseAndRoll('1d4*3+1');
+        expect(result.diceResult).toBe(12); // 4*3
+        expect(result.modifier).toBe(1);
+        expect(result.total).toBe(13);
+    });
+
+    it('процентная кость d% — это d100', () => {
+        vi.spyOn(Math, 'random').mockReturnValue(0.999);
+        const result = parseAndRoll('d%');
+        expect(result.diceResult).toBe(100);
+    });
+
+    it('kh: 4d6kh3 оставляет три старших кости', () => {
+        // Последовательность бросков: 6, 5, 4, 3 → оставляем 6+5+4=15
+        const rolls = [0.999, 0.8, 0.6, 0.4];
+        let i = 0;
+        vi.spyOn(Math, 'random').mockImplementation(() => rolls[i++ % rolls.length]!);
+        const result = rollFormula('4d6kh3');
+        // броски: floor(r*6)+1 → 6, 5, 4, 3; kh3 → 6+5+4
+        expect(result.diceResult).toBe(15);
+    });
+
+    it('kl: 3d6kl1 оставляет младшую кость', () => {
+        // Броски: 6, 1, 4 → kl1 → 1
+        const rolls = [0.999, 0.01, 0.6];
+        let i = 0;
+        vi.spyOn(Math, 'random').mockImplementation(() => rolls[i++ % rolls.length]!);
+        const result = rollFormula('3d6kl1');
+        expect(result.diceResult).toBe(1);
+    });
+
+    it('мусорный ввод: parseAndRoll возвращает нули и логирует предупреждение', () => {
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const result = parseAndRoll('abc');
+        expect(result).toEqual({ total: 0, diceResult: 0, modifier: 0 });
+        expect(warnSpy).toHaveBeenCalledOnce();
+    });
+
+    it('rollFormula бросает DiceFormulaError на мусоре (loud failure)', () => {
+        expect(() => rollFormula('abc')).toThrow(DiceFormulaError);
+        expect(() => rollFormula('1d6**2')).toThrow(DiceFormulaError);
+        expect(() => rollFormula('1d1')).toThrow(DiceFormulaError);   // минимум 2 грани
+        expect(() => rollFormula('4d6kh9')).toThrow(DiceFormulaError); // нельзя оставить больше, чем брошено
+        expect(() => rollFormula('1d6*0')).toThrow(DiceFormulaError);
+    });
+
+    it('пустая формула валидна и даёт нули даже через rollFormula', () => {
+        expect(rollFormula('')).toEqual({ total: 0, diceResult: 0, modifier: 0 });
+        expect(rollFormula('   ')).toEqual({ total: 0, diceResult: 0, modifier: 0 });
+    });
+
+    it('отрицательный множитель слагаемого: -2d6*2 вычитает удвоенный бросок', () => {
+        vi.spyOn(Math, 'random').mockReturnValue(0.999);
+        const result = parseAndRoll('-2d6*2');
+        expect(result.diceResult).toBe(-24);
     });
 });

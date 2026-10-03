@@ -5,6 +5,7 @@ import { RARITY_COLORS, RARITY_NAMES } from '../constants';
 import { useCharacter } from '../context/CharacterContext';
 import { useNotifier } from '../context/NotificationContext';
 import { calculateItemWeight } from '../utils/inventory';
+import { computeTooltipPosition } from '../hooks/useGlobalTooltips';
 
 interface CharacterDollProps {
   onSlotClick: (index: number, e: React.MouseEvent, fromDoll?: boolean) => void;
@@ -127,13 +128,13 @@ export const CharacterDoll: React.FC<CharacterDollProps> = ({
   }, []);
 
   const updateCoords = (element: HTMLElement, itemY: number) => {
-    const rect = element.getBoundingClientRect();
     const placeBelow = itemY !== undefined && itemY < 30;
-    const top = placeBelow 
-      ? rect.bottom + window.scrollY + 8 
-      : rect.top + window.scrollY - 8;
-    const left = rect.left + window.scrollX + rect.width / 2;
-    setCoords({ top, left, placeBelow });
+    const base = computeTooltipPosition(element, placeBelow ? 'bottom' : 'top');
+    setCoords({
+      top: base.top + (placeBelow ? 8 : -8),
+      left: base.left,
+      placeBelow
+    });
   };
 
   useEffect(() => {

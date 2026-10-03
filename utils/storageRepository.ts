@@ -1,4 +1,4 @@
-import { Character } from '../types';
+import { logger } from './logger';
 import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, loadFromLocalStorage, saveToLocalStorage } from './storage';
 import { imageDb } from './indexedDbStore';
 
@@ -39,7 +39,7 @@ export class StorageRepository implements IStorageRepository {
           }
         }
       } catch (err) {
-        console.warn('[StorageRepository] Error clearing image cache:', err);
+        logger.warn('[StorageRepository] Error clearing image cache:', err);
       }
     }
   }

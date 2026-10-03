@@ -1,9 +1,13 @@
 import React from 'react';
 import { Character, InventoryItem, Attack, Spell, DropLocation } from '../types';
-import { ItemDetailModal } from './ItemDetailModal';
-import { AttackDetailModal } from './AttackDetailModal';
-import { SpellDetailModal } from './SpellDetailModal';
-import { ChestViewModal } from './ChestViewModal';
+import { ErrorBoundary } from './ErrorBoundary';
+
+// Code-splitting (архитектурный аудит): тяжёлые модалки (~3.3K строк суммарно)
+// вынесены из основного бандла и грузятся только при первом открытии.
+const ItemDetailModal = React.lazy(() => import('./ItemDetailModal').then(m => ({ default: m.ItemDetailModal })));
+const AttackDetailModal = React.lazy(() => import('./AttackDetailModal').then(m => ({ default: m.AttackDetailModal })));
+const SpellDetailModal = React.lazy(() => import('./SpellDetailModal').then(m => ({ default: m.SpellDetailModal })));
+const ChestViewModal = React.lazy(() => import('./ChestViewModal').then(m => ({ default: m.ChestViewModal })));
 
 interface SheetModalManagerProps {
   character: Character;
@@ -80,7 +84,8 @@ export const SheetModalManager: React.FC<SheetModalManagerProps> = ({
   const spellToEdit = isNewSpell ? null : editingSpell;
 
   return (
-    <>
+    <ErrorBoundary variant="inline">
+    <React.Suspense fallback={null}>
       {editingSlot && (
         <ItemDetailModal
           character={character}
@@ -160,6 +165,7 @@ export const SheetModalManager: React.FC<SheetModalManagerProps> = ({
           </div>
         </div>
       )}
-    </>
+    </React.Suspense>
+    </ErrorBoundary>
   );
 };

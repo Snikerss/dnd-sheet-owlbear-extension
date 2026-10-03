@@ -1,3 +1,4 @@
+import { logger } from './logger';
 /**
  * Единый сервис для работы с Gemini API.
  *
@@ -70,7 +71,7 @@ export const setGeminiApiKey = (key: string): void => {
     try {
         localStorage.setItem(STORAGE_KEY, key);
     } catch (e) {
-        console.error('Не удалось сохранить API-ключ Gemini:', e);
+        logger.error('Не удалось сохранить API-ключ Gemini:', e);
     }
 };
 

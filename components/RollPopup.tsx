@@ -1,13 +1,25 @@
 import React, { useEffect } from 'react';
+import { logger } from '../utils/logger';
 import OBR from '@owlbear-rodeo/sdk';
+import { RollPopupParamsSchema, RollPopupParams } from '../protocol/messages';
+
+const parseRollPopupParams = (): RollPopupParams => {
+  const raw = Object.fromEntries(new URLSearchParams(window.location.search).entries());
+  const parsed = RollPopupParamsSchema.safeParse(raw);
+  if (parsed.success) {
+    return parsed.data;
+  }
+  logger.warn('[RollPopup] Некорректные параметры поповера, применены значения по умолчанию:', parsed.error.message);
+  return RollPopupParamsSchema.parse({});
+};
 
 export const RollPopup: React.FC = () => {
-  const params = new URLSearchParams(window.location.search);
-  const playerName = params.get('playerName') || 'Игрок';
-  const characterName = params.get('characterName') || 'Персонаж';
-  const rollName = params.get('rollName') || 'Бросок';
-  const total = params.get('total') || '0';
-  const rollDetails = params.get('rollDetails') || '';
+  const params = parseRollPopupParams();
+  const playerName = params.playerName;
+  const characterName = params.characterName;
+  const rollName = params.rollName;
+  const total = params.total;
+  const rollDetails = params.rollDetails;
 
   useEffect(() => {
     // Automatically close the popover after 5.5 seconds

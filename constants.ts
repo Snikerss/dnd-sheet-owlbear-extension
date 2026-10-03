@@ -1,6 +1,13 @@
 import { Ability, ProficiencyLevel, Skill, Rarity, Currency, CharacterSize, RecoveryType, AttackType, DamageType, MagicSchool } from './types';
 
 /**
+ * Единая версия приложения (аудит #7.4): раньше строки версии были захардкожены
+ * в логах index.tsx и расходились с package.json.
+ * Синхронизируется вручную при релизе вместе с package.json и manifest.json.
+ */
+export const APP_VERSION = '1.0.4';
+
+/**
  * Единый источник истины для полей бонусов, обрабатываемых действием SET_BONUS.
  * Раньше эти списки дублировались в abilities.reducer (боевые бонусы) и actions.reducer
  * (бонусы заклинаний) с разными наборами полей — это приводило к рассинхрону.
@@ -9,24 +16,11 @@ import { Ability, ProficiencyLevel, Skill, Rarity, Currency, CharacterSize, Reco
  * Типизирован как массив ключей Character со значением number, чтобы компилятор
  * гарантировал, что все поля существуют и являются числовыми.
  */
-export const BONUS_FIELDS = [
-    'acBonus',
-    'initiativeBonus',
-    'proficiencyBonusBonus',
-    'speedBonus',
-    'longJumpBonus',
-    'highJumpBonus',
-    'passivePerceptionBonus',
-    'passiveInvestigationBonus',
-    'passiveInsightBonus',
-    'carryCapacityBonus',
-    'attunementMaxBonus',
-    'spellSaveDcBonus',
-    'spellAttackBonusBonus',
-    'maxHpBonus',
-] as const;
-
-export type BonusField = (typeof BONUS_FIELDS)[number];
+// BONUS_FIELDS/BonusField перенесены в bonusFields.ts (устранение цикла
+// types ↔ constants, план архитектурного аудита). Реэкспорт сохраняет
+// импорты всех потребителей без изменений.
+export { BONUS_FIELDS } from './bonusFields';
+export type { BonusField } from './bonusFields';
 
 export const ABILITY_NAMES: Record<Ability, string> = {
     [Ability.STR]: 'Сила',

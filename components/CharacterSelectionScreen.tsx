@@ -1,4 +1,5 @@
 import React, { useRef, useState, useMemo } from 'react';
+import { logger } from '../utils/logger';
 import { CharacterCard } from './CharacterCard';
 import { RoomBindingModal } from './RoomBindingModal';
 import type { Character } from '../types';
@@ -107,7 +108,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
           addNotification('Некорректная структура файла персонажа.', 'error');
         }
       } catch (err) {
-        console.error('Failed to parse JSON file:', err);
+        logger.error('Failed to parse JSON file:', err);
         addNotification(' Ошибка при чтении файла. Убедитесь, что это валидный JSON файл.', 'error');
       } finally {
         resetInput();

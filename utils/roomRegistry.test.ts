@@ -29,7 +29,7 @@ describe('roomRegistry', () => {
 
     const rooms = getKnownRooms();
     expect(rooms).toHaveLength(1);
-    expect(rooms[0].roomId).toBe('room-1');
+    expect(rooms[0]!.roomId).toBe('room-1');
   });
 
   it('updates existing room name on re-registration', () => {
@@ -38,14 +38,14 @@ describe('roomRegistry', () => {
 
     const rooms = getKnownRooms();
     expect(rooms).toHaveLength(1);
-    expect(rooms[0].roomName).toBe('Новое Название');
+    expect(rooms[0]!.roomName).toBe('Новое Название');
   });
 
   it('updates room alias explicitly', () => {
     registerCurrentRoom('room-1', 'Старое Название');
     const updated = updateRoomAlias('room-1', 'Моя Кампания');
 
-    expect(updated[0].roomName).toBe('Моя Кампания');
-    expect(getKnownRooms()[0].roomName).toBe('Моя Кампания');
+    expect(updated[0]!.roomName).toBe('Моя Кампания');
+    expect(getKnownRooms()[0]!.roomName).toBe('Моя Кампания');
   });
 });

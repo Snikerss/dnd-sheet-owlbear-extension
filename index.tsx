@@ -1,10 +1,13 @@
 import React from 'react';
+import { logger } from './utils/logger';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { RollPopup } from './components/RollPopup';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import './index.css';
 import OBR from '@owlbear-rodeo/sdk';
 import { isOwlbear } from './utils/storage';
+import { APP_VERSION } from './constants';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -16,7 +19,9 @@ const root = ReactDOM.createRoot(rootElement);
 const renderApp = () => {
   root.render(
     <React.StrictMode>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </React.StrictMode>
   );
 };
@@ -24,7 +29,9 @@ const renderApp = () => {
 const renderRollPopup = () => {
   root.render(
     <React.StrictMode>
-      <RollPopup />
+      <ErrorBoundary>
+        <RollPopup />
+      </ErrorBoundary>
     </React.StrictMode>
   );
 };
@@ -37,18 +44,18 @@ const isRollPopup = typeof window !== 'undefined' && new URLSearchParams(window.
 const isHiddenIframe = typeof window !== 'undefined' && (window.innerWidth <= 10 || window.innerHeight <= 10);
 
 if (isHiddenIframe) {
-  console.log("[DND Sheet] Hidden iframe detected. Halting UI rendering to prevent automatic window opening.");
+  logger.debug("[DND Sheet] Hidden iframe detected. Halting UI rendering to prevent automatic window opening.");
 } else if (isRollPopup) {
   OBR.onReady(() => {
-    console.log("[DND Sheet] Rendering roll popup overlay.");
+    logger.debug("[DND Sheet] Rendering roll popup overlay.");
     renderRollPopup();
   });
 } else if (isOwlbear()) {
   OBR.onReady(() => {
-    console.log("[DND Sheet] OBR is ready. Version: 1.0.3 (Deep recursive stripper + 500ch limit active). Rendering...");
+    logger.info(`[DND Sheet] OBR is ready. Version: ${APP_VERSION}. Rendering...`);
     renderApp();
   });
 } else {
-  console.log("[DND Sheet] Standalone mode. Version: 1.0.3.");
+  logger.info(`[DND Sheet] Standalone mode. Version: ${APP_VERSION}.`);
   renderApp();
 }

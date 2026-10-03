@@ -32,7 +32,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   let dotColor = 'bg-emerald-400';
   let icon = inOwlbear ? '🟢' : '🌐';
   let label = inOwlbear ? 'Owlbear VTT' : 'Автономно';
-  let title = 'Нажмите для управления синхронизацией и выбора активного персонажа';
+  const title = 'Нажмите для управления синхронизацией и выбора активного персонажа';
 
   switch (status) {
     case 'syncing':

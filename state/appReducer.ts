@@ -23,6 +23,13 @@ export type CharactersAction =
     | { type: 'UNDO'; payload: { id: string } }
     | { type: 'REDO'; payload: { id: string } }
     | { type: 'SET_CHARACTERS'; payload: CharactersState }
+    /**
+     * Слияние внешнего снимка (localStorage / storage-event / соседняя вкладка).
+     * В отличие от SET_CHARACTERS НЕ затирает состояние целиком:
+     * пер-персонажно берёт удалённую версию только если она строго новее,
+     * сохраняя undo/redo-историю нетронутых записей (баг аудита #9).
+     */
+    | { type: 'MERGE_REMOTE_CHARACTERS'; payload: CharactersState }
     | { type: 'SYNC_REMOTE_CHARACTER'; payload: { id: string; entry: CharacterEntry } }
     | { type: 'SYNC_REMOTE_CHARACTER_PORTRAIT'; payload: { id: string; portraitUrl: string } }
     | { type: 'SYNC_REMOTE_CHARACTER_IMAGE'; payload: { id: string; imgId: string; imgVal: string } };
@@ -93,6 +100,54 @@ export const charactersReducer = (state: CharactersState, action: CharactersActi
     switch (action.type) {
         case 'SET_CHARACTERS':
             return action.payload;
+
+        /**
+         * Пер-персонажное слияние внешнего снимка (баг #9 аудита).
+         *
+         * Правила:
+         *  - новый для нас персонаж → добавляется;
+         *  - удалённая версия СТРОГО новее локальной (по верхушке лога) →
+         *    заменяет запись целиком (её undo-база устарела);
+         *  - в остальных случаях локальная запись сохраняется ПО ССЫЛКЕ —
+         *    вместе с past/future. Периодические записи bridge_signal /
+         *    storage-event'ы больше не стирают историю отмены посреди сессии.
+         */
+        case 'MERGE_REMOTE_CHARACTERS': {
+            const incoming = action.payload;
+            let changed = false;
+            const next: CharactersState = { ...state };
+
+            for (const [id, entry] of Object.entries(incoming)) {
+                if (!entry?.history?.present) continue;
+                const local = state[id];
+
+                if (!local) {
+                    next[id] = entry;
+                    changed = true;
+                    continue;
+                }
+
+                const remoteTime = entry.log.length > 0 ? entry.log[0]!.timestamp : 0;
+                const localTime = local.log.length > 0 ? local.log[0]!.timestamp : 0;
+
+                if (remoteTime > localTime) {
+                    next[id] = entry;
+                    changed = true;
+                }
+                // remoteTime <= localTime: оставляем локальную версию как есть.
+            }
+
+            // Персонажи, исчезнувшие из внешнего снимка, удалены с диска другой
+            // вкладкой — убираем и у себя.
+            for (const id of Object.keys(state)) {
+                if (!(id in incoming)) {
+                    delete next[id];
+                    changed = true;
+                }
+            }
+
+            return changed ? next : state;
+        }
 
         case 'SYNC_REMOTE_CHARACTER': {
             const { id, entry } = action.payload;

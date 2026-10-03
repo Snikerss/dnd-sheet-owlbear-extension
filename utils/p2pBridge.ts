@@ -1,5 +1,7 @@
 import { SESSION_CLIENT_ID } from './sessionId';
-import { webrtcP2pEngine } from './webrtcP2pEngine';
+import { logger } from './logger';
+import { SAME_ORIGIN, isTrustedMessageOrigin } from './environment';
+import { P2pMessageType } from '../protocol/messages';
 
 export interface RoomHandshakePayload {
   type: 'ROOM_ANNOUNCE' | 'ROOM_PAIR_REQUEST' | 'ROOM_PAIR_ACK' | 'SET_ACTIVE_BOARD_CHAR' | 'CHAR_SYNC' | 'CHAR_UPDATE' | 'DICE_ROLL' | 'PRESENCE_QUERY' | 'STATE_RESPONSE';
@@ -17,9 +19,13 @@ const p2pBroadcastChannel = typeof window !== 'undefined' && typeof BroadcastCha
   : null;
 
 /**
- * Production-Grade Pure HTML5 & WebRTC DataChannel Bridge
- * Мгновенная P2P-передача персонажей напрямую через память браузера и WebRTC DataChannel.
- * 0 зависимости от внешних сокет-серверов, 0 ошибок сети.
+ * Pure HTML5 Bridge (BroadcastChannel + window.postMessage).
+ *
+ * Примечание аудита: прежний «WebRTC Direct DataChannel» слой удалён —
+ * RTCPeerConnection создавался, но SDP/ICE-сигналинг никогда не выполнялся,
+ * поэтому DataChannel не мог открыться в принципе (мёртвый код, дававший
+ * ложное представление об архитектуре). Реальный обмен идёт через
+ * OBR.broadcast + BroadcastChannel + window.postMessage.
  */
 class P2PRoomBridgeService {
   private currentRoomId: string | null = null;
@@ -27,14 +33,11 @@ class P2PRoomBridgeService {
   private listeners: Set<(data: any) => void> = new Set();
   private childWindows: Set<Window> = new Set();
   private activeBoardCharacterId: string | null = null;
+  /** Дедуп входящих сообщений по msgId (ключ → время последнего приёма). */
+  private dedupTimes: Map<string, number> = new Map();
 
   constructor() {
-    // 1. Subscribe to WebRTC Direct P2P messages (<5ms latency)
-    webrtcP2pEngine.subscribe((payload) => {
-      this.notifyListeners(payload);
-    });
-
-    // 2. Subscribe to Native HTML5 BroadcastChannel (<1ms memory latency)
+    // 1. Subscribe to Native HTML5 BroadcastChannel (<1ms memory latency)
     if (p2pBroadcastChannel) {
       p2pBroadcastChannel.onmessage = (event) => {
         if (event.data && typeof event.data === 'object') {
@@ -43,9 +46,11 @@ class P2PRoomBridgeService {
       };
     }
 
-    // 3. Subscribe to window.postMessage events
+    // 2. Subscribe to window.postMessage events
     if (typeof window !== 'undefined') {
       window.addEventListener('message', (event) => {
+        // Origin-фильтр (аудит #4.1): посторонние сайты не могут инъецировать команды.
+        if (!isTrustedMessageOrigin(event.origin)) return;
         if (event.data && typeof event.data === 'object' && event.data.senderClientId) {
           this.notifyListeners(event.data);
         }
@@ -58,14 +63,11 @@ class P2PRoomBridgeService {
     this.currentRoomId = roomId;
     if (roomName) this.currentRoomName = roomName;
 
-    console.log(`[DND Sheet P2P Bridge] Connecting to room: ${roomId} (${this.currentRoomName})`);
-
-    // Initialize WebRTC Direct Peer connection
-    webrtcP2pEngine.initPeer(roomId, true);
+    logger.debug(`[DND Sheet P2P Bridge] Connecting to room: ${roomId} (${this.currentRoomName})`);
 
     // Broadcast room announcement to local listening tabs
     this.broadcast({
-      type: 'ROOM_ANNOUNCE',
+      type: P2pMessageType.ROOM_ANNOUNCE,
       roomId: this.currentRoomId,
       roomName: this.currentRoomName,
       activeCharacterId: this.activeBoardCharacterId || undefined
@@ -76,7 +78,7 @@ class P2PRoomBridgeService {
     this.activeBoardCharacterId = charId;
     if (this.currentRoomId) {
       this.broadcast({
-        type: 'SET_ACTIVE_BOARD_CHAR',
+        type: P2pMessageType.SET_ACTIVE_BOARD_CHAR,
         roomId: this.currentRoomId,
         activeCharacterId: charId || undefined
       });
@@ -119,28 +121,25 @@ class P2PRoomBridgeService {
       } catch (e) {}
     }
 
-    // 2. Send via Direct WebRTC DataChannel
-    webrtcP2pEngine.send(payload);
-
-    // 3. Direct window.opener (if launched as popup/tab)
+    // 3. Direct window.opener (чужой origin Owlbear — приём защищён фильтром)
     if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
       try {
         window.opener.postMessage(payload, '*');
       } catch (e) {}
     }
 
-    // 4. Direct window.parent (if inside iframe)
+    // 4. Direct window.parent (чужой origin Owlbear — приём защищён фильтром)
     if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
       try {
         window.parent.postMessage(payload, '*');
       } catch (e) {}
     }
 
-    // 5. Registered child windows
+    // 5. Registered child windows — всегда наш собственный origin
     this.childWindows.forEach((win) => {
       if (win && !win.closed) {
         try {
-          win.postMessage(payload, '*');
+          win.postMessage(payload, SAME_ORIGIN || '*');
         } catch (e) {}
       } else {
         this.childWindows.delete(win);
@@ -167,12 +166,28 @@ class P2PRoomBridgeService {
       return;
     }
 
-    if (data.type === 'ROOM_ANNOUNCE' && data.roomId) {
+    // Универсальный дедуп: BroadcastChannel + postMessage могут доставить
+    // одно и то же сообщение дважды (веер каналов).
+    if (data.msgId) {
+      const key = `p2p-${data.msgId}`;
+      const now = Date.now();
+      if (this.dedupTimes.get(key) && now - this.dedupTimes.get(key)! < 10000) {
+        return;
+      }
+      this.dedupTimes.set(key, now);
+      if (this.dedupTimes.size > 200) {
+        for (const [k, t] of this.dedupTimes.entries()) {
+          if (now - t > 10000) this.dedupTimes.delete(k);
+        }
+      }
+    }
+
+    if (data.type === P2pMessageType.ROOM_ANNOUNCE && data.roomId) {
       this.currentRoomId = data.roomId;
       if (data.roomName) this.currentRoomName = data.roomName;
     }
 
-    if (data.type === 'SET_ACTIVE_BOARD_CHAR' && data.activeCharacterId) {
+    if (data.type === P2pMessageType.SET_ACTIVE_BOARD_CHAR && data.activeCharacterId) {
       this.activeBoardCharacterId = data.activeCharacterId;
     }
 
@@ -184,7 +199,6 @@ class P2PRoomBridgeService {
   }
 
   public disconnect(): void {
-    webrtcP2pEngine.cleanupPeer();
     this.childWindows.clear();
     this.currentRoomId = null;
   }

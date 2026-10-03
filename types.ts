@@ -1,7 +1,7 @@
 // --- ENUMS ---
 export enum Ability { STR = 'STR', DEX = 'DEX', CON = 'CON', INT = 'INT', WIS = 'WIS', CHA = 'CHA' }
 
-import type { BonusField } from './constants';
+import type { BonusField } from './bonusFields';
 export type { BonusField };
 export enum ProficiencyLevel { None, Proficient, Expert }
 export enum Rarity { Common, Uncommon, Rare, VeryRare, Legendary, Artifact }

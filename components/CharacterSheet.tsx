@@ -1,43 +1,30 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { CharacterHeader } from './CharacterHeader';
-import { CombatStats } from './CombatStats';
-import { SkillCheck } from './SkillCheck';
-import { SavingThrowCheck } from './SavingThrowCheck';
-import { ExperienceBar } from './ExperienceBar';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { logger } from '../utils/logger';
 import { RollToast } from './RollToast';
-import { LevelUpModal } from './LevelUpModal';
-import { DiceRollerModal } from './DiceRollerModal';
-import { SheetModalManager } from './SheetModalManager';
 import { SheetTabNavigation } from './SheetTabNavigation';
 
 import { Inventory } from './Inventory';
-import { ItemDetailModal } from './ItemDetailModal';
-import { HitDiceAndRest } from './HitDiceAndRest';
-import { ShortRestModal } from './ShortRestModal';
-import { Speed } from './Speed';
-import { EditableBonus } from './EditableBonus';
-import { ChestViewModal } from './ChestViewModal';
 import { FeaturesSection } from './FeaturesSection';
-import { FeatureDetailModal } from './FeatureDetailModal';
-import { PassiveSenses } from './PassiveSenses';
 import { AttacksSection } from './AttacksSection';
-import { AttackDetailModal } from './AttackDetailModal';
 import { SpellsSection } from './SpellsSection';
-import { SpellDetailModal } from './SpellDetailModal';
 import { RollContextMenu } from './RollContextMenu';
 import { NotesSection } from './NotesSection';
-import { Ability, RollResult, Skill, InventoryItem, DropLocation, CharacterSize, Feature, ProficiencyLevel, Attack, RollType, Spell, HitDie } from '../types';
-import { XP_THRESHOLDS, CHARACTER_SIZE_NAMES, ABILITY_NAMES } from '../constants';
+import { Ability, InventoryItem, DropLocation, Feature, Attack, RollType, Spell } from '../types';
+import { XP_THRESHOLDS } from '../constants';
 import { useNotifier } from '../context/NotificationContext';
 import { calculateModifier } from '../utils/characterCalculations';
-import { parseAndRoll } from '../utils/dice';
 import { useCharacter } from '../context/CharacterContext';
 import { generateUUID } from '../utils/uuid';
 import { getEquippedItemBonuses } from '../utils/inventory';
-import { isOwlbear } from '../utils/storage';
-import OBR from '@owlbear-rodeo/sdk';
 
 import { SyncStatusType } from './SyncStatusIndicator';
+import { SheetToolbar } from './sheet/SheetToolbar';
+import { SheetModals } from './sheet/SheetModals';
+import { DiceFab } from './sheet/DiceFab';
+import { StatusDashboard } from './sheet/StatusDashboard';
+import { ScrollTabsSection } from './sheet/ScrollTabsSection';
+import { StatsGrid } from './sheet/StatsGrid';
+import { useRollToast } from './sheet/useRollToast';
 
 interface CharacterSheetProps {
     onOpenCharacterManager: () => void;
@@ -72,14 +59,19 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
 }) => {
     // --- CONTEXT HOOKS ---
     const { character, dispatch } = useCharacter();
-    
+
     // --- NOTIFICATION HOOK ---
-    const { addNotification, broadcastRoll } = useNotifier();
-    
+    const { addNotification } = useNotifier();
+
+    // --- ROLL / TOAST STATE (extracted hook) ---
+    const { rollToastData, isRollingDice, setIsRollingDice, handleRoll, handleDamageRoll, showRollResult } = useRollToast({
+        characterName: character.name,
+        onRollStart: () => setContextMenu(null),
+    });
+
     // --- LOCAL UI STATE ---
     const [isLevelUpModalOpen, setIsLevelUpModalOpen] = useState(false);
     const [isShortRestModalOpen, setIsShortRestModalOpen] = useState(false);
-    const [rollToastData, setRollToastData] = useState<RollResult | null>(null);
     const [isDiceRollerOpen, setIsDiceRollerOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'stats' | 'combat' | 'inventory' | 'features' | 'notes'>('stats');
     const [isEditingTabs, setIsEditingTabs] = useState(false);
@@ -121,7 +113,6 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
         }
         dispatch({ type: 'REORDER_TABS', payload: newOrder });
     }, [tabOrder, dispatch]);
-    const [isRollingDice, setIsRollingDice] = useState(false);
     const [editingSlot, setEditingSlot] = useState<DropLocation | null>(null);
     const [draggedItemInfo, setDraggedItemInfo] = useState<DropLocation | null>(null);
     const [viewingChestId, setViewingChestId] = useState<string | null>(null);
@@ -139,49 +130,17 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
             const savedIcons = localStorage.getItem('dnd-custom-icons');
             return savedIcons ? JSON.parse(savedIcons) : [];
         } catch (error) {
-            console.error("Не удалось загрузить пользовательские иконки:", error);
+            logger.error("Не удалось загрузить пользовательские иконки:", error);
             return [];
         }
     });
-
-    const rollToastTimerRef = useRef<number | null>(null);
-    const rollDelayTimerRef = useRef<number | null>(null);
-
-    // --- HEALTH ACTION & BONUS STATE ---
-    const [hpAmount, setHpAmount] = useState<number>(0);
-    const [isEditingMaxHPBonus, setIsEditingMaxHPBonus] = useState(false);
-    const [editedMaxHPBonus, setEditedMaxHPBonus] = useState(character.maxHpBonus);
-
-    useEffect(() => {
-        setEditedMaxHPBonus(character.maxHpBonus);
-    }, [character.maxHpBonus]);
-
-    const handleMaxHPBonusSubmit = () => {
-        const newBonus = isNaN(editedMaxHPBonus) ? 0 : editedMaxHPBonus;
-        dispatch({ type: 'SET_BONUS', payload: { field: 'maxHpBonus', value: newBonus } });
-        setIsEditingMaxHPBonus(false);
-    };
-
-    // --- HIT DICE EDIT STATE ---
-    const [isEditingHitDice, setIsEditingHitDice] = useState(false);
-    const [editedHitDice, setEditedHitDice] = useState(character.currentHitDice);
-
-    useEffect(() => {
-        setEditedHitDice(character.currentHitDice);
-    }, [character.currentHitDice]);
-
-    const handleHitDiceSubmit = () => {
-        const newValue = isNaN(editedHitDice) ? 0 : Math.max(0, Math.min(character.totalHitDice, editedHitDice));
-        dispatch({ type: 'SET_CURRENT_HIT_DICE', payload: newValue });
-        setIsEditingHitDice(false);
-    };
 
     // --- CUSTOM ICONS PERSISTENCE ---
     useEffect(() => {
         try {
             localStorage.setItem('dnd-custom-icons', JSON.stringify(customIcons));
         } catch (error) {
-            console.error("Не удалось сохранить пользовательские иконки:", error);
+            logger.error("Не удалось сохранить пользовательские иконки:", error);
             addNotification("Не удалось сохранить библиотеку иконок. Возможно, хранилище заполнено.", 'error');
         }
     }, [customIcons, addNotification]);
@@ -204,13 +163,13 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
     }, [effectiveAbilityScores, character.abilityBonuses]);
 
     const xpToNextLevel = XP_THRESHOLDS[character.level] ?? XP_THRESHOLDS[XP_THRESHOLDS.length - 1] ?? 0;
-    
+
     const viewingChestItem = useMemo(() => {
         if (!viewingChestId) return null;
         const allItems = [...(character.inventory || []), ...(character.equippedItems || [])];
         return allItems.find(item => item?.id === viewingChestId && item.isChest) || null;
     }, [viewingChestId, character.inventory, character.equippedItems]);
-    
+
     const itemToEdit = useMemo(() => {
         if (!editingSlot) return null;
         const { container, index, chestId } = editingSlot;
@@ -223,7 +182,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
         }
         return null;
     }, [editingSlot, character.inventory, character.equippedItems]);
-        
+
     // --- EFFECTS ---
     useEffect(() => {
         if (character.level < 20 && character.experience >= xpToNextLevel) {
@@ -255,94 +214,13 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
             setOverAttunedItem(null);
         }
     }, [attunedItems, maxAttuned]);
-    
+
     useEffect(() => {
         setViewingChestId(null);
     }, [character.name]);
 
-    useEffect(() => {
-        return () => {
-            if (rollToastTimerRef.current) clearTimeout(rollToastTimerRef.current);
-            if (rollDelayTimerRef.current) clearTimeout(rollDelayTimerRef.current);
-        };
-    }, []);
-
 
     // --- HANDLERS (CALLBACKS) ---
-    const handleRoll = useCallback((name: string, modifier: number, rollType: RollType, bonusDiceFormula?: string) => {
-        if (rollToastTimerRef.current) clearTimeout(rollToastTimerRef.current);
-        setRollToastData(null);
-        setIsRollingDice(true);
-        setContextMenu(null); // Close context menu immediately
-
-        if (rollDelayTimerRef.current) clearTimeout(rollDelayTimerRef.current);
-        rollDelayTimerRef.current = window.setTimeout(() => {
-            rollDelayTimerRef.current = null;
-            const roll1 = Math.floor(Math.random() * 20) + 1;
-            let roll2: number | undefined = undefined;
-            let chosenRoll: number;
-
-            if (rollType === RollType.Normal) {
-                chosenRoll = roll1;
-            } else {
-                roll2 = Math.floor(Math.random() * 20) + 1;
-                chosenRoll = rollType === RollType.Advantage
-                    ? Math.max(roll1, roll2)
-                    : Math.min(roll1, roll2);
-            }
-            
-            let bonusDiceResult = { total: 0 };
-            if (bonusDiceFormula) {
-                bonusDiceResult = parseAndRoll(bonusDiceFormula);
-            }
-
-            const rollResult = {
-                id: generateUUID(),
-                name,
-                roll1,
-                roll2,
-                chosenRoll,
-                modifier,
-                total: chosenRoll + modifier + bonusDiceResult.total,
-                rollType,
-                diceType: 'd20',
-                bonusDiceRoll: bonusDiceFormula ? bonusDiceResult.total : undefined,
-                bonusDiceFormula: bonusDiceFormula || undefined,
-            };
-            setRollToastData(rollResult);
-            broadcastRoll(character.name, rollResult);
-            setIsRollingDice(false);
-            rollToastTimerRef.current = window.setTimeout(() => setRollToastData(null), 3400);
-        }, 800);
-    }, []);
-    
-    const handleDamageRoll = useCallback((name: string, damageFormula: string) => {
-        if (rollToastTimerRef.current) clearTimeout(rollToastTimerRef.current);
-        setRollToastData(null);
-        setIsRollingDice(true);
-
-        if (rollDelayTimerRef.current) clearTimeout(rollDelayTimerRef.current);
-        rollDelayTimerRef.current = window.setTimeout(() => {
-            rollDelayTimerRef.current = null;
-            const { total, diceResult, modifier } = parseAndRoll(damageFormula);
-
-            const rollResult = {
-                id: generateUUID(),
-                name: `Урон: ${name}`,
-                roll1: diceResult, 
-                chosenRoll: diceResult,
-                modifier: modifier,
-                total: total,
-                rollType: RollType.Normal,
-                diceType: damageFormula,
-            };
-            setRollToastData(rollResult);
-            broadcastRoll(character.name, rollResult);
-            setIsRollingDice(false);
-            rollToastTimerRef.current = window.setTimeout(() => setRollToastData(null), 3400);
-        }, 800);
-    }, []);
-
     const handleRollRequest = (e: React.MouseEvent, name: string, modifier: number, bonusDiceFormula?: string) => {
         e.preventDefault();
         setContextMenu({ x: e.clientX, y: e.clientY, name, modifier, bonusDiceFormula });
@@ -355,15 +233,15 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
             dispatch({ type: 'SET_LEVEL', payload: newLevel });
         }
     }, [character.level, dispatch]);
-  
+
     const handleItemDrop = useCallback((destination: DropLocation) => {
         if (!draggedItemInfo) return;
-    
+
         if (draggedItemInfo.container === 'doll' as any) {
             if (destination.container === 'inventory') {
-                dispatch({ 
-                    type: 'UNEQUIP_ITEM_FROM_DOLL', 
-                    payload: { itemIndex: draggedItemInfo.index, targetInventoryIndex: destination.index } 
+                dispatch({
+                    type: 'UNEQUIP_ITEM_FROM_DOLL',
+                    payload: { itemIndex: draggedItemInfo.index, targetInventoryIndex: destination.index }
                 });
             }
             setDraggedItemInfo(null);
@@ -400,7 +278,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
     }, [character.inventory, character.equippedItems]);
 
 
-  
+
     const handleAddCustomIcon = useCallback((iconDataUrl: string) => {
         setCustomIcons(prevIcons => prevIcons.includes(iconDataUrl) ? prevIcons : [...prevIcons, iconDataUrl]);
     }, []);
@@ -409,7 +287,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
         setCustomIcons(prevIcons => prevIcons.filter(icon => icon !== iconDataUrl));
         dispatch({ type: 'DELETE_CUSTOM_ICON_REFERENCES', payload: iconDataUrl });
     }, [dispatch]);
-  
+
     const handleConfirmOverAttunementRemoval = useCallback(() => {
         if (overAttunedItem) {
             dispatch({ type: 'UNATTUNE_ITEM', payload: overAttunedItem.id });
@@ -527,106 +405,14 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
         switch (tabId) {
             case 'stats':
                 return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 animate-fade-in">
-                        {(Object.values(Ability) as Ability[]).map(ability => {
-                            const skillsForAbility = (Object.values(character.skills || {}) as Skill[])
-                                .filter(skill => skill && skill.ability === ability)
-                                .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
-
-                            const abilityName = ABILITY_NAMES[ability];
-                            const baseScore = character.scores[ability];
-                            const effectiveScore = effectiveAbilityScores[ability];
-
-                            return (
-                                <div key={ability} className="bg-[var(--color-surface-opaque)] p-4 rounded-2xl shadow-md border border-transparent transition-all duration-200 hover:shadow-xl hover:border-teal-500/50">
-                                    {/* Ability roll header */}
-                                    <div 
-                                        className="flex items-center justify-between cursor-pointer group w-full mb-2"
-                                        onClick={() => handleRoll(`Проверка: ${abilityName}`, abilityModifiers[ability], RollType.Normal)}
-                                        onContextMenu={(e) => handleRollRequest(e, `Проверка: ${abilityName}`, abilityModifiers[ability])}
-                                        data-tooltip={`ЛКМ: обычный бросок\nПКМ: с преимуществом/помехой`}
-                                    >
-                                        <span className="text-sm font-bold uppercase tracking-wider text-[var(--color-accent-primary)] group-hover:text-[var(--color-accent-primary-light)] transition-colors">{abilityName}</span>
-                                        <span className="text-lg font-extrabold text-[var(--color-text-base)] bg-[var(--color-surface-well)] px-2 py-0.5 rounded-lg border border-slate-700/50 group-hover:border-teal-500/50 transition-colors">{abilityModifiers[ability] >= 0 ? `+${abilityModifiers[ability]}` : `${abilityModifiers[ability]}`}</span>
-                                    </div>
-                                    
-                                    {/* Ability score and bonus editors */}
-                                    <div className="flex items-center justify-between bg-[var(--color-surface-well)]/40 p-2 rounded-2xl border border-slate-700/30 mb-3 text-xs w-full">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold">Знач:</span>
-                                            <div className="flex items-center bg-[var(--color-surface-well)] p-1 rounded-xl border border-slate-700/50 gap-1.5 h-8">
-                                                <button 
-                                                    onClick={() => !isReadOnly && dispatch({ type: 'SET_SCORE', payload: { ability, score: character.scores[ability] - 1 } })}
-                                                    disabled={isReadOnly}
-                                                    className="bg-[var(--color-surface-raised)] hover:bg-[var(--color-accent-primary)]/20 hover:text-[var(--color-accent-primary-light)] w-6 h-6 rounded-lg text-sm font-bold flex items-center justify-center transition-all duration-150 active:scale-90 border border-slate-700/30 hover:border-teal-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                    aria-label={`Уменьшить ${abilityName}`}
-                                                    data-tooltip={isReadOnly ? "Только чтение" : "Уменьшить характеристику"}
-                                                >
-                                                    -
-                                                </button>
-                                                <span 
-                                                    className={`text-sm w-7 text-center font-extrabold ${effectiveScore !== baseScore ? 'text-teal-300' : 'text-[var(--color-text-base)]'}`} 
-                                                    data-tooltip={effectiveScore !== baseScore ? `Базовое значение: ${baseScore}\nС бонусами от экипированных предметов: ${effectiveScore}` : "Значение характеристики"}
-                                                >
-                                                    {effectiveScore}
-                                                </span>
-                                                <button 
-                                                    onClick={() => !isReadOnly && dispatch({ type: 'SET_SCORE', payload: { ability, score: character.scores[ability] + 1 } })}
-                                                    disabled={isReadOnly}
-                                                    className="bg-[var(--color-surface-raised)] hover:bg-[var(--color-accent-primary)]/20 hover:text-[var(--color-accent-primary-light)] w-6 h-6 rounded-lg text-sm font-bold flex items-center justify-center transition-all duration-150 active:scale-90 border border-slate-700/30 hover:border-teal-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                    aria-label={`Увеличить ${abilityName}`}
-                                                    data-tooltip={isReadOnly ? "Только чтение" : "Увеличить характеристику"}
-                                                >
-                                                    +
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold">Бонус:</span>
-                                            <EditableBonus
-                                                value={character.abilityBonuses[ability] || 0}
-                                                onChange={(bonus) => dispatch({ type: 'SET_ABILITY_BONUS', payload: { ability, bonus }})}
-                                                isReadOnly={isReadOnly}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
-                                        <SavingThrowCheck
-                                            ability={ability}
-                                            modifier={abilityModifiers[ability]}
-                                            isProficient={character.savingThrowProficiencies[ability]}
-                                            onProficiencyToggle={() => dispatch({ type: 'SET_SAVING_THROW_PROF', payload: ability })}
-                                            onRoll={handleRoll}
-                                            onRequestRoll={handleRollRequest}
-                                            savingThrowBonus={character.savingThrowBonuses[ability] || 0}
-                                            itemSavingThrowBonus={equippedBonuses.savingThrows?.[ability] || 0}
-                                            onSavingThrowBonusChange={(_, bonus) => dispatch({ type: 'SET_SAVING_THROW_BONUS', payload: { ability, bonus }})}
-                                            level={character.level}
-                                            proficiencyBonusBonus={character.proficiencyBonusBonus}
-                                            isReadOnly={isReadOnly}
-                                        />
-                                        {skillsForAbility.map(skill => (
-                                            <SkillCheck 
-                                                key={skill.name}
-                                                skill={skill}
-                                                abilityModifier={abilityModifiers[skill.ability]}
-                                                onProficiencyChange={(name) => dispatch({ type: 'SET_PROFICIENCY', payload: name })}
-                                                onRoll={handleRoll}
-                                                onRequestRoll={handleRollRequest}
-                                                skillBonus={character.skillBonuses[skill.name] || 0}
-                                                itemSkillBonus={equippedBonuses.skills[skill.name] || 0}
-                                                onSkillBonusChange={(name, bonus) => dispatch({ type: 'SET_SKILL_BONUS', payload: { skillName: name, bonus }})}
-                                                level={character.level}
-                                                proficiencyBonusBonus={character.proficiencyBonusBonus}
-                                                isReadOnly={isReadOnly}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                    <StatsGrid
+                        effectiveAbilityScores={effectiveAbilityScores}
+                        abilityModifiers={abilityModifiers}
+                        equippedBonuses={equippedBonuses}
+                        onRoll={handleRoll}
+                        onRequestRoll={handleRollRequest}
+                        isReadOnly={isReadOnly}
+                    />
                 );
             case 'combat':
                 return (
@@ -679,6 +465,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
         }
     }, [
         character,
+        isReadOnly,
         effectiveAbilityScores,
         abilityModifiers,
         equippedBonuses,
@@ -700,79 +487,80 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
 
     const isFeatureModalOpen = !!editingFeature || isNewFeature;
     const featureToEdit = isNewFeature ? null : editingFeature;
-
-    const isAttackModalOpen = !!editingAttack || isNewAttack;
-    const attackToEdit = isNewAttack ? null : editingAttack;
-
-    const isSpellModalOpen = !!editingSpell || isNewSpell;
-    const spellToEdit = isNewSpell ? null : editingSpell;
+    const initialFeatureGroupId = featureToEdit
+        ? (character.featureGroups || []).find(g => g.featureIds.includes(featureToEdit.id))?.id || 'default'
+        : targetGroupId || (character.featureGroups && character.featureGroups[0]?.id) || 'default';
 
     const currentViewMode = character.viewMode || 'tabs';
 
-    const renderControlsBarRight = () => (
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-            {/* View Mode Toggle Button Group */}
-            <div className="flex items-center bg-[var(--color-surface-well)] border border-slate-700/50 rounded-lg p-0.5">
-                <button
-                    onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'tabs' })}
-                    className={`view-mode-btn p-1 rounded transition-all duration-150 ${
-                        currentViewMode === 'tabs'
-                            ? 'bg-[var(--color-accent-primary)]/20 text-[var(--color-accent-primary-light)]'
-                            : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-medium)]'
-                    }`}
-                    data-tooltip="Режим вкладок"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                    </svg>
-                </button>
-                <button
-                    onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'scroll' })}
-                    className={`view-mode-btn p-1 rounded transition-all duration-150 ${
-                        currentViewMode === 'scroll'
-                            ? 'bg-[var(--color-accent-primary)]/20 text-[var(--color-accent-primary-light)]'
-                            : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-medium)]'
-                    }`}
-                    data-tooltip="Режим ленты"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
-                </button>
-            </div>
-
-            {/* Customize Tabs Toggle Button */}
-            <button
-                onClick={() => setIsEditingTabs(!isEditingTabs)}
-                className={`p-1.5 rounded-lg border transition-all duration-200 flex items-center justify-center ${
-                    isEditingTabs
-                        ? 'bg-[var(--color-accent-primary)]/20 border-[var(--color-accent-primary)] text-[var(--color-accent-primary-light)]'
-                        : 'bg-[var(--color-surface-well)] border border-slate-700/30 text-[var(--color-text-muted)] hover:text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised)]'
-                }`}
-                data-tooltip={isEditingTabs ? "Закончить настройку" : "Настроить порядок"}
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 transition-transform duration-300 ${isEditingTabs ? 'animate-spin-slow' : 'hover:rotate-45'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-            </button>
-        </div>
-    );
-
     return (
         <>
-            {/* Universal Dice Roller Modal */}
-            <DiceRollerModal
-                isOpen={isDiceRollerOpen}
-                onClose={() => setIsDiceRollerOpen(false)}
+            <SheetModals
                 character={character}
-                onRoll={(result) => {
-                    if (rollToastTimerRef.current) clearTimeout(rollToastTimerRef.current);
-                    setRollToastData(result);
-                    broadcastRoll(character.name, result);
-                    rollToastTimerRef.current = window.setTimeout(() => setRollToastData(null), 3400);
+                isDiceRollerOpen={isDiceRollerOpen}
+                onCloseDiceRoller={() => setIsDiceRollerOpen(false)}
+                onDiceRollResult={showRollResult}
+                onDiceRollingStatusChange={setIsRollingDice}
+                isLevelUpModalOpen={isLevelUpModalOpen}
+                onCloseLevelUpModal={() => setIsLevelUpModalOpen(false)}
+                onConfirmLevelUp={(method) => {
+                    // Бросок кости для HP вынесен из reducer: выполняется здесь (source of randomness).
+                    // При method='average' бросок не нужен.
+                    const hpRoll = method === 'roll' ? (Math.floor(Math.random() * character.hitDie) + 1) : undefined;
+                    dispatch({ type: 'LEVEL_UP', payload: { method, hpRoll } });
+                    setIsLevelUpModalOpen(false);
                 }}
-                onRollingStatusChange={setIsRollingDice}
+                hitDie={character.hitDie}
+                conModifier={calculateModifier(character.scores[Ability.CON])}
+                isShortRestModalOpen={isShortRestModalOpen}
+                onCloseShortRestModal={() => setIsShortRestModalOpen(false)}
+                onConfirmShortRest={(diceToSpend) => {
+                    // Бросок костей выполняется в компоненте (source of randomness),
+                    // reducer получает уже детерминированные результаты.
+                    const diceResults: number[] = [];
+                    for (let i = 0; i < diceToSpend; i++) {
+                        diceResults.push(Math.floor(Math.random() * character.hitDie) + 1);
+                    }
+                    dispatch({ type: 'SHORT_REST', payload: { diceResults, conModifier: abilityModifiers[Ability.CON] } });
+                    setIsShortRestModalOpen(false);
+                }}
+                maxShortRestDice={character.currentHitDice}
+                shortRestConModifier={abilityModifiers[Ability.CON]}
+                editingItem={itemToEdit}
+                editingSlot={editingSlot}
+                setEditingSlot={setEditingSlot}
+                handleSaveItem={handleSaveItem}
+                handleDeleteItem={handleDeleteItem}
+                editingAttack={editingAttack}
+                setEditingAttack={setEditingAttack}
+                isNewAttack={isNewAttack}
+                setIsNewAttack={setIsNewAttack}
+                handleSaveAttack={handleSaveAttack}
+                handleDeleteAttack={handleDeleteAttack}
+                editingSpell={editingSpell}
+                setEditingSpell={setEditingSpell}
+                isNewSpell={isNewSpell}
+                setIsNewSpell={setIsNewSpell}
+                handleSaveSpell={handleSaveSpell}
+                handleDeleteSpell={handleDeleteSpell}
+                viewingChestItem={viewingChestItem}
+                setViewingChestId={setViewingChestId}
+                draggedItemInfo={draggedItemInfo}
+                setDraggedItemInfo={setDraggedItemInfo}
+                handleItemDrop={handleItemDrop}
+                handleDragEnd={handleDragEnd}
+                overAttunedItem={overAttunedItem}
+                handleConfirmOverAttunementRemoval={handleConfirmOverAttunementRemoval}
+                customIcons={customIcons}
+                handleAddCustomIcon={handleAddCustomIcon}
+                handleDeleteCustomIcon={handleDeleteCustomIcon}
+                isFeatureModalOpen={isFeatureModalOpen}
+                featureToEdit={featureToEdit}
+                onCloseFeatureModal={() => { setEditingFeature(null); setIsNewFeature(false); setTargetGroupId(null); }}
+                onSaveFeature={handleSaveFeature}
+                onDeleteFeature={handleDeleteFeature}
+                featureGroups={character.featureGroups || []}
+                initialFeatureGroupId={initialFeatureGroupId}
             />
 
             <main className={`min-h-screen p-4 md:p-8${isReadOnly ? ' is-readonly' : ''}`}>
@@ -812,112 +600,13 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                     onRollDisadvantage={() => handleRoll(contextMenu.name, contextMenu.modifier, RollType.Disadvantage, contextMenu.bonusDiceFormula)}
                 />
             )}
-            
-            <LevelUpModal 
-                isOpen={isLevelUpModalOpen} 
-                onClose={() => setIsLevelUpModalOpen(false)}
-                onConfirm={(method) => {
-                    // Бросок кости для HP вынесен из reducer: выполняется здесь (source of randomness).
-                    // При method='average' бросок не нужен.
-                    const hpRoll = method === 'roll' ? (Math.floor(Math.random() * character.hitDie) + 1) : undefined;
-                    dispatch({ type: 'LEVEL_UP', payload: { method, hpRoll } });
-                    setIsLevelUpModalOpen(false);
-                }}
-                hitDie={character.hitDie}
-                conModifier={calculateModifier(character.scores[Ability.CON])}
-            />
-            <ShortRestModal
-                isOpen={isShortRestModalOpen}
-                onClose={() => setIsShortRestModalOpen(false)}
-                onConfirm={(diceToSpend) => {
-                    // Бросок костей выполняется в компоненте (source of randomness),
-                    // reducer получает уже детерминированные результаты.
-                    const diceResults: number[] = [];
-                    for (let i = 0; i < diceToSpend; i++) {
-                        diceResults.push(Math.floor(Math.random() * character.hitDie) + 1);
-                    }
-                    dispatch({ type: 'SHORT_REST', payload: { diceResults, conModifier: abilityModifiers[Ability.CON] } });
-                    setIsShortRestModalOpen(false);
-                }}
-                maxDice={character.currentHitDice}
-                hitDie={character.hitDie}
-                conModifier={abilityModifiers[Ability.CON]}
-            />
-            <SheetModalManager
-                character={character}
-                editingItem={itemToEdit}
-                editingSlot={editingSlot}
-                setEditingSlot={setEditingSlot}
-                handleSaveItem={handleSaveItem}
-                handleDeleteItem={handleDeleteItem}
-                editingAttack={editingAttack}
-                setEditingAttack={setEditingAttack}
-                isNewAttack={isNewAttack}
-                setIsNewAttack={setIsNewAttack}
-                handleSaveAttack={handleSaveAttack}
-                handleDeleteAttack={handleDeleteAttack}
-                editingSpell={editingSpell}
-                setEditingSpell={setEditingSpell}
-                isNewSpell={isNewSpell}
-                setIsNewSpell={setIsNewSpell}
-                handleSaveSpell={handleSaveSpell}
-                handleDeleteSpell={handleDeleteSpell}
-                viewingChestItem={viewingChestItem}
-                setViewingChestId={setViewingChestId}
-                draggedItemInfo={draggedItemInfo}
-                setDraggedItemInfo={setDraggedItemInfo}
-                handleItemDrop={handleItemDrop}
-                handleDragEnd={handleDragEnd}
-                overAttunedItem={overAttunedItem}
-                handleConfirmOverAttunementRemoval={handleConfirmOverAttunementRemoval}
-                customIcons={customIcons}
-                handleAddCustomIcon={handleAddCustomIcon}
-                handleDeleteCustomIcon={handleDeleteCustomIcon}
-            />
-            {isFeatureModalOpen && (
-                <FeatureDetailModal
-                    isOpen={isFeatureModalOpen}
-                    onClose={() => { setEditingFeature(null); setIsNewFeature(false); setTargetGroupId(null); }}
-                    feature={featureToEdit}
-                    onSave={handleSaveFeature}
-                    onDelete={handleDeleteFeature}
-                    groups={character.featureGroups || []}
-                    initialGroupId={featureToEdit ? (character.featureGroups || []).find(g => g.featureIds.includes(featureToEdit.id))?.id || 'default' : targetGroupId || (character.featureGroups && character.featureGroups[0]?.id) || 'default'}
-                />
-            )}
 
             {/* Global Dice Roller FAB */}
-            <button
-                onClick={() => setIsDiceRollerOpen(true)}
-                className="dice-fab fixed bottom-24 right-6 md:bottom-6 md:right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-r from-teal-500 to-emerald-600 text-white flex items-center justify-center shadow-[0_0_15px_rgba(20,184,166,0.5)] hover:shadow-[0_0_25px_rgba(20,184,166,0.8)] md:hover:scale-110 active:scale-95 transition-transform duration-150 border border-teal-400/30 group"
-                data-tooltip="Открыть универсальный бросок кубиков"
-            >
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="w-7 h-7 transform group-hover:rotate-12 transition-transform duration-200"
-                    viewBox="0 0 100 100"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                >
-                    <polygon points="50,0 93.3,25 93.3,75 50,100 6.7,75 6.7,25" fill="none" stroke="currentColor" strokeWidth="4" />
-                    <polygon points="50,30 93.3,25 50,0" fill="none" stroke="currentColor" strokeWidth="3" />
-                    <polygon points="50,30 6.7,25 50,0" fill="none" stroke="currentColor" strokeWidth="3" />
-                    <polygon points="50,30 50,70 93.3,75" fill="none" stroke="currentColor" strokeWidth="3" />
-                    <polygon points="50,30 50,70 6.7,75" fill="none" stroke="currentColor" strokeWidth="3" />
-                    <polygon points="50,70 93.3,75 50,100" fill="none" stroke="currentColor" strokeWidth="3" />
-                    <polygon points="50,70 6.7,75 50,100" fill="none" stroke="currentColor" strokeWidth="3" />
-                    <polygon points="6.7,25 50,30 6.7,75" fill="none" stroke="currentColor" strokeWidth="3" />
-                    <polygon points="93.3,25 50,30 93.3,75" fill="none" stroke="currentColor" strokeWidth="3" />
-                    <text x="50" y="58" textAnchor="middle" fill="currentColor" className="text-xl font-extrabold font-mono tracking-tighter" strokeWidth="0">20</text>
-                </svg>
-            </button>
-
-
+            <DiceFab onOpen={() => setIsDiceRollerOpen(true)} />
 
             <div className="max-w-[1600px] mx-auto space-y-6 px-2 md:px-4">
                 
-                <CharacterHeader 
+                <SheetToolbar
                     onLevelChange={handleLevelChange}
                     onOpenCharacterManager={onOpenCharacterManager}
                     canUndo={canUndo}
@@ -926,8 +615,8 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                     onRedo={onRedo}
                     onOpenHistoryLog={onOpenHistoryLog}
                     syncStatus={syncStatus}
-                    onSync={onSyncCharacter}
-                    onClearCache={onClearLocalCache}
+                    onSyncCharacter={onSyncCharacter}
+                    onClearLocalCache={onClearLocalCache}
                     onDeleteCharacter={onDeleteCharacter}
                     onOpenStandalone={onOpenStandalone}
                     isGM={isGM}
@@ -935,299 +624,11 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                 />
 
                 {/* Top Dashboard Grid (Horizontal Panel) */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-                    {/* Left column: Unified Status Panel */}
-                    <div className="bg-[var(--color-surface-opaque)] p-4 rounded-xl shadow-lg border border-[var(--color-border)] flex flex-col justify-between gap-4 col-span-1 lg:col-span-4 h-full">
-                        {/* Section 1: Health (HP) */}
-                        <div className="space-y-3">
-                            {/* Max HP and Hit Die Selector Header */}
-                            <div className="flex justify-between items-center bg-[var(--color-surface-inset)] p-3 rounded-lg relative">
-                                <div className="flex flex-col text-left">
-                                    <span className="text-[10px] text-[var(--color-text-muted)] tracking-wider uppercase font-semibold">Максимальные ОЗ</span>
-                                    <div className="relative group flex items-center mt-1">
-                                        <div 
-                                            className="text-2xl font-bold cursor-pointer hover:text-[var(--color-accent-primary)] transition-colors"
-                                            onClick={() => !isEditingMaxHPBonus && setIsEditingMaxHPBonus(true)}
-                                            data-tooltip="Изменить бонус ОЗ"
-                                        >
-                                            {character.maxHitPoints + (equippedBonuses.maxHp || 0)}
-                                        </div>
-                                         {!isEditingMaxHPBonus && (
-                                            <svg 
-                                                xmlns="http://www.w3.org/2000/svg" 
-                                                className="h-3.5 w-3.5 text-[var(--color-text-subtle)] group-hover:text-[var(--color-accent-primary)] transition-colors opacity-0 group-hover:opacity-100 absolute left-full ml-1.5 top-1/2 -translate-y-1/2 cursor-pointer" 
-                                                viewBox="0 0 20 20" 
-                                                fill="currentColor"
-                                                onClick={() => setIsEditingMaxHPBonus(true)}
-                                            >
-                                                <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-                                                <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
-                                            </svg>
-                                         )}
-                                    </div>
-                                    {/* Bonus Formula */}
-                                    <div className="text-[11px] text-[var(--color-text-muted)] mt-1 min-h-[12px] font-medium">
-                                        {isEditingMaxHPBonus ? (
-                                            <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-                                              <span>{character.maxHitPoints - character.maxHpBonus} +</span>
-                                              <input 
-                                                type="number" 
-                                                value={editedMaxHPBonus}
-                                                onChange={(e) => setEditedMaxHPBonus(parseInt(e.target.value, 10))}
-                                                onBlur={handleMaxHPBonusSubmit}
-                                                onKeyDown={(e) => { if (e.key === 'Enter') handleMaxHPBonusSubmit(); }}
-                                                className="w-16 h-8 bg-[var(--color-background)] border border-slate-700/50 hover:border-teal-500/30 focus:border-[var(--color-accent-primary-hover)] rounded-xl text-center text-xs font-extrabold focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-primary-hover)] text-[var(--color-text-base)] shadow-inner transition-all duration-150"
-                                                autoFocus
-                                                onFocus={(e) => e.target.select()}
-                                              />
-                                              {equippedBonuses.maxHp !== 0 && (
-                                                  <span className="text-teal-400 font-semibold">
-                                                      {equippedBonuses.maxHp > 0 ? '+' : ''}{equippedBonuses.maxHp}
-                                                  </span>
-                                              )}
-                                            </div>
-                                        ) : (
-                                            <>
-                                              {character.maxHpBonus !== 0 && (
-                                                <span>
-                                                  ({character.maxHitPoints - character.maxHpBonus}{character.maxHpBonus > 0 ? '+' : ''}{character.maxHpBonus})
-                                                </span>
-                                              )}
-                                              {equippedBonuses.maxHp !== 0 && (
-                                                  <span className="text-teal-400 font-semibold" data-tooltip="Бонус от экипированных предметов">
-                                                      {equippedBonuses.maxHp > 0 ? '+' : ''}{equippedBonuses.maxHp}
-                                                  </span>
-                                              )}
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Hit Die Selector Badge - Absolutely positioned to the top-right */}
-                                <div className="absolute right-3 top-3 flex items-center">
-                                    <select
-                                        value={character.hitDie}
-                                        onChange={(e) => dispatch({ type: 'SET_HIT_DIE', payload: parseInt(e.target.value, 10) as HitDie })}
-                                        className="bg-[var(--color-surface-well)] hover:bg-[var(--color-surface-raised)] border border-[var(--color-border-subtle)] rounded py-1 pl-2.5 pr-6 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] transition-all cursor-pointer text-[var(--color-text-medium)] hover:text-[var(--color-text-base)] appearance-none"
-                                        style={{ backgroundImage: 'none', paddingRight: '24px' }}
-                                    >
-                                        <option value={HitDie.d6}>d6</option>
-                                        <option value={HitDie.d8}>d8</option>
-                                        <option value={HitDie.d10}>d10</option>
-                                        <option value={HitDie.d12}>d12</option>
-                                    </select>
-                                    <span className="absolute right-2 pointer-events-none text-[var(--color-text-muted)] text-[8px] leading-none">▼</span>
-                                </div>
-                            </div>
-
-                            {/* Current/Temp HP Bar */}
-                            <div className="w-full bg-[var(--color-surface-well)] rounded-full h-6 border border-[var(--color-border)] overflow-hidden shadow-inner relative flex items-center justify-center">
-                                <div 
-                                  className="bg-[var(--color-health)] h-full absolute left-0 top-0 transition-all duration-300" 
-                                  style={{ width: `${(Math.min(character.currentHitPoints, character.maxHitPoints + (equippedBonuses.maxHp || 0)) / (character.maxHitPoints + (equippedBonuses.maxHp || 0))) * 100}%` }}
-                                ></div>
-                                {character.temporaryHitPoints > 0 &&
-                                    <div 
-                                      className="bg-[var(--color-temp-hp)] h-full absolute left-0 top-0 transition-all duration-300 opacity-70" 
-                                      style={{ width: `${((Math.min(character.currentHitPoints, character.maxHitPoints + (equippedBonuses.maxHp || 0)) + character.temporaryHitPoints) / (character.maxHitPoints + (equippedBonuses.maxHp || 0))) * 100}%` }}
-                                    ></div>
-                                }
-                                <span className="relative text-white font-bold text-sm z-10 drop-shadow-md">
-                                    {`${character.currentHitPoints} ${character.temporaryHitPoints > 0 ? `(+${character.temporaryHitPoints})` : ''} / ${character.maxHitPoints + (equippedBonuses.maxHp || 0)}`}
-                                </span>
-                                {character.temporaryHitPoints > 0 &&
-                                    <button onClick={() => dispatch({ type: 'SET_FIELD', payload: { field: 'temporaryHitPoints', value: 0 } })} className="absolute right-1 top-1/2 -translate-y-1/2 z-20 h-5 w-5 bg-black/20 rounded-full text-white/70 hover:bg-[var(--color-health)] hover:text-white transition-colors" data-tooltip="Сбросить временные ОЗ">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                    </button>
-                                }
-                            </div>
-
-                            {/* Health Controls - Compact row */}
-                            <div className="flex items-center gap-1.5">
-                                <input
-                                    type="number"
-                                    value={hpAmount}
-                                    onChange={(e) => setHpAmount(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                                    className="w-16 h-8 bg-[var(--color-background)] border border-slate-700/50 hover:border-teal-500/30 focus:border-[var(--color-accent-primary-hover)] rounded-xl text-center text-xs font-extrabold focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-primary-hover)] text-[var(--color-text-base)] shadow-inner transition-all duration-150"
-                                    min="0"
-                                    placeholder="0"
-                                />
-                                <div className="grid grid-cols-3 gap-1.5 flex-grow">
-                                    <button 
-                                        onClick={() => dispatch({ type: 'APPLY_HEALTH_CHANGE', payload: { amount: hpAmount, type: 'damage' } })} 
-                                        className="bg-gradient-to-r from-red-600/80 to-rose-600/80 hover:from-red-500 hover:to-rose-600 border border-red-500/30 text-white font-semibold py-1 px-1 rounded-lg transition-all duration-150 text-[10px] shadow active:scale-[0.97] text-center whitespace-nowrap"
-                                    >
-                                        Урон
-                                    </button>
-                                    <button 
-                                        onClick={() => dispatch({ type: 'APPLY_HEALTH_CHANGE', payload: { amount: hpAmount, type: 'heal' } })} 
-                                        className="bg-gradient-to-r from-emerald-600/80 to-teal-600/80 hover:from-emerald-500 hover:to-teal-600 border border-emerald-500/30 text-white font-semibold py-1 px-1 rounded-lg transition-all duration-150 text-[10px] shadow active:scale-[0.97] text-center whitespace-nowrap"
-                                    >
-                                        Лечение
-                                    </button>
-                                    <button 
-                                        onClick={() => dispatch({ type: 'APPLY_HEALTH_CHANGE', payload: { amount: hpAmount, type: 'temp' } })} 
-                                        className="bg-gradient-to-r from-blue-600/80 to-indigo-600/80 hover:from-blue-500 hover:to-indigo-600 border border-blue-500/30 text-white font-semibold py-1 px-1 rounded-lg transition-all duration-150 text-[10px] shadow active:scale-[0.97] text-center whitespace-nowrap"
-                                    >
-                                        Врем. ОЗ
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Divider */}
-                        <div className="border-t border-[var(--color-border)] opacity-20 my-0.5"></div>
-
-                        {/* Section 2: Hit Dice, Rests and Size */}
-                        <div className="space-y-3">
-                            <div className="grid grid-cols-2 gap-4 items-start">
-                                {/* Hit Dice Display */}
-                                <div className="flex flex-col gap-1 text-left">
-                                    <span className="text-xs font-semibold text-[var(--color-text-medium)] tracking-wider uppercase">Кости здоровья:</span>
-                                    <div className="flex items-center gap-1 mt-1 min-h-[24px]">
-                                        {isEditingHitDice ? (
-                                            <input
-                                                type="number"
-                                                value={editedHitDice}
-                                                onChange={(e) => setEditedHitDice(parseInt(e.target.value, 10))}
-                                                onBlur={handleHitDiceSubmit}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') handleHitDiceSubmit();
-                                                    if (e.key === 'Escape') {
-                                                        setEditedHitDice(character.currentHitDice);
-                                                        setIsEditingHitDice(false);
-                                                    }
-                                                }}
-                                                className="w-10 bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded py-0 px-1 text-center text-xs font-bold focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
-                                                autoFocus
-                                                onFocus={(e) => e.target.select()}
-                                                min="0"
-                                                max={character.totalHitDice}
-                                            />
-                                        ) : (
-                                            <span 
-                                                className="text-sm font-bold text-[var(--color-text-base)] cursor-pointer hover:text-[var(--color-accent-primary)] transition-colors"
-                                                onClick={() => setIsEditingHitDice(true)}
-                                                data-tooltip="Изменить текущее количество костей здоровья"
-                                            >
-                                                {character.currentHitDice}
-                                            </span>
-                                        )}
-                                        <span className="text-[var(--color-text-subtle)] text-xs">/</span>
-                                        <span className="text-sm font-bold text-[var(--color-text-base)]">{character.totalHitDice}</span>
-                                        <span className="text-[var(--color-text-muted)] text-xs ml-1">(d{character.hitDie})</span>
-                                    </div>
-                                </div>
-
-                                {/* Size selector */}
-                                <div className="flex flex-col gap-1 text-left">
-                                    <span className="text-xs font-semibold text-[var(--color-text-medium)] tracking-wider uppercase">Размер:</span>
-                                    <select
-                                        id="character-size"
-                                        value={character.size}
-                                        onChange={(e) => dispatch({ type: 'SET_SIZE', payload: parseInt(e.target.value, 10) as CharacterSize })}
-                                        className="w-full bg-[var(--color-surface-inset)] border border-[var(--color-border-subtle)] rounded-lg py-1.5 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-xs font-bold text-[var(--color-text-base)] cursor-pointer"
-                                    >
-                                        {Object.entries(CHARACTER_SIZE_NAMES).map(([sizeKey, sizeName]) => (
-                                            <option key={sizeKey} value={sizeKey}>{sizeName}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            {/* Rest Buttons Row */}
-                            <div className="grid grid-cols-2 gap-2">
-                                <button 
-                                    onClick={() => setIsShortRestModalOpen(true)}
-                                    className="bg-gradient-to-r from-teal-700/50 to-cyan-700/50 hover:from-teal-600/70 hover:to-cyan-600/70 border border-teal-500/20 text-teal-200 font-semibold py-1.5 px-3 rounded-lg text-xs transition-all duration-150 shadow active:scale-[0.97]"
-                                >
-                                    Короткий отдых
-                                </button>
-                                <button 
-                                    onClick={() => dispatch({ type: 'LONG_REST' })}
-                                    className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 border border-teal-500/30 text-white font-bold py-1.5 px-3 rounded-lg text-xs transition-all duration-150 shadow-md active:scale-[0.97]"
-                                >
-                                    Длинный отдых
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Divider */}
-                        <div className="border-t border-[var(--color-border)] opacity-20 my-0.5"></div>
-
-                        {/* Section 3: Experience (XP) */}
-                        <ExperienceBar 
-                            experience={character.experience}
-                            level={character.level}
-                            onAddXp={(amount) => dispatch({ type: 'SET_FIELD', payload: { field: 'experience', value: character.experience + amount }})}
-                            minimal={true}
-                        />
-                    </div>
-
-                    {/* Right Area: Grid of all 9 characteristics cards */}
-                    <div className="col-span-1 lg:col-span-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-flow-col lg:grid-rows-3 lg:grid-cols-3 gap-3">
-                        <CombatStats 
-                            scores={effectiveAbilityScores}
-                            abilityBonuses={character.abilityBonuses}
-                            level={character.level}
-                            currentHitPoints={character.currentHitPoints}
-                            maxHitPoints={character.maxHitPoints}
-                            temporaryHitPoints={character.temporaryHitPoints}
-                            hitDie={character.hitDie}
-                            maxHpBonus={character.maxHpBonus}
-                            itemMaxHpBonus={equippedBonuses.maxHp}
-                            acBonus={character.acBonus}
-                            itemAcBonus={equippedBonuses.ac}
-                            initiativeBonus={character.initiativeBonus}
-                            itemInitiativeBonus={equippedBonuses.initiative}
-                            proficiencyBonusBonus={character.proficiencyBonusBonus}
-                            itemProficiencyBonus={equippedBonuses.proficiencyBonus}
-                            baseAC={character.baseAC}
-                            acAbilitySources={character.acAbilitySources}
-                            onBonusChange={(field, value) => dispatch({ type: 'SET_BONUS', payload: { field, value } })}
-                            onBaseACChange={(value) => dispatch({ type: 'SET_BASE_AC', payload: value })}
-                            onToggleAbilitySource={(ability) => dispatch({ type: 'TOGGLE_AC_ABILITY_SOURCE', payload: ability })}
-                            flat={true}
-                        />
-
-                        <Speed 
-                            speed={character.speed}
-                            speedBonus={character.speedBonus}
-                            itemSpeedBonus={equippedBonuses.speed}
-                            longJumpBonus={character.longJumpBonus}
-                            itemLongJumpBonus={equippedBonuses.longJump}
-                            highJumpBonus={character.highJumpBonus}
-                            itemHighJumpBonus={equippedBonuses.highJump}
-                            scores={effectiveAbilityScores}
-                            onSpeedChange={(newSpeed) => dispatch({ type: 'SET_FIELD', payload: { field: 'speed', value: newSpeed } })}
-                            onSpeedBonusChange={(newBonus) => dispatch({ type: 'SET_BONUS', payload: { field: 'speedBonus', value: newBonus } })}
-                            onLongJumpBonusChange={(newBonus) => dispatch({ type: 'SET_BONUS', payload: { field: 'longJumpBonus', value: newBonus } })}
-                            onHighJumpBonusChange={(newBonus) => dispatch({ type: 'SET_BONUS', payload: { field: 'highJumpBonus', value: newBonus } })}
-                            flat={true}
-                        />
-
-                        <PassiveSenses 
-                            skills={character.skills}
-                            abilityBonuses={character.abilityBonuses}
-                            skillBonuses={character.skillBonuses}
-                            level={character.level}
-                            passivePerceptionBonus={character.passivePerceptionBonus}
-                            itemPassivePerceptionBonus={(equippedBonuses.skills['Внимательность'] || 0) + equippedBonuses.passivePerception}
-                            passiveInvestigationBonus={character.passiveInvestigationBonus}
-                            itemPassiveInvestigationBonus={(equippedBonuses.skills['Расследование'] || 0) + equippedBonuses.passiveInvestigation}
-                            passiveInsightBonus={character.passiveInsightBonus}
-                            itemPassiveInsightBonus={(equippedBonuses.skills['Проницательность'] || 0) + equippedBonuses.passiveInsight}
-                            proficiencyBonusBonus={character.proficiencyBonusBonus}
-                            scores={effectiveAbilityScores}
-                            onPerceptionBonusChange={(bonus) => dispatch({ type: 'SET_BONUS', payload: { field: 'passivePerceptionBonus', value: bonus } })}
-                            onInvestigationBonusChange={(bonus) => dispatch({ type: 'SET_BONUS', payload: { field: 'passiveInvestigationBonus', value: bonus } })}
-                            onInsightBonusChange={(bonus) => dispatch({ type: 'SET_BONUS', payload: { field: 'passiveInsightBonus', value: bonus } })}
-                            flat={true}
-                        />
-                    </div>
-                </div>
+                <StatusDashboard
+                    equippedBonuses={equippedBonuses}
+                    effectiveAbilityScores={effectiveAbilityScores}
+                    onOpenShortRest={() => setIsShortRestModalOpen(true)}
+                />
 
                 {/* Bottom Tabs Section (Full Width) */}
                 <div className="space-y-6 min-w-0">
@@ -1268,117 +669,18 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
 
                         {/* Scroll Layout Rendering */}
                         {currentViewMode === 'scroll' && (
-                            <div className="space-y-6">
-                                {tabOrder.map((tabId, index) => {
-                                    const label = tabLabels[tabId];
-                                    const isCollapsed = character.collapsedTabs?.[tabId] ?? false;
-                                    const isDragOver = dragOverTabIndex === index;
-                                    const isDragged = draggedTabIndex === index;
-                                    
-                                    return (
-                                        <div
-                                            key={tabId}
-                                            draggable={isEditingTabs}
-                                            onDragStart={(e) => {
-                                                if (!isEditingTabs) return;
-                                                setDraggedTabIndex(index);
-                                                e.dataTransfer.effectAllowed = 'move';
-                                                e.dataTransfer.setData('text/plain', index.toString());
-                                            }}
-                                            onDragEnd={() => {
-                                                setDraggedTabIndex(null);
-                                                setDragOverTabIndex(null);
-                                            }}
-                                            onDragOver={(e) => {
-                                                if (!isEditingTabs) return;
-                                                e.preventDefault();
-                                            }}
-                                            onDragEnter={() => {
-                                                if (!isEditingTabs) return;
-                                                setDragOverTabIndex(index);
-                                            }}
-                                            onDrop={(e) => {
-                                                if (!isEditingTabs) return;
-                                                e.preventDefault();
-                                                const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
-                                                if (!isNaN(fromIndex)) {
-                                                    handleTabReorder(fromIndex, index);
-                                                }
-                                            }}
-                                            className={`bg-[var(--color-surface-translucent)] rounded-2xl border transition-all duration-300 overflow-hidden shadow-lg ${
-                                                isEditingTabs ? 'border-dashed border-[var(--color-border)]' : 'border-[var(--color-border)]'
-                                            } ${isDragOver ? 'border-teal-500 scale-[1.01]' : ''} ${isDragged ? 'opacity-40' : ''}`}
-                                        >
-                                            {/* Section Header */}
-                                            <div 
-                                                onClick={() => {
-                                                    if (!isEditingTabs) {
-                                                        dispatch({ type: 'TOGGLE_TAB_COLLAPSE', payload: tabId });
-                                                    }
-                                                }}
-                                                className={`flex items-center justify-between p-4 bg-[var(--color-surface-well)]/85 select-none ${
-                                                    isEditingTabs ? 'cursor-default' : 'cursor-pointer hover:bg-[var(--color-surface-well)]'
-                                                } transition-colors border-b border-[var(--color-border)]/50`}
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    {!isEditingTabs && (
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-[var(--color-text-medium)] transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                                                        </svg>
-                                                    )}
-                                                    <h3 className="text-base font-bold text-[var(--color-text-base)]">{label}</h3>
-                                                    {isCollapsed && !isEditingTabs && (
-                                                        <span className="text-[10px] text-[var(--color-text-muted)] italic font-semibold">(свернуто)</span>
-                                                    )}
-                                                </div>
-
-                                                {/* Customize Controls for Vertical Reordering */}
-                                                {isEditingTabs && (
-                                                    <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                                                        <div 
-                                                            className="cursor-grab active:cursor-grabbing p-1 text-[var(--color-text-muted)] hover:text-teal-400"
-                                                            data-tooltip="Перетащите для изменения порядка"
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                                <path d="M7 6a1 1 0 100-2 1 1 0 000 2zM7 11a1 1 0 100-2 1 1 0 000 2zM7 16a1 1 0 100-2 1 1 0 000 2zM13 6a1 1 0 100-2 1 1 0 000 2zM13 11a1 1 0 100-2 1 1 0 000 2zM13 16a1 1 0 100-2 1 1 0 000 2z" />
-                                                            </svg>
-                                                        </div>
-
-                                                        <button
-                                                            onClick={() => moveTab(index, 'left')} // moves up
-                                                            disabled={index === 0}
-                                                            className="p-1 rounded text-[var(--color-text-muted)] hover:text-teal-400 disabled:opacity-20 transition-colors"
-                                                            data-tooltip="Переместить вверх"
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
-                                                            </svg>
-                                                        </button>
-
-                                                        <button
-                                                            onClick={() => moveTab(index, 'right')} // moves down
-                                                            disabled={index === tabOrder.length - 1}
-                                                            className="p-1 rounded text-[var(--color-text-muted)] hover:text-teal-400 disabled:opacity-20 transition-colors"
-                                                            data-tooltip="Переместить вниз"
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Content Block */}
-                                            {(!isCollapsed || isEditingTabs) && (
-                                                <div className="p-4 md:p-6 border-t border-[var(--color-border)]/30 bg-[var(--color-background)]/5">
-                                                    {renderTabContent(tabId)}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                            <ScrollTabsSection
+                                tabOrder={tabOrder}
+                                tabLabels={tabLabels}
+                                isEditingTabs={isEditingTabs}
+                                draggedTabIndex={draggedTabIndex}
+                                dragOverTabIndex={dragOverTabIndex}
+                                setDraggedTabIndex={setDraggedTabIndex}
+                                setDragOverTabIndex={setDragOverTabIndex}
+                                handleTabReorder={handleTabReorder}
+                                moveTab={moveTab}
+                                renderTabContent={renderTabContent}
+                            />
                         )}
                     </div>
             </div>

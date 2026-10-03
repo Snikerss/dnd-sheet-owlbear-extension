@@ -109,9 +109,9 @@ describe('migrateCharacterData — миграции', () => {
 
     it('не мутирует исходный объект (immutable)', () => {
         const original = { ...defaultCharacterState, inventory: [{ id: 'i1', name: 'Тест', description: '', quantity: 1, imageUrl: '', weight: 1, cost: { amount: 0, currency: Currency.GP }, rarity: Rarity.Common }] };
-        const originalWeight = original.inventory[0].weight;
+        const originalWeight = original.inventory[0]!.weight;
         migrateCharacterData(original);
         // Оригинал не должен измениться (миграция создаёт новые объекты)
-        expect(original.inventory[0].weight).toBe(originalWeight);
+        expect(original.inventory[0]!.weight).toBe(originalWeight);
     });
 });

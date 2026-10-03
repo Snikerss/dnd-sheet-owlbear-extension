@@ -12,6 +12,21 @@ export default defineConfig(() => {
         strictPort: true,
         cors: true,
       },
+      build: {
+        rollupOptions: {
+          output: {
+            // Архитектурный аудит: vendor-слои кешируются браузером независимо
+            // от частых релизов прикладного кода.
+            manualChunks(id: string) {
+              if (!id.includes('node_modules')) return undefined;
+              if (id.includes('@owlbear-rodeo')) return 'vendor-obr';
+              if (id.includes('zod') || id.includes('dompurify')) return 'vendor-validate';
+              if (id.includes('react') || id.includes('scheduler')) return 'vendor-react';
+              return 'vendor-misc';
+            },
+          },
+        },
+      },
       plugins: [
         react(),
         {

@@ -1,4 +1,5 @@
 import { CharacterDoll } from './CharacterDoll';
+import { logger } from '../utils/logger';
 import React, { useState, useMemo, useCallback } from 'react';
 // Fix: Changed a type-only import to a mixed value and type import. `CharacterSize`, `Rarity`, and `Currency` are enums used as values and must not be imported with `import type`.
 import { type InventoryItem, type DropLocation, Rarity, Currency, CharacterSize, EquipSlot } from '../types';
@@ -87,7 +88,7 @@ export const Inventory: React.FC<InventoryProps> = React.memo(({
       try {
         localStorage.setItem('dnd-doll-width', cappedWidth.toString());
       } catch (err) {
-        console.error(err);
+        logger.error(err);
       }
     };
 

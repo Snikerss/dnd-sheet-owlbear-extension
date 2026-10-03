@@ -1,9 +1,11 @@
 import React, { createContext, useState, useCallback, useContext, useMemo, useEffect } from 'react';
+import { logger } from '../utils/logger';
 import OBR from '@owlbear-rodeo/sdk';
 import { NotificationToast, NotificationType } from '../components/NotificationToast';
 import { generateUUID } from '../utils/uuid';
 import { isOwlbear, SESSION_CLIENT_ID } from '../utils/storage';
 import { localBridge } from '../utils/bridgeService';
+import { ROLLS_CHANNEL, BridgeMessageType } from '../protocol/messages';
 import { RollResult, RollType } from '../types';
 
 interface Notification {
@@ -19,7 +21,42 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
-const ROLL_CHANNEL = 'com.antigravity.dnd-sheet/rolls';
+/** Singleton BroadcastChannel: раньше создавался и закрывался на каждый бросок. */
+let rollsBridgeChannel: BroadcastChannel | null = null;
+const getRollsChannel = (): BroadcastChannel | null => {
+  if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return null;
+  if (!rollsBridgeChannel) {
+    try {
+      rollsBridgeChannel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
+    } catch {
+      return null;
+    }
+  }
+  return rollsBridgeChannel;
+};
+
+/** Дедуп бросков по msgId (TTL 10 c) — защита от повторной доставки через мосты. */
+const seenRollIds = new Map<string, number>();
+const isDuplicateRoll = (msgId: string): boolean => {
+  const now = Date.now();
+  const last = seenRollIds.get(msgId);
+  if (last !== undefined && now - last < 10000) return true;
+  seenRollIds.set(msgId, now);
+  for (const [k, t] of seenRollIds.entries()) {
+    if (now - t > 10000) seenRollIds.delete(k);
+  }
+  return false;
+};
+
+/**
+ * Единый таймер закрытия поповера броска. Раньше каждый бросок ставил свой
+ * setTimeout(close, 4500): второй бросок закрывался досрочно таймером первого.
+ */
+const ROLL_POPOVER_ID = 'com.antigravity.dnd-sheet/roll-toast-popover';
+let rollPopoverCloseTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Обрезает строку до n символов — защита от переполнения лимита длины URL поповера. */
+const truncate = (s: string, n: number): string => (typeof s === 'string' && s.length > n ? s.slice(0, n) : s);
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -44,33 +81,31 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             if (obrName) playerName = obrName;
           }
         } catch (e) {
-          console.warn('Failed to retrieve player name from OBR:', e);
+          logger.warn('Failed to retrieve player name from OBR:', e);
         }
         
         // Send broadcast to all other clients in the room
-        console.log('[DND Sheet] Broadcasting roll data to room players:', { playerName, characterName, result });
-        await OBR.broadcast.sendMessage(ROLL_CHANNEL, {
+        logger.debug('[DND Sheet] Broadcasting roll data to room players:', { playerName, characterName, result });
+        await OBR.broadcast.sendMessage(ROLLS_CHANNEL, {
           playerName,
           characterName,
           result,
           msgId: Math.random().toString(36).substring(2) + Date.now().toString(36)
         });
       } catch (err) {
-        console.error('[DND Sheet] Failed to send roll broadcast:', err);
+        logger.error('[DND Sheet] Failed to send roll broadcast:', err);
       }
     } else {
       // Standalone mode: send via local bridge BroadcastChannel and parent window bridge
       const payload = {
-        type: 'ROLL_DICE',
+        type: BridgeMessageType.ROLL_DICE,
         characterName,
         result,
         senderId: SESSION_CLIENT_ID,
         msgId: Math.random().toString(36).substring(2) + Date.now().toString(36)
       };
       try {
-        const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
-        channel.postMessage(payload);
-        channel.close();
+        getRollsChannel()?.postMessage(payload);
       } catch (e) {}
 
       if (typeof window !== 'undefined') {
@@ -93,16 +128,21 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       let unsub: (() => void) | null = null;
 
       const setupListener = () => {
-        console.log('[DND Sheet] Subscribing to broadcast channel:', ROLL_CHANNEL);
-        unsub = OBR.broadcast.onMessage(ROLL_CHANNEL, async (event) => {
-          console.log('[DND Sheet] Received broadcast message:', event);
+        logger.debug('[DND Sheet] Subscribing to broadcast channel:', ROLLS_CHANNEL);
+        unsub = OBR.broadcast.onMessage(ROLLS_CHANNEL, async (event) => {
+          logger.debug('[DND Sheet] Received broadcast message:', event);
           const payload = event.data as {
             playerName: string;
             characterName: string;
             result: RollResult;
+            msgId?: string;
           };
 
-          if (payload && payload.playerName && payload.result) {
+          if (!payload || !payload.playerName || !payload.result) return;
+
+          // Дедуп по msgId: бросок может прийти повторно через мосты вкладок.
+          if (payload.msgId && isDuplicateRoll(payload.msgId)) return;
+
             const { result, playerName, characterName } = payload;
             const modSign = result.modifier >= 0 ? `+${result.modifier}` : `${result.modifier}`;
             
@@ -123,11 +163,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             const basePath = pathName.substring(0, pathName.lastIndexOf('/'));
             const popoverUrl = window.location.origin + basePath + 
               `/index.html?mode=roll-popup` +
-              `&playerName=${encodeURIComponent(playerName)}` +
-              `&characterName=${encodeURIComponent(characterName)}` +
-              `&rollName=${encodeURIComponent(result.name)}` +
+              `&playerName=${encodeURIComponent(truncate(playerName, 80))}` +
+              `&characterName=${encodeURIComponent(truncate(characterName, 80))}` +
+              `&rollName=${encodeURIComponent(truncate(result.name, 120))}` +
               `&total=${result.total}` +
-              `&rollDetails=${encodeURIComponent(`${rollDetails} ${modSign}`)}`;
+              `&rollDetails=${encodeURIComponent(truncate(`${rollDetails} ${modSign}`, 300))}`;
 
             const popupWidth = 260;
             const popupHeight = 260;
@@ -146,7 +186,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             const popoverY = 20; // 20px from top of screen
 
             OBR.popover.open({
-              id: 'com.antigravity.dnd-sheet/roll-toast-popover',
+              id: ROLL_POPOVER_ID,
               url: popoverUrl,
               height: popupHeight,
               width: popupWidth,
@@ -156,27 +196,27 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
               transformOrigin: { horizontal: 'CENTER', vertical: 'TOP' },
               disableClickAway: true
             }).catch(err => {
-              console.warn('[DND Sheet] Popover failed, falling back to notification toast:', err);
+              logger.warn('[DND Sheet] Popover failed, falling back to notification toast:', err);
               addNotification(`${playerName} (${characterName}): ${result.name} = ${result.total} (${rollDetails} ${modSign})`, 'info');
             });
 
-            // Auto-close popover after 4.5 seconds
-            setTimeout(() => {
-              OBR.popover.close('com.antigravity.dnd-sheet/roll-toast-popover').catch(() => {});
+            // Auto-close after 4.5s: ОДИН общий таймер — новый бросок сбрасывает
+            // старый, а не закрывается его таймером раньше времени.
+            if (rollPopoverCloseTimer) clearTimeout(rollPopoverCloseTimer);
+            rollPopoverCloseTimer = setTimeout(() => {
+              OBR.popover.close(ROLL_POPOVER_ID).catch(() => {});
             }, 4500);
 
             // Send notification over BroadcastChannel to any open standalone tabs
             const notifPayload = {
-              type: 'SHOW_NOTIFICATION',
+              type: BridgeMessageType.SHOW_NOTIFICATION,
               message: `${playerName} (${characterName}): ${result.name} = ${result.total} (${rollDetails} ${modSign})`,
               notificationType: 'info',
               senderId: SESSION_CLIENT_ID,
               msgId: Math.random().toString(36).substring(2) + Date.now().toString(36)
             };
             try {
-              const channel = new BroadcastChannel('com.antigravity.dnd-sheet/local-bridge');
-              channel.postMessage(notifPayload);
-              channel.close();
+              getRollsChannel()?.postMessage(notifPayload);
             } catch (e) {}
 
             if (typeof window !== 'undefined') {
@@ -187,7 +227,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 }
               });
             }
-          }
         });
       };
 
@@ -214,11 +253,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         return;
       }
 
-      if (payload.type === 'ROLL_DICE' && isOwlbear()) {
-        console.log('[DND Sheet] Bridge Sync: Proxying roll from standalone tab to OBR:', payload);
+      if (payload.type === BridgeMessageType.ROLL_DICE && isOwlbear()) {
+        logger.debug('[DND Sheet] Bridge Sync: Proxying roll from standalone tab to OBR:', payload);
         broadcastRoll(payload.characterName, payload.result);
-      } else if (payload.type === 'SHOW_NOTIFICATION') {
-        console.log('[DND Sheet] Bridge Sync: Showing notification toast:', payload.message);
+      } else if (payload.type === BridgeMessageType.SHOW_NOTIFICATION) {
+        logger.debug('[DND Sheet] Bridge Sync: Showing notification toast:', payload.message);
         addNotification(payload.message, payload.notificationType);
       }
     });

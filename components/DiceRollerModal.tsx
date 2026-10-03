@@ -5,6 +5,7 @@ import { calculateModifier, calculateProficiencyBonus } from '../utils/character
 import { getEquippedItemBonuses } from '../utils/inventory';
 import { generateUUID } from '../utils/uuid';
 import { parseAndRoll } from '../utils/dice';
+import { useFocusTrap } from '../utils/useFocusTrap';
 
 interface DiceRollerModalProps {
   isOpen: boolean;
@@ -21,7 +22,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
   onRoll,
   onRollingStatusChange,
 }) => {
-  const modalRef = useRef<HTMLDivElement>(null);
+  const modalRef = useFocusTrap<HTMLDivElement>(isOpen, onClose);
 
   // --- CUSTOM ROLLS STATE ---
   // Dice pool stores quantity of each die type
