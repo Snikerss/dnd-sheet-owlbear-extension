@@ -106,4 +106,32 @@ describe('CharacterSheet (smoke after split)', () => {
     // DiceRollerModal теперь React.lazy — чанк грузится асинхронно под Suspense.
     expect(await screen.findByText(/Универсальный бросок кубиков/)).toBeTruthy();
   });
+
+  it('рендерит все вкладки и позволяет переключаться между ними, даже если character.tabOrder пустой массив', () => {
+    const charWithEmptyTabOrder = makeTestCharacter({ name: 'Барток', tabOrder: [] });
+    renderSheet({}, charWithEmptyTabOrder);
+
+    // Все вкладки должны присутствовать на экране
+    expect(screen.getByText('Характеристики')).toBeTruthy();
+    expect(screen.getByText('Бой')).toBeTruthy();
+    expect(screen.getByText('Инвентарь')).toBeTruthy();
+    expect(screen.getByText('Умения')).toBeTruthy();
+    expect(screen.getByText('Заметки')).toBeTruthy();
+
+    // По умолчанию открыта вкладка характеристик (StatsGrid)
+    expect(screen.getByText('Сила')).toBeTruthy();
+
+    // Кликаем по вкладке "Инвентарь"
+    const inventoryTabs = screen.getAllByText('Инвентарь');
+    fireEvent.click(inventoryTabs[0]!);
+
+    // Контент инвентаря должен отрендериться (кнопка восстановления "Рассвет")
+    expect(screen.getByText('Рассвет')).toBeTruthy();
+
+    // Кликаем по вкладке "Заметки"
+    fireEvent.click(screen.getByText('Заметки'));
+
+    // Контент заметок должен отрендериться
+    expect(screen.getByText('Папки и заметки')).toBeTruthy();
+  });
 });

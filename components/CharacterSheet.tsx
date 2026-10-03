@@ -94,6 +94,13 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
         return [...filteredSaved, ...missing];
     }, [character.tabOrder, defaultTabOrder]);
 
+    // Гарантируем, что activeTab всегда существует в tabOrder
+    useEffect(() => {
+        if (!tabOrder.includes(activeTab) && tabOrder.length > 0) {
+            setActiveTab(tabOrder[0] as any);
+        }
+    }, [tabOrder, activeTab]);
+
     const moveTab = useCallback((index: number, direction: 'left' | 'right') => {
         const targetIndex = direction === 'left' ? index - 1 : index + 1;
         if (targetIndex < 0 || targetIndex >= tabOrder.length) return;
@@ -645,6 +652,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                             features: 'Умения',
                             notes: 'Заметки'
                         }}
+                        tabOrder={tabOrder}
                         draggedTab={draggedTabIndex !== null && tabOrder[draggedTabIndex] ? tabOrder[draggedTabIndex]! : null}
                         handleTabDragStart={(e, tab) => {
                             const idx = tabOrder.indexOf(tab as any);

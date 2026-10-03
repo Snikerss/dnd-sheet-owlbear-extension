@@ -320,6 +320,18 @@ export const migrateCharacterData = (characterData: any): any => {
         delete migrated.attunementItems;
     }
 
+    // Tab Order & View Mode Migration
+    const DEFAULT_TAB_ORDER = ['stats', 'combat', 'inventory', 'features', 'notes'];
+    if (!Array.isArray(migrated.tabOrder) || migrated.tabOrder.length === 0) {
+        migrated.tabOrder = [...DEFAULT_TAB_ORDER];
+    }
+    if (typeof migrated.viewMode !== 'string' || (migrated.viewMode !== 'tabs' && migrated.viewMode !== 'scroll')) {
+        migrated.viewMode = 'tabs';
+    }
+    if (typeof migrated.collapsedTabs !== 'object' || migrated.collapsedTabs === null) {
+        migrated.collapsedTabs = {};
+    }
+
     return migrated;
 };
 

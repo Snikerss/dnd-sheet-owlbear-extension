@@ -15,7 +15,10 @@ interface SheetTabNavigationProps {
   handleTabDrop: (e: React.DragEvent, targetTab: string) => void;
   handleTabDragEnd: () => void;
   dispatch: React.Dispatch<CharacterAction>;
+  tabOrder?: string[];
 }
+
+const DEFAULT_TAB_ORDER = ['stats', 'combat', 'inventory', 'features', 'notes'];
 
 export const SheetTabNavigation: React.FC<SheetTabNavigationProps> = ({
   character,
@@ -30,9 +33,19 @@ export const SheetTabNavigation: React.FC<SheetTabNavigationProps> = ({
   handleTabDrop,
   handleTabDragEnd,
   dispatch,
+  tabOrder: propsTabOrder,
 }) => {
   const currentViewMode = character.viewMode || 'tabs';
-  const tabOrder = character.tabOrder || ['stats', 'combat', 'inventory', 'features', 'notes'];
+  const tabOrder = React.useMemo(() => {
+    const raw = (propsTabOrder && propsTabOrder.length > 0)
+      ? propsTabOrder
+      : (Array.isArray(character.tabOrder) && character.tabOrder.length > 0
+          ? character.tabOrder
+          : DEFAULT_TAB_ORDER);
+    const filtered = raw.filter(id => DEFAULT_TAB_ORDER.includes(id));
+    const missing = DEFAULT_TAB_ORDER.filter(id => !filtered.includes(id));
+    return [...filtered, ...missing];
+  }, [propsTabOrder, character.tabOrder]);
 
   return (
     <div className={`flex items-center border-b border-[var(--color-border)] pb-2 overflow-x-auto scrollbar-none gap-2 select-none justify-between w-full mb-4 ${isEditingTabs ? 'border-dashed border-teal-500/50' : ''}`}>

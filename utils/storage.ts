@@ -306,8 +306,7 @@ export function unminifyCharacter(min: any): Character {
   if (Array.isArray(min.attacks)) char.attacks = min.attacks;
   if (Array.isArray(min.spells)) char.spells = min.spells;
   if (Array.isArray(min.notes)) char.notes = min.notes;
-  if (Array.isArray(min.noteGroups)) char.noteGroups = min.noteGroups;
-  if (Array.isArray(min.tabOrder)) char.tabOrder = min.tabOrder;
+  if (Array.isArray(min.tabOrder) && min.tabOrder.length > 0) char.tabOrder = min.tabOrder;
   if (min.collapsedTabs) char.collapsedTabs = min.collapsedTabs;
   if (Array.isArray(min.equippedItems)) char.equippedItems = min.equippedItems;
   if (Array.isArray(min.boundRooms)) char.boundRooms = min.boundRooms;

@@ -1420,7 +1420,7 @@
     }
   ],
   "activeNoteId": "n-dossier",
-  "tabOrder": [],
+  "tabOrder": ["stats", "combat", "inventory", "features", "notes"],
   "viewMode": "tabs",
   "collapsedTabs": {},
   "attunementMaxBonus": 0,
