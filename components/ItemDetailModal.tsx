@@ -94,7 +94,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-[var(--color-surface-translucent)] backdrop-blur-sm flex items-center justify-center z-50"
+      className="fixed inset-0 bg-[var(--color-surface-translucent)] backdrop-blur-xs flex items-center justify-center z-50"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -161,28 +161,28 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
         <div className="mt-6 flex flex-col sm:flex-row-reverse gap-3">
           <button
             onClick={handleSave}
-            className="w-full sm:w-auto justify-center rounded-lg border border-transparent shadow-md px-4 py-2 bg-[var(--color-accent-primary-active)] text-base font-medium text-white hover:bg-[var(--color-accent-primary-dark)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all duration-150 active:scale-95"
+            className="w-full sm:w-auto justify-center rounded-lg border border-transparent shadow-md px-4 py-2 bg-[var(--color-accent-primary-active)] text-base font-medium text-white hover:bg-[var(--color-accent-primary-dark)] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all duration-150 active:scale-95"
           >
             Сохранить
           </button>
           {item && (
             <button
                 onClick={handleDeleteItem}
-                className="w-full sm:w-auto justify-center rounded-lg border border-[var(--color-border-subtle)] shadow-sm px-4 py-2 bg-[var(--color-surface-raised)] text-base font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised-hover)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all duration-150 active:scale-95"
+                className="w-full sm:w-auto justify-center rounded-lg border border-[var(--color-border-subtle)] shadow-xs px-4 py-2 bg-[var(--color-surface-raised)] text-base font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised-hover)] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all duration-150 active:scale-95"
             >
                 Удалить предмет
             </button>
           )}
           <button
             onClick={onClose}
-            className="close-button w-full sm:w-auto justify-center rounded-lg border border-[var(--color-border-subtle)] shadow-sm px-4 py-2 bg-transparent text-base font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] sm:mt-0 sm:mr-auto transition-all duration-150 active:scale-95"
+            className="close-button w-full sm:w-auto justify-center rounded-lg border border-[var(--color-border-subtle)] shadow-xs px-4 py-2 bg-transparent text-base font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised)] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] sm:mt-0 sm:mr-auto transition-all duration-150 active:scale-95"
           >
             Отмена
           </button>
         </div>
       </div>
       {customAlertMessage && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] animate-fade-in">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[200] animate-fade-in">
               <div className="bg-[var(--color-surface-opaque)] rounded-xl shadow-2xl p-6 m-4 w-full max-w-sm border border-[var(--color-border)] text-center">
                   <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 mb-4">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -195,7 +195,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                   </p>
                   <button
                       onClick={() => setCustomAlertMessage(null)}
-                      className="w-full justify-center rounded-lg border border-transparent shadow-md px-4 py-2 bg-[var(--color-accent-primary)] text-base font-semibold text-white hover:bg-[var(--color-accent-primary-hover)] focus:outline-none transition-all duration-150 active:scale-95"
+                      className="w-full justify-center rounded-lg border border-transparent shadow-md px-4 py-2 bg-[var(--color-accent-primary)] text-base font-semibold text-white hover:bg-[var(--color-accent-primary-hover)] focus:outline-hidden transition-all duration-150 active:scale-95"
                   >
                       Понятно
                   </button>

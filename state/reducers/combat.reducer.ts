@@ -1,4 +1,4 @@
-import { Character, CharacterAction, RecoveryType, Ability, InventoryItem } from '../../types';
+import { Character, CharacterAction, RecoveryType } from '../../types';
 import { recalculateMaxHp } from '../../utils/characterCalculations';
 import { recoverItemCharges } from '../../utils/inventory';
 import { selectEquippedBonuses } from '../../utils/selectors';

@@ -64,9 +64,9 @@ export const ItemImageSection: React.FC<ItemImageSectionProps> = ({
         onChange(prev => ({ ...prev, imageUrl: generatedImageUrl }));
         setShowAiImagePrompt(false);
         addNotification('Изображение успешно сгенерировано ИИ!', 'success');
-    } catch (err: any) {
+    } catch (err: unknown) {
         logger.error(err);
-        setAiImageError(err.message || 'Ошибка генерации изображения');
+        setAiImageError(err instanceof Error ? err.message : 'Ошибка генерации изображения');
     } finally {
         setIsAiGeneratingImage(false);
     }
@@ -121,7 +121,7 @@ export const ItemImageSection: React.FC<ItemImageSectionProps> = ({
                  <button
                     type="button"
                     onClick={() => setShowPicker(!showPicker)}
-                    className="rounded-lg border border-[var(--color-border-subtle)] shadow-sm px-3 py-2 bg-[var(--color-surface-raised)] text-sm font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised-hover)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all duration-150 active:scale-95"
+                    className="rounded-lg border border-[var(--color-border-subtle)] shadow-xs px-3 py-2 bg-[var(--color-surface-raised)] text-sm font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised-hover)] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all duration-150 active:scale-95"
                  >
                     {showPicker ? 'Скрыть библиотеку' : 'Выбрать иконку...'}
                  </button>
@@ -133,7 +133,7 @@ export const ItemImageSection: React.FC<ItemImageSectionProps> = ({
                             setAiImagePrompt(itemName);
                         }
                     }}
-                    className="rounded-lg border border-[var(--color-border-subtle)] shadow-sm px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] transition-all flex items-center gap-1 active:scale-95"
+                    className="rounded-lg border border-[var(--color-border-subtle)] shadow-xs px-3 py-2 bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-sm font-medium focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] transition-all flex items-center gap-1 active:scale-95"
                  >
                     🎨 Сгенерировать ИИ
                  </button>
@@ -142,7 +142,7 @@ export const ItemImageSection: React.FC<ItemImageSectionProps> = ({
                 <button
                     type="button"
                     onClick={handleRemoveImage}
-                    className="rounded-lg border border-transparent px-3 py-2 bg-transparent text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-health)] focus:outline-none"
+                    className="rounded-lg border border-transparent px-3 py-2 bg-transparent text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-health)] focus:outline-hidden"
                 >
                     Убрать
                 </button>
@@ -159,7 +159,7 @@ export const ItemImageSection: React.FC<ItemImageSectionProps> = ({
                          value={aiImagePrompt}
                          onChange={(e) => setAiImagePrompt(e.target.value)}
                          placeholder="Например: Огненный меч, объятый пламенем..."
-                         className="flex-grow bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1.5 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
+                         className="flex-grow bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1.5 px-3 text-xs focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
                      />
                      <button
                          type="button"

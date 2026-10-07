@@ -100,7 +100,7 @@ export const CurrencyTracker: React.FC<CurrencyTrackerProps> = ({ currency, onCu
                 id={`currency-${c}`}
                 value={currency[curr]}
                 onChange={(e) => onCurrencyChange(curr, parseInt(e.target.value, 10))}
-                className={`w-full bg-[var(--color-background)] border ${colors.border} rounded-lg py-1.5 px-1.5 text-center font-extrabold focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] transition-all text-sm appearance-none [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                className={`w-full bg-[var(--color-background)] border ${colors.border} rounded-lg py-1.5 px-1.5 text-center font-extrabold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] transition-all text-sm appearance-none [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
                 min="0"
                 placeholder="0"
                 data-tooltip={`Количество монет: ${CURRENCY_NAMES[curr]}`}
@@ -115,7 +115,7 @@ export const CurrencyTracker: React.FC<CurrencyTrackerProps> = ({ currency, onCu
             type="number"
             value={calcAmount || ''}
             onChange={(e) => setCalcAmount(Math.max(0, parseInt(e.target.value, 10)))}
-            className="w-20 bg-[var(--color-background)] border border-[var(--color-border)] hover:border-[var(--color-border-hover)] focus:border-[var(--color-focus-ring)] rounded-lg py-1.5 px-2 text-xs text-center focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] font-semibold text-[var(--color-text-base)] transition-all shadow-inner"
+            className="w-20 bg-[var(--color-background)] border border-[var(--color-border)] hover:border-[var(--color-border-hover)] focus:border-[var(--color-focus-ring)] rounded-lg py-1.5 px-2 text-xs text-center focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] font-semibold text-[var(--color-text-base)] transition-all shadow-inner"
             placeholder="Сумма"
             min="0"
             data-tooltip="Сумма монет для прибавления или вычитания"
@@ -124,7 +124,7 @@ export const CurrencyTracker: React.FC<CurrencyTrackerProps> = ({ currency, onCu
           <select
               value={calcCurrency}
               onChange={(e) => setCalcCurrency(e.target.value as Currency)}
-              className="bg-[var(--color-background)] border border-[var(--color-border)] hover:border-[var(--color-border-hover)] focus:border-[var(--color-focus-ring)] rounded-lg py-1.5 pl-2.5 pr-6 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] transition-all cursor-pointer text-[var(--color-text-base)] appearance-none shadow-sm"
+              className="bg-[var(--color-background)] border border-[var(--color-border)] hover:border-[var(--color-border-hover)] focus:border-[var(--color-focus-ring)] rounded-lg py-1.5 pl-2.5 pr-6 text-xs font-bold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] transition-all cursor-pointer text-[var(--color-text-base)] appearance-none shadow-xs"
               style={{
                 backgroundImage: 'var(--select-arrow-url)',
                 backgroundPosition: 'right 0.35rem center',
@@ -138,8 +138,8 @@ export const CurrencyTracker: React.FC<CurrencyTrackerProps> = ({ currency, onCu
             ))}
           </select>
         </div>
-        <button onClick={() => handleCalculate('add')} className="flex-1 bg-teal-950/40 text-teal-300 border border-teal-500/20 hover:bg-teal-900/50 text-[11px] font-extrabold py-1.5 px-2 rounded-lg transition-all duration-150 active:scale-95 shadow-sm" data-tooltip="Добавить указанную сумму монет">Прибавить</button>
-        <button onClick={() => handleCalculate('subtract')} className="flex-1 bg-rose-950/40 text-rose-300 border border-rose-500/20 hover:bg-rose-900/50 text-[11px] font-extrabold py-1.5 px-2 rounded-lg transition-all duration-150 active:scale-95 shadow-sm" data-tooltip="Вычесть указанную сумму монет">Вычесть</button>
+        <button onClick={() => handleCalculate('add')} className="flex-1 bg-teal-950/40 text-teal-300 border border-teal-500/20 hover:bg-teal-900/50 text-[11px] font-extrabold py-1.5 px-2 rounded-lg transition-all duration-150 active:scale-95 shadow-xs" data-tooltip="Добавить указанную сумму монет">Прибавить</button>
+        <button onClick={() => handleCalculate('subtract')} className="flex-1 bg-rose-950/40 text-rose-300 border border-rose-500/20 hover:bg-rose-900/50 text-[11px] font-extrabold py-1.5 px-2 rounded-lg transition-all duration-150 active:scale-95 shadow-xs" data-tooltip="Вычесть указанную сумму монет">Вычесть</button>
       </div>
       
       <div className="border-t border-slate-700/40 pt-2.5 flex items-center gap-1.5">
@@ -147,7 +147,7 @@ export const CurrencyTracker: React.FC<CurrencyTrackerProps> = ({ currency, onCu
             type="number"
             value={convertAmount || ''}
             onChange={(e) => setConvertAmount(Math.max(0, parseInt(e.target.value, 10)))}
-            className="w-20 bg-[var(--color-background)] border border-[var(--color-border)] hover:border-[var(--color-border-hover)] focus:border-[var(--color-focus-ring)] rounded-lg py-1.5 px-2 text-xs text-center focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] font-semibold text-[var(--color-text-base)] transition-all shadow-inner"
+            className="w-20 bg-[var(--color-background)] border border-[var(--color-border)] hover:border-[var(--color-border-hover)] focus:border-[var(--color-focus-ring)] rounded-lg py-1.5 px-2 text-xs text-center focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] font-semibold text-[var(--color-text-base)] transition-all shadow-inner"
             placeholder="Сумма"
             min="0"
             data-tooltip="Сумма для обмена"
@@ -156,7 +156,7 @@ export const CurrencyTracker: React.FC<CurrencyTrackerProps> = ({ currency, onCu
           <select
               value={convertFrom}
               onChange={(e) => setConvertFrom(e.target.value as Currency)}
-              className="w-full bg-[var(--color-background)] border border-[var(--color-border)] hover:border-[var(--color-border-hover)] focus:border-[var(--color-focus-ring)] rounded-lg py-1.5 pl-2.5 pr-6 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] transition-all cursor-pointer text-[var(--color-text-base)] appearance-none shadow-sm"
+              className="w-full bg-[var(--color-background)] border border-[var(--color-border)] hover:border-[var(--color-border-hover)] focus:border-[var(--color-focus-ring)] rounded-lg py-1.5 pl-2.5 pr-6 text-xs font-bold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] transition-all cursor-pointer text-[var(--color-text-base)] appearance-none shadow-xs"
               style={{
                 backgroundImage: 'var(--select-arrow-url)',
                 backgroundPosition: 'right 0.35rem center',
@@ -175,7 +175,7 @@ export const CurrencyTracker: React.FC<CurrencyTrackerProps> = ({ currency, onCu
           <select
               value={convertTo}
               onChange={(e) => setConvertTo(e.target.value as Currency)}
-              className="w-full bg-[var(--color-background)] border border-[var(--color-border)] hover:border-[var(--color-border-hover)] focus:border-[var(--color-focus-ring)] rounded-lg py-1.5 pl-2.5 pr-6 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] transition-all cursor-pointer text-[var(--color-text-base)] appearance-none shadow-sm"
+              className="w-full bg-[var(--color-background)] border border-[var(--color-border)] hover:border-[var(--color-border-hover)] focus:border-[var(--color-focus-ring)] rounded-lg py-1.5 pl-2.5 pr-6 text-xs font-bold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] transition-all cursor-pointer text-[var(--color-text-base)] appearance-none shadow-xs"
               style={{
                 backgroundImage: 'var(--select-arrow-url)',
                 backgroundPosition: 'right 0.35rem center',
@@ -189,7 +189,7 @@ export const CurrencyTracker: React.FC<CurrencyTrackerProps> = ({ currency, onCu
             ))}
           </select>
         </div>
-        <button onClick={handleConvert} className="flex-1 bg-amber-950/40 text-amber-300 border border-amber-500/20 hover:bg-amber-900/50 text-[11px] font-extrabold py-1.5 px-2 rounded-lg transition-all duration-150 active:scale-95 shadow-sm flex-shrink-0" data-tooltip="Произвести обмен монет по стандартному курсу">Обменять</button>
+        <button onClick={handleConvert} className="flex-1 bg-amber-950/40 text-amber-300 border border-amber-500/20 hover:bg-amber-900/50 text-[11px] font-extrabold py-1.5 px-2 rounded-lg transition-all duration-150 active:scale-95 shadow-xs flex-shrink-0" data-tooltip="Произвести обмен монет по стандартному курсу">Обменять</button>
       </div>
 
     </div>

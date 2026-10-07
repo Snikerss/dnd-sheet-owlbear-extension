@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { type InventoryItem } from '../../types';
+import { type InventoryItem, type ItemBonuses, RecoveryType } from '../../types';
 import { logger } from '../../utils/logger';
-import { parseRobustJSON } from '../../utils/translation';
+import { parseRobustJSON, mapCurrency } from '../../utils/translation';
 import { generateWithGemini, getGeminiApiKey, setGeminiApiKey } from '../../utils/gemini';
 import { useNotifier } from '../../context/NotificationContext';
 import {
@@ -14,6 +14,24 @@ interface AiImportPanelProps {
   baseItem: InventoryItem | null;
   updateFormData: FormDataUpdater;
   onRequestClosePanel: () => void;
+}
+
+interface AiGeneratedItem {
+  error?: string;
+  name?: string;
+  quantity?: number;
+  weight?: number;
+  cost?: { amount?: number; currency?: string };
+  rarity?: number;
+  description?: string;
+  isEquipped?: boolean;
+  hasCharges?: boolean;
+  totalCharges?: number;
+  currentCharges?: number;
+  chargeRecovery?: RecoveryType;
+  bonuses?: ItemBonuses & {
+    savingThrows?: Record<string, unknown>;
+  };
 }
 
 export const AiImportPanel: React.FC<AiImportPanelProps> = ({ baseItem, updateFormData, onRequestClosePanel }) => {
@@ -133,7 +151,7 @@ ${isOfficial ? `
             });
         }
 
-        const parsedItem = parseRobustJSON(jsonText);
+        const parsedItem = parseRobustJSON<AiGeneratedItem>(jsonText);
 
         if (parsedItem.error) {
             setAiError(parsedItem.error);
@@ -148,7 +166,7 @@ ${isOfficial ? `
             weight: parsedItem.weight || 0,
             cost: {
                 amount: parsedItem.cost?.amount || 0,
-                currency: parsedItem.cost?.currency || 'GP'
+                currency: mapCurrency(parsedItem.cost?.currency || 'GP')
             },
             rarity: parsedItem.rarity !== undefined ? parsedItem.rarity : 0,
             description: parsedItem.description || '',
@@ -156,7 +174,7 @@ ${isOfficial ? `
             hasCharges: !!parsedItem.hasCharges,
             totalCharges: parsedItem.totalCharges || 0,
             currentCharges: parsedItem.currentCharges || 0,
-            chargeRecovery: parsedItem.chargeRecovery || '',
+            chargeRecovery: parsedItem.chargeRecovery || RecoveryType.LongRest,
             imageUrl: base.imageUrl || '',
             bonuses: {
                 ac: parsedItem.bonuses?.ac || 0,
@@ -181,9 +199,9 @@ ${isOfficial ? `
 
         onRequestClosePanel();
         addNotification(isOfficial ? `Предмет "${parsedItem.name}" успешно импортирован!` : `Предмет "${parsedItem.name}" успешно сгенерирован ИИ!`, 'info');
-    } catch (err: any) {
+    } catch (err: unknown) {
         logger.error(err);
-        setAiError(`Не удалось сгенерировать предмет: ${err.message || 'ошибка сети или неверный API-ключ'}`);
+        setAiError(`Не удалось сгенерировать предмет: ${err instanceof Error ? err.message : 'ошибка сети или неверный API-ключ'}`);
     } finally {
         setIsAiGenerating(false);
     }
@@ -231,7 +249,7 @@ ${isOfficial ? `
                   value={geminiKey}
                   onChange={(e) => handleGeminiKeyChange(e.target.value)}
                   placeholder="AIzaSy..."
-                  className="w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
+                  className="w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-3 text-xs focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
               />
           </div>
 
@@ -249,7 +267,7 @@ ${isOfficial ? `
                       ? "Введите точное русское или английское название (например: Меч ран / Sword of Wounding)..."
                       : "Опишите ваше хоумбрю снаряжение (например: Сапоги скорости, весят 1 фунт, дают +2 к инициативе, удваивают скорость)..."
                   }
-                  className="w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1.5 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)] resize-none"
+                  className="w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1.5 px-3 text-xs focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)] resize-none"
               />
           </div>
 
@@ -257,7 +275,7 @@ ${isOfficial ? `
               type="button"
               onClick={handleAIImport}
               disabled={isAiGenerating || !aiDescription.trim()}
-              className="w-full py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:from-purple-900 disabled:to-indigo-900 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-1 shadow-md active:scale-[0.98]"
+              className="w-full py-1.5 bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:from-purple-900 disabled:to-indigo-900 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-1 shadow-md active:scale-[0.98]"
           >
               {isAiGenerating ? (
                   <>

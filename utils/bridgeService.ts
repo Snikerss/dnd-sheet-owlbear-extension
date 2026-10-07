@@ -6,7 +6,7 @@
 import { logger } from './logger';
 import { p2pRoomBridge } from './p2pBridge';
 import { SESSION_CLIENT_ID } from './sessionId';
-import { SAME_ORIGIN, isTrustedMessageOrigin } from './environment';
+import { SAME_ORIGIN, isTrustedMessageOrigin, isOwlbear, getOwlbearParentOrigin } from './environment';
 import { BridgeMessageType, P2pMessageType } from '../protocol/messages';
 
 export { SESSION_CLIENT_ID };
@@ -139,7 +139,7 @@ class LocalBridgeService {
   /**
    * Отправляет сообщение во все открытые вкладки и дочерние/родительские окна браузера.
    */
-  public postMessage(data: any, opts?: { skipStorageBus?: boolean }): void {
+  public postMessage(data: Record<string, unknown>, opts?: { skipStorageBus?: boolean }): void {
     const msgId = Math.random().toString(36).substring(2) + Date.now().toString(36);
     const payload = {
       ...data,
@@ -158,21 +158,23 @@ class LocalBridgeService {
       }
     }
 
-    // 2. Parent window (если находимся в iframe)
-    if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+    // 2. Parent window (только внутри OBR-фрейма)
+    if (isOwlbear() && typeof window !== 'undefined' && window.parent && window.parent !== window) {
       try {
-        window.parent.postMessage(payload, '*');
-      } catch (err) {}
+        window.parent.postMessage(payload, getOwlbearParentOrigin());
+      } catch (err) {
+        logger.debug('[DND Sheet Bridge] Failed to postMessage to window.parent:', err);
+      }
     }
 
-    // 3. Opener window (если открыты из другого окна/вкладки).
-    // '*' оставлен намеренно: opener — это окно Owlbear (чужой origin),
-    // точный origin которого зависит от окружения. Приём защищён
-    // isTrustedMessageOrigin, утечка ограничена полем данных сообщения.
+    // 3. Opener window (если открыты из другого окна/вкладки приложения).
+    // Standalone-окна открываются приложением на SAME_ORIGIN, поэтому сообщения шлются строго на этот origin.
     if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
       try {
-        window.opener.postMessage(payload, '*');
-      } catch (err) {}
+        window.opener.postMessage(payload, SAME_ORIGIN);
+      } catch (err) {
+        logger.debug('[DND Sheet Bridge] Failed to postMessage to window.opener:', err);
+      }
     }
 
     // 4. Child windows — ВСЕГДА наш собственный origin: окна открываются
@@ -180,8 +182,10 @@ class LocalBridgeService {
     this.childWindows.forEach((win) => {
       if (win && !win.closed) {
         try {
-          win.postMessage(payload, SAME_ORIGIN || '*');
-        } catch (err) {}
+          win.postMessage(payload, SAME_ORIGIN);
+        } catch (err) {
+          logger.debug('[DND Sheet Bridge] Failed to postMessage to child window:', err);
+        }
       } else {
         this.childWindows.delete(win);
       }
@@ -194,7 +198,7 @@ class LocalBridgeService {
 
     // 6. LocalStorage Bus Signal for cross-tab sync on same domain
     const skipBus = opts?.skipStorageBus === true
-      || LocalBridgeService.STORAGE_BUS_SKIP_TYPES.has(data?.type);
+      || (typeof data?.type === 'string' && LocalBridgeService.STORAGE_BUS_SKIP_TYPES.has(data.type));
     if (!skipBus && typeof window !== 'undefined' && window.localStorage) {
       try {
         window.localStorage.setItem('com.antigravity.dnd-sheet/bridge_signal', JSON.stringify({ ...payload, _seq: Date.now() + Math.random() }));

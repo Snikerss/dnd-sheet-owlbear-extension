@@ -8,6 +8,17 @@ import { Ability, ProficiencyLevel, Skill, Rarity, Currency, CharacterSize, Reco
 export const APP_VERSION = '1.0.4';
 
 /**
+ * Основной канонический origin Owlbear Rodeo для безопасного обмена сообщениями postMessage (iframe -> parent).
+ */
+export const OWLBEAR_ORIGIN = 'https://www.owlbear.rodeo';
+
+/**
+ * Количество колонок в сетке инвентаря (10 колонок).
+ * Размер массива инвентаря всегда равен inventoryRows * INVENTORY_COLUMNS.
+ */
+export const INVENTORY_COLUMNS = 10;
+
+/**
  * Единый источник истины для полей бонусов, обрабатываемых действием SET_BONUS.
  * Раньше эти списки дублировались в abilities.reducer (боевые бонусы) и actions.reducer
  * (бонусы заклинаний) с разными наборами полей — это приводило к рассинхрону.
@@ -94,6 +105,15 @@ export const RARITY_COLORS: Record<Rarity, string> = {
     [Rarity.VeryRare]: 'border-[#a335ee]',
     [Rarity.Legendary]: 'border-[#ff8000]',
     [Rarity.Artifact]: 'border-[#e5cc80]',
+};
+
+export const RARITY_HOVER_BG_COLORS: Record<Rarity, string> = {
+    [Rarity.Common]: 'hover:bg-transparent',
+    [Rarity.Uncommon]: 'hover:bg-[#61fa79]/40',
+    [Rarity.Rare]: 'hover:bg-[#0095ff]/40',
+    [Rarity.VeryRare]: 'hover:bg-[#a335ee]/40',
+    [Rarity.Legendary]: 'hover:bg-[#ff8000]/40',
+    [Rarity.Artifact]: 'hover:bg-[#e5cc80]/40',
 };
 
 export const CURRENCY_NAMES: Record<Currency, string> = {
@@ -188,3 +208,31 @@ export const MAGIC_SCHOOL_COLORS: Record<MagicSchool, string> = {
     [MagicSchool.Necromancy]: 'border-gray-500',
     [MagicSchool.Transmutation]: 'border-[var(--color-accent-primary)]',
 };
+
+export const MAGIC_SCHOOL_HOVER_BG_COLORS: Record<MagicSchool, string> = {
+    [MagicSchool.Abjuration]: 'hover:bg-[var(--color-info)]/40',
+    [MagicSchool.Conjuration]: 'hover:bg-purple-400/40',
+    [MagicSchool.Divination]: 'hover:bg-indigo-400/40',
+    [MagicSchool.Enchantment]: 'hover:bg-[var(--color-accent-tertiary)]/40',
+    [MagicSchool.Evocation]: 'hover:bg-[var(--color-accent-secondary)]/40',
+    [MagicSchool.Illusion]: 'hover:bg-[var(--color-success)]/40',
+    [MagicSchool.Necromancy]: 'hover:bg-gray-500/40',
+    [MagicSchool.Transmutation]: 'hover:bg-[var(--color-accent-primary)]/40',
+};
+
+/**
+ * Задержка коалесцирования ввода текста в редакторе заметок (250 мс).
+ * Подавляет лавину UPDATE_NOTE dispatch на каждое нажатие клавиши.
+ */
+export const NOTES_INPUT_DEBOUNCE_MS = 250;
+
+/**
+ * Задержка коалесцирования ввода текста в строковых полях заголовка (имя, класс, раса) (300 мс).
+ */
+export const HEADER_INPUT_DEBOUNCE_MS = 300;
+
+/**
+ * Задержка пакетного сохранения изменений персонажей в IndexedDB / localStorage (500 мс).
+ * Подавляет избыточную сериализацию и P2P-бродкасты при частых изменениях состояния.
+ */
+export const PERSISTENCE_SAVE_DEBOUNCE_MS = 500;

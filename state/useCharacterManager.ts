@@ -1,14 +1,13 @@
 import { useReducer, useEffect, useCallback, useState, useRef } from 'react';
 import { logger } from '../utils/logger';
 import OBR from '@owlbear-rodeo/sdk';
-import { Character, CharacterAction, HistoryState } from '../types';
-import { charactersReducer, CharactersState } from './appReducer';
-import { parseCharactersData, serializeForCache, useSaveEffect } from './persistence';
+import { Character, CharacterAction } from '../types';
+import { charactersReducer, CharactersState, CharacterEntry } from './appReducer';
+import { parseCharactersData, serializeForCache, useSaveEffect, RawCharacterStorageData } from './persistence';
 import { useObrSyncChannel } from '../sync/syncEngine';
 import { useLocalBridgeSync } from '../sync/localSync';
-import { generateActionDescription } from '../utils/history';
 import { useNotifier } from '../context/NotificationContext';
-import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, isOwlbear, loadFromLocalStorage, saveToLocalStorage, SESSION_CLIENT_ID, broadcastCharacterSync, purgeLocalCharacter } from '../utils/storage';
+import { saveCharacterApi, deleteCharacterApi, isOwlbear, loadFromLocalStorage, SESSION_CLIENT_ID, broadcastCharacterSync, purgeLocalCharacter } from '../utils/storage';
 import { localBridge } from '../utils/bridgeService';
 import { storageRepository } from '../utils/storageRepository';
 import { registerCurrentRoom, getKnownRooms, saveKnownRooms } from '../utils/roomRegistry';
@@ -34,6 +33,21 @@ interface CharacterManager {
   importVaultData: (fileContent: string) => void;
 }
 
+interface OBRRoomWithDetails {
+  id: string;
+  name?: string;
+}
+
+const getObrRoomDetails = (): { roomId: string; roomName: string } => {
+  if (typeof OBR === 'undefined') {
+    return { roomId: '', roomName: 'Owlbear Room' };
+  }
+  const room = (OBR as unknown as { room?: OBRRoomWithDetails }).room;
+  const roomId = room?.id || '';
+  const roomName = (typeof window !== 'undefined' ? window.__currentRoomName : undefined) || room?.name || 'Owlbear Room';
+  return { roomId, roomName };
+};
+
 export const useCharacterManager = (): CharacterManager => {
   const [characters, dispatch] = useReducer(charactersReducer, {});
   const [isLoading, setIsLoading] = useState(true);
@@ -51,9 +65,46 @@ export const useCharacterManager = (): CharacterManager => {
   // Сборщик сетевых чанков: хранит updatedAt, различает передачи по syncId,
   // сам валидирует границы индексов (замена багованных incomingChunksRef).
   const chunkAssemblerRef = useRef<ChunkAssembler>(new ChunkAssembler());
+  const pendingSyncRef = useRef<{ charId: string; entryRefBefore?: CharacterEntry } | null>(null);
 
   useEffect(() => {
     charactersStateRef.current = characters;
+  }, [characters]);
+
+  // Broadcast undo/redo state to sibling tabs via localBridge
+  useEffect(() => {
+    if (!pendingSyncRef.current) return;
+    const { charId, entryRefBefore } = pendingSyncRef.current;
+    pendingSyncRef.current = null;
+
+    const currentEntry = characters[charId];
+    if (!currentEntry || currentEntry === entryRefBefore) {
+      return;
+    }
+
+    const imageCacheArray = currentEntry.imageCache
+      ? (currentEntry.imageCache instanceof Map
+          ? Array.from(currentEntry.imageCache.entries())
+          : (Array.isArray(currentEntry.imageCache) ? currentEntry.imageCache : []))
+      : [];
+
+    try {
+      localBridge.postMessage({
+        type: BridgeMessageType.CHARACTER_SYNC,
+        charId,
+        entry: {
+          ...currentEntry,
+          character: currentEntry.history.present,
+          history: currentEntry.history,
+          log: currentEntry.log,
+          imageCache: imageCacheArray,
+        },
+        senderClientId: SESSION_CLIENT_ID,
+        senderId: SESSION_CLIENT_ID,
+      });
+    } catch (e) {
+      logger.warn('[useCharacterManager] Failed to broadcast undo/redo sync:', e);
+    }
   }, [characters]);
 
   // Garbage collection for stale incomplete P2P transmissions (older than 30s)
@@ -92,17 +143,16 @@ export const useCharacterManager = (): CharacterManager => {
           const parsedState = parseCharactersData(data);
           const cache: Record<string, string> = {};
           for (const [id, charData] of Object.entries(data)) {
-            cache[id] = serializeForCache(charData);
+            cache[id] = serializeForCache(charData as RawCharacterStorageData);
           }
           lastSerializedRef.current = cache;
           dispatch({ type: 'SET_CHARACTERS', payload: parsedState });
         }
 
         if (isOwlbear()) {
-          if (typeof OBR !== 'undefined' && (OBR as any).room?.id) {
-            const roomId = (OBR as any).room.id;
-            const roomName = (OBR as any).room?.name || 'Owlbear Room';
-            (window as any).__currentRoomName = roomName;
+          const { roomId, roomName } = getObrRoomDetails();
+          if (roomId) {
+            window.__currentRoomName = roomName;
             registerCurrentRoom(roomId, roomName);
           }
           try {
@@ -135,7 +185,7 @@ export const useCharacterManager = (): CharacterManager => {
             setIsLoading(false);
           }, 1500);
 
-          (window as any).__handshakeTimeoutId = timeoutId;
+          window.__handshakeTimeoutId = timeoutId;
         } else {
           setIsLoading(false);
         }
@@ -151,21 +201,22 @@ export const useCharacterManager = (): CharacterManager => {
 
   useObrSyncChannel({ charactersStateRef, chunkAssemblerRef, dispatch, addNotification, lastSerializedRef, lastPresentRef, setSyncingCharacters });
 
-  useSaveEffect({ characters, isLoading, addNotification, lastSerializedRef, lastPresentRef });
+  const { flush: flushSave } = useSaveEffect({ characters, isLoading, addNotification, lastSerializedRef, lastPresentRef });
 
   // --- MEMOIZED ACTION DISPATCHERS ---
 
   const addCharacter = useCallback((id: string, character: Character) => {
     let charToAdd = character;
-    if (isOwlbear() && typeof OBR !== 'undefined' && (OBR as any).room?.id) {
-      const roomId = (OBR as any).room.id;
-      const roomName = (window as any).__currentRoomName || (OBR as any).room?.name || 'Owlbear Room';
-      const boundRooms = character.boundRooms || [];
-      if (!boundRooms.some(r => r.roomId === roomId)) {
-        charToAdd = {
-          ...character,
-          boundRooms: [...boundRooms, { roomId, roomName, lastVisited: Date.now() }]
-        };
+    if (isOwlbear()) {
+      const { roomId, roomName } = getObrRoomDetails();
+      if (roomId) {
+        const boundRooms = character.boundRooms || [];
+        if (!boundRooms.some(r => r.roomId === roomId)) {
+          charToAdd = {
+            ...character,
+            boundRooms: [...boundRooms, { roomId, roomName, lastVisited: Date.now() }]
+          };
+        }
       }
     }
 
@@ -179,7 +230,9 @@ export const useCharacterManager = (): CharacterManager => {
     dispatch({ type: 'ADD_CHARACTER', payload: { id, character: charToAdd } });
 
     // Save to LocalStorage, IndexedDB and Owlbear metadata
-    saveCharacterApi(id, newEntry).catch(console.error);
+    saveCharacterApi(id, newEntry).catch((err) => {
+      logger.error('[DND Sheet] Failed to save character:', err);
+    });
 
     // Instantly sync newly created character to Owlbear iframe and all other open tabs!
     try {
@@ -201,13 +254,38 @@ export const useCharacterManager = (): CharacterManager => {
   }, []);
 
   const exportVaultData = useCallback(() => {
+    flushSave();
     const state = charactersStateRef.current;
     const knownRooms = getKnownRooms();
+    const exportableCharacters: Record<string, unknown> = {};
+
+    for (const [id, entry] of Object.entries(state)) {
+      if (!entry) continue;
+      let imageCacheRecord: Record<string, string> = {};
+      if (entry.imageCache instanceof Map) {
+        imageCacheRecord = Object.fromEntries(entry.imageCache.entries());
+      } else if (Array.isArray(entry.imageCache)) {
+        imageCacheRecord = Object.fromEntries(
+          (entry.imageCache as [string, string][]).filter(
+            pair => Array.isArray(pair) && pair.length >= 2 && typeof pair[0] === 'string' && typeof pair[1] === 'string'
+          )
+        );
+      } else if (entry.imageCache && typeof entry.imageCache === 'object') {
+        imageCacheRecord = { ...(entry.imageCache as Record<string, string>) };
+      }
+
+      exportableCharacters[id] = {
+        ...entry,
+        character: entry.history?.present,
+        imageCache: imageCacheRecord,
+      };
+    }
+
     const vaultData = {
       version: 2,
       exportedAt: Date.now(),
       knownRooms,
-      characters: state,
+      characters: exportableCharacters,
     };
     const blob = new Blob([JSON.stringify(vaultData, null, 2)], { type: 'application/json' });
     const href = URL.createObjectURL(blob);
@@ -219,7 +297,7 @@ export const useCharacterManager = (): CharacterManager => {
     document.body.removeChild(link);
     URL.revokeObjectURL(href);
     addNotification('Хранилище персонажей успешно экспортировано!', 'info');
-  }, [addNotification]);
+  }, [addNotification, flushSave]);
 
   const importVaultData = useCallback((fileContent: string) => {
     try {
@@ -239,7 +317,9 @@ export const useCharacterManager = (): CharacterManager => {
             entry.history.present.ownerId = myId;
             if (myName) entry.history.present.ownerName = myName;
           }
-          saveCharacterApi(id, entry).catch(console.error);
+          saveCharacterApi(id, entry).catch((err) => {
+            logger.error('[DND Sheet] Failed to save imported character:', err);
+          });
           try {
             const imageCacheArray = entry.imageCache ? (entry.imageCache instanceof Map ? Array.from(entry.imageCache.entries()) : entry.imageCache) : [];
             localBridge.postMessage({
@@ -271,6 +351,7 @@ export const useCharacterManager = (): CharacterManager => {
   }, [addNotification]);
 
   const deleteCharacter = useCallback(async (id: string) => {
+    flushSave();
     const charEntry = charactersStateRef.current[id];
     const fullChar = charEntry?.history.present;
     
@@ -352,12 +433,16 @@ export const useCharacterManager = (): CharacterManager => {
 
       addNotification('Персонаж полностью удален.', 'info');
     }
-  }, [addNotification]);
+  }, [addNotification, flushSave]);
 
   const updateCharacter = useCallback((id: string, action: CharacterAction) => {
+    const actionRecord = action as unknown as Record<string, unknown>;
+    const actionId = typeof actionRecord.actionId === 'string'
+      ? actionRecord.actionId
+      : Math.random().toString(36).substring(2) + Date.now().toString(36);
     const actionWithId = {
       ...action,
-      actionId: (action as any).actionId || Math.random().toString(36).substring(2) + Date.now().toString(36)
+      actionId
     };
 
     dispatch({ type: 'DISPATCH_CHARACTER_ACTION', payload: { id, action: actionWithId } });
@@ -373,11 +458,19 @@ export const useCharacterManager = (): CharacterManager => {
   }, []);
 
   const undo = useCallback((id: string) => {
+    const entryRefBefore = charactersStateRef.current[id];
     dispatch({ type: 'UNDO', payload: { id } });
+    if (entryRefBefore && entryRefBefore.history.past.length > 0) {
+      pendingSyncRef.current = { charId: id, entryRefBefore };
+    }
   }, []);
 
   const redo = useCallback((id: string) => {
+    const entryRefBefore = charactersStateRef.current[id];
     dispatch({ type: 'REDO', payload: { id } });
+    if (entryRefBefore && entryRefBefore.history.future.length > 0) {
+      pendingSyncRef.current = { charId: id, entryRefBefore };
+    }
   }, []);
 
   const isLoadingRef = useRef(isLoading);
@@ -431,8 +524,7 @@ export const useCharacterManager = (): CharacterManager => {
 
     const emitHeartbeat = () => {
       try {
-        const roomId = typeof OBR !== 'undefined' ? OBR.room?.id : '';
-        const roomName = (window as any).__currentRoomName || (typeof OBR !== 'undefined' ? (OBR as any).room?.name : '') || 'Owlbear Room';
+        const { roomId, roomName } = getObrRoomDetails();
         if (roomId) {
           registerCurrentRoom(roomId, roomName);
         }
@@ -467,8 +559,7 @@ export const useCharacterManager = (): CharacterManager => {
     if (!isOwlbear()) return;
     const sendHeartbeat = () => {
       try {
-        const roomId = typeof OBR !== 'undefined' ? OBR.room?.id : '';
-        const roomName = (typeof OBR !== 'undefined' ? (OBR as any).room?.name : '') || 'Owlbear Room';
+        const { roomId, roomName } = getObrRoomDetails();
         localBridge.postMessage({
           type: BridgeMessageType.HEARTBEAT_PING,
           roomId,
@@ -484,8 +575,7 @@ export const useCharacterManager = (): CharacterManager => {
       if (payload && typeof payload === 'object') {
         const senderId = payload.senderClientId || payload.senderId;
         if (senderId && senderId !== SESSION_CLIENT_ID && payload.type === P2pMessageType.PRESENCE_QUERY) {
-          const roomId = typeof OBR !== 'undefined' ? OBR.room?.id : '';
-          const roomName = (typeof OBR !== 'undefined' ? (OBR as any).room?.name : '') || 'Owlbear Room';
+          const { roomId, roomName } = getObrRoomDetails();
           p2pRoomBridge.broadcast({
             type: P2pMessageType.STATE_RESPONSE,
             roomId,
@@ -556,11 +646,11 @@ export const useCharacterManager = (): CharacterManager => {
   useEffect(() => {
     if (isOwlbear() && typeof OBR !== 'undefined') {
       OBR.onReady(() => {
-        const roomId = OBR.room?.id || 'global_vault_bridge';
-        const roomName = (OBR as any).room?.name || 'Owlbear Room';
-        logger.debug(`[DND Sheet P2P] Owlbear VTT Ready. Connecting bridge for room: ${roomId} (${roomName})`);
-        registerCurrentRoom(roomId, roomName);
-        p2pRoomBridge.connect(roomId, roomName);
+        const { roomId, roomName } = getObrRoomDetails();
+        const finalRoomId = roomId || 'global_vault_bridge';
+        logger.debug(`[DND Sheet P2P] Owlbear VTT Ready. Connecting bridge for room: ${finalRoomId} (${roomName})`);
+        registerCurrentRoom(finalRoomId, roomName);
+        p2pRoomBridge.connect(finalRoomId, roomName);
         localBridge.reconnectStandaloneWindows();
       });
     } else {
@@ -609,8 +699,10 @@ export const useCharacterManager = (): CharacterManager => {
         setSyncStatus('syncing');
         try {
           const localData = loadFromLocalStorage();
-          const entry = charactersStateRef.current[id] || localData[id];
-          const imageCacheArray = entry?.imageCache ? Array.from(entry.imageCache.entries()) : [];
+          const entry = charactersStateRef.current[id] || (localData[id] as unknown as CharactersState[string]);
+          const imageCacheArray = entry?.imageCache instanceof Map
+            ? Array.from(entry.imageCache.entries())
+            : (Array.isArray(entry?.imageCache) ? entry.imageCache : []);
 
           localBridge.postMessage({ type: BridgeMessageType.VTT_FRAME_READY });
           localBridge.postMessage({
@@ -633,6 +725,7 @@ export const useCharacterManager = (): CharacterManager => {
   }, [addNotification]);
 
   const clearLocalCache = useCallback(async (id: string) => {
+    flushSave();
     try {
       logger.debug(`[DND Sheet] Clearing local copy for character ${id}...`);
 
@@ -653,7 +746,7 @@ export const useCharacterManager = (): CharacterManager => {
       logger.error('[DND Sheet] Failed to clear local copy:', e);
       addNotification('Ошибка при очистке локальной копии.', 'error');
     }
-  }, [addNotification]);
+  }, [addNotification, flushSave]);
 
   return {
     characters,

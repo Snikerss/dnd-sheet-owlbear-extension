@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { selectEquippedBonuses } from './selectors';
 import { makeTestCharacter } from '../state/testFixtures';
-import { InventoryItem, Currency, Rarity, Ability } from '../types';
+import { InventoryItem, Currency, Rarity } from '../types';
 
 const makeItem = (id: string, overrides: Partial<InventoryItem> = {}): InventoryItem => ({
     id,
@@ -63,7 +63,7 @@ describe('selectEquippedBonuses — мемоизация (баг #9)', () => {
     it('обрабатывает abilityScores бонусы', () => {
         const char = makeTestCharacter({
             equippedItems: [
-                makeItem('i1', { bonuses: { abilityScores: { STR: 2, DEX: 1 } as any } }),
+                makeItem('i1', { bonuses: { abilityScores: { STR: 2, DEX: 1 } } }),
             ],
         });
         const bonuses = selectEquippedBonuses(char);

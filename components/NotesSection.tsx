@@ -1,37 +1,90 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useCharacter } from '../context/CharacterContext';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useCharacter, useCharacterId } from '../context/CharacterContext';
 import type { Note, NoteGroup } from '../types';
 import { generateUUID } from '../utils/uuid';
-import { RichTextToolbar, FormattedText } from './RichTextFormatting';
+import { sanitizeEditorContent } from '../utils/sanitizeRichText';
+import { RichTextToolbar } from './RichTextFormatting';
+import { debounce } from '../utils/debounce';
+import { NOTES_INPUT_DEBOUNCE_MS } from '../constants';
 
 export const NotesSection: React.FC = React.memo(() => {
     const { character, dispatch } = useCharacter();
+    const characterId = useCharacterId();
     const { notes, activeNoteId } = character;
     const groups = character.noteGroups || [];
 
     const activeNote = notes.find(n => n.id === activeNoteId);
+    const activeNoteRef = useRef(activeNote);
+    useEffect(() => {
+        activeNoteRef.current = activeNote;
+    }, [activeNote]);
+
     const editorRef = useRef<HTMLDivElement>(null);
     const titleInputRef = useRef<HTMLInputElement>(null);
     const groupRenameInputRef = useRef<HTMLInputElement>(null);
+    const lastActiveNoteIdRef = useRef<string | null>(null);
 
-    // Sync contentEditable innerHTML with activeNote.content when active note changes
+    // Буфер коалесцирования для активного редактирования заметки
+    const pendingNoteContentRef = useRef<{ id: string; content: string } | null>(null);
+    const dispatchRef = useRef(dispatch);
+    dispatchRef.current = dispatch;
+
+    const debouncedSaveNote = useMemo(() => {
+        return debounce(() => {
+            if (!pendingNoteContentRef.current) return;
+            const { id, content } = pendingNoteContentRef.current;
+            pendingNoteContentRef.current = null;
+            dispatchRef.current({
+                type: 'UPDATE_NOTE',
+                payload: { id, updates: { content } }
+            });
+        }, NOTES_INPUT_DEBOUNCE_MS);
+    }, []);
+
+    // Синхронизация contentEditable innerHTML с activeNote.content при смене заметки или внешнем обновлении
     useEffect(() => {
         if (editorRef.current && activeNote) {
-            if (editorRef.current.innerHTML !== (activeNote.content || '')) {
-                editorRef.current.innerHTML = activeNote.content || '';
+            const isFocused = document.activeElement === editorRef.current;
+            const noteChanged = lastActiveNoteIdRef.current !== activeNote.id;
+            lastActiveNoteIdRef.current = activeNote.id;
+
+            const sanitized = sanitizeEditorContent(activeNote.content || '');
+            if ((noteChanged || !isFocused) && editorRef.current.innerHTML !== sanitized) {
+                editorRef.current.innerHTML = sanitized;
             }
         }
-    }, [activeNote?.id]);
+    }, [activeNote]);
 
     const handleEditorInput = useCallback(() => {
-        if (editorRef.current && activeNote) {
+        const currentActive = activeNoteRef.current;
+        if (editorRef.current && currentActive) {
             const html = editorRef.current.innerHTML;
-            dispatch({
-                type: 'UPDATE_NOTE',
-                payload: { id: activeNote.id, updates: { content: html } }
-            });
+            pendingNoteContentRef.current = { id: currentActive.id, content: html };
+            debouncedSaveNote();
         }
-    }, [activeNote?.id, dispatch]);
+    }, [debouncedSaveNote]);
+
+    const handleEditorBlur = useCallback(() => {
+        debouncedSaveNote.flush();
+    }, [debouncedSaveNote]);
+
+    // КРИТИЧНО: При смене заметки (activeNoteId), смене персонажа (characterId) или unmount
+    // flush-им pending ввод через захваченный boundDispatch предыдущего рендера (его замыкание
+    // указывает на СТАРОГО персонажа).
+    useEffect(() => {
+        const boundDispatch = dispatch;
+        return () => {
+            debouncedSaveNote.cancel();
+            if (pendingNoteContentRef.current) {
+                const { id, content } = pendingNoteContentRef.current;
+                pendingNoteContentRef.current = null;
+                boundDispatch({
+                    type: 'UPDATE_NOTE',
+                    payload: { id, updates: { content } }
+                });
+            }
+        };
+    }, [characterId, activeNoteId, dispatch, debouncedSaveNote]);
 
     // Editing group title state
     const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
@@ -147,12 +200,6 @@ export const NotesSection: React.FC = React.memo(() => {
         }
     };
 
-    const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        if (activeNoteId) {
-            dispatch({ type: 'UPDATE_NOTE', payload: { id: activeNoteId, updates: { content: e.target.value } } });
-        }
-    };
-
     const handleStartEditingNoteTitle = (e: React.MouseEvent, note: Note) => {
         e.stopPropagation();
         setEditingNoteId(note.id);
@@ -213,7 +260,7 @@ export const NotesSection: React.FC = React.memo(() => {
         e.dataTransfer.setData('text/plain', `note:${noteId}`);
     };
 
-    const handleNoteDragOver = (e: React.DragEvent, groupId: string, index: number) => {
+    const handleNoteDragOver = (e: React.DragEvent, _groupId?: string, _index?: number) => {
         if (draggedNoteInfo) {
             e.preventDefault();
             e.stopPropagation();
@@ -252,7 +299,7 @@ export const NotesSection: React.FC = React.memo(() => {
         handleNoteDragEnd();
     };
 
-    const handleGroupBodyDragOver = (e: React.DragEvent, groupId: string) => {
+    const handleGroupBodyDragOver = (e: React.DragEvent, _groupId?: string) => {
         if (draggedNoteInfo) {
             e.preventDefault();
         }
@@ -310,7 +357,7 @@ export const NotesSection: React.FC = React.memo(() => {
 
                         {/* List of note groups */}
                         {groups.length > 0 ? (
-                            <div className="space-y-3 overflow-y-auto flex-1 min-h-0 max-h-[300px] md:max-h-none scrollbar-none pr-1">
+                            <div className="space-y-3 overflow-y-auto flex-1 min-h-0 max-h-[300px] md:max-h-none pr-1">
                                 {groups.map((group, groupIndex) => {
                                     const isGroupCollapsed = !!group.isCollapsed;
                                     const isGroupDragged = draggedGroupIndex === groupIndex;
@@ -377,7 +424,7 @@ export const NotesSection: React.FC = React.memo(() => {
                                                             onBlur={handleFinishRenameGroup}
                                                             onKeyDown={handleGroupRenameKeyDown}
                                                             onClick={(e) => e.stopPropagation()}
-                                                            className="bg-[var(--color-background)] text-xs border border-[var(--color-border-subtle)] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] w-full font-bold text-[var(--color-text-base)]"
+                                                            className="bg-[var(--color-background)] text-xs border border-[var(--color-border-subtle)] rounded px-1.5 py-0.5 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] w-full font-bold text-[var(--color-text-base)]"
                                                         />
                                                     ) : (
                                                         <span className="text-xs font-bold text-[var(--color-text-base)] truncate select-none">
@@ -461,7 +508,7 @@ export const NotesSection: React.FC = React.memo(() => {
                                                                         onClick={() => handleSelectNote(note.id)}
                                                                         className={`group flex items-center justify-between px-2.5 py-1.5 rounded-md cursor-pointer transition-all duration-150 border-l-4 ${
                                                                             activeNoteId === note.id
-                                                                                ? 'bg-[var(--color-surface-well)] border-[var(--color-accent-primary)] text-[var(--color-text-base)] shadow-sm'
+                                                                                ? 'bg-[var(--color-surface-well)] border-[var(--color-accent-primary)] text-[var(--color-text-base)] shadow-xs'
                                                                                 : 'border-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-surface-well)]/40 hover:text-[var(--color-text-medium)]'
                                                                         } ${isNoteDragged ? 'opacity-40' : 'opacity-100'} ${
                                                                             isNoteDragOver ? 'ring-2 ring-[var(--color-accent-primary)] ring-dashed bg-[var(--color-surface-well)]' : ''
@@ -477,7 +524,7 @@ export const NotesSection: React.FC = React.memo(() => {
                                                                                     onBlur={handleFinishEditingNoteTitle}
                                                                                     onKeyDown={handleNoteTitleKeyDown}
                                                                                     onClick={(e) => e.stopPropagation()}
-                                                                                    className="bg-[var(--color-background)] text-xs border border-[var(--color-border-subtle)] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] w-full font-semibold text-[var(--color-text-base)]"
+                                                                                    className="bg-[var(--color-background)] text-xs border border-[var(--color-border-subtle)] rounded px-1.5 py-0.5 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] w-full font-semibold text-[var(--color-text-base)]"
                                                                                 />
                                                                             ) : (
                                                                                 <span className="text-xs font-semibold truncate select-none">{note.title}</span>
@@ -547,6 +594,8 @@ export const NotesSection: React.FC = React.memo(() => {
                                 targetRef={editorRef}
                                 onFormatApplied={(newContent) => {
                                     if (activeNote) {
+                                        debouncedSaveNote.cancel();
+                                        pendingNoteContentRef.current = null;
                                         dispatch({
                                             type: 'UPDATE_NOTE',
                                             payload: { id: activeNote.id, updates: { content: newContent } }
@@ -559,8 +608,8 @@ export const NotesSection: React.FC = React.memo(() => {
                                 contentEditable
                                 suppressContentEditableWarning
                                 onInput={handleEditorInput}
-                                onBlur={handleEditorInput}
-                                className="w-full flex-1 bg-[var(--color-surface-well)]/40 p-4 rounded-lg border border-[var(--color-border-subtle)] min-h-[350px] overflow-y-auto text-sm leading-relaxed text-[var(--color-text-base)] outline-none focus:border-[var(--color-accent-primary)] focus:ring-1 focus:ring-[var(--color-accent-primary)] transition-all font-sans"
+                                onBlur={handleEditorBlur}
+                                className="w-full flex-1 bg-[var(--color-surface-well)]/40 p-4 rounded-lg border border-[var(--color-border-subtle)] min-h-[350px] overflow-y-auto text-sm leading-relaxed text-[var(--color-text-base)] outline-hidden focus:border-[var(--color-accent-primary)] focus:ring-1 focus:ring-[var(--color-accent-primary)] transition-all font-sans"
                             />
                         </div>
                     ) : (

@@ -1,4 +1,4 @@
-import { Character, CharacterAction, DropLocation, InventoryItem } from '../types';
+import { Character, CharacterAction, InventoryItem } from '../types';
 import { ABILITY_NAMES, CURRENCY_ABBREVIATIONS_RU, CHARACTER_SIZE_NAMES, PROFICIENCY_LEVEL_NAMES } from '../constants';
 
 const BONUS_FIELD_NAMES: Record<string, string> = {
@@ -74,7 +74,7 @@ export const generateActionDescription = (action: CharacterAction, oldState: Cha
         // Bonuses
         case 'SET_BONUS': {
             const { field, value } = action.payload;
-            const oldValue = (oldState as any)[field] || 0;
+            const oldValue = (oldState[field as keyof Character] as number) || 0;
             if (value === oldValue) return null;
             const fieldName = BONUS_FIELD_NAMES[field] || field;
             return `${fieldName} изменён: ${oldValue} → ${value}`;
@@ -125,7 +125,7 @@ export const generateActionDescription = (action: CharacterAction, oldState: Cha
         case 'SET_ITEMS_ORDER': return null;
         case 'MOVE_ITEM': {
             const { source } = action.payload;
-            let sourceList: (any | null)[] | undefined = undefined;
+            let sourceList: (InventoryItem | null)[] | undefined = undefined;
             if (source.container === 'inventory') sourceList = oldState.inventory;
             else if (source.container === 'chest' && source.chestId) {
                 const chest = oldState.inventory.find(i => i?.id === source.chestId);

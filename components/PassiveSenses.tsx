@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { ProficiencyLevel } from '../types';
+import { ProficiencyLevel, Skill } from '../types';
 import { calculateProficiencyBonus } from '../utils/characterCalculations';
 
 interface SenseDisplayProps {
@@ -59,7 +59,7 @@ const SenseDisplay: React.FC<SenseDisplayProps> = ({ label, skillModifier, bonus
                             onChange={(e) => setEditedBonus(parseInt(e.target.value, 10))}
                             onBlur={handleSubmit}
                             onKeyDown={handleKeyDown}
-                            className="w-16 h-8 bg-[var(--color-background)] border border-slate-700/50 hover:border-teal-500/30 focus:border-[var(--color-accent-primary-hover)] rounded-xl text-center text-xs font-extrabold focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-primary-hover)] text-[var(--color-text-base)] shadow-inner transition-all duration-150"
+                            className="w-16 h-8 bg-[var(--color-background)] border border-slate-700/50 hover:border-teal-500/30 focus:border-[var(--color-accent-primary-hover)] rounded-xl text-center text-xs font-extrabold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-accent-primary-hover)] text-[var(--color-text-base)] shadow-inner transition-all duration-150"
                             autoFocus
                             onFocus={(e) => e.target.select()}
                         />
@@ -78,7 +78,7 @@ const SenseDisplay: React.FC<SenseDisplayProps> = ({ label, skillModifier, bonus
 };
 
 export const PassiveSenses: React.FC<{
-    skills: Record<string, any>;
+    skills: Record<string, Skill>;
     abilityBonuses: Record<string, number>;
     skillBonuses: Record<string, number>;
     level: number;

@@ -76,7 +76,7 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({
       },
       onDragOver: (e: React.DragEvent<HTMLDivElement>) => handleSlotDragOver(e, index),
       onDrop: (e: React.DragEvent<HTMLDivElement>) => handleSlotDrop(e, index),
-      onDragEnd: (e: React.DragEvent<HTMLDivElement>) => handleSlotDragEnd(),
+      onDragEnd: () => handleSlotDragEnd(),
     }))
   ), [items, handleSlotDragOver, handleSlotDrop, handleSlotDragEnd]);
 

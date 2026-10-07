@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { renderHook, screen, act, cleanup } from '@testing-library/react';
 import { NotificationProvider, useNotifier } from '../NotificationContext';
 import { RollType, type RollResult } from '../../types';
+import { SAME_ORIGIN } from '../../utils/environment';
 
 vi.mock('@owlbear-rodeo/sdk', () => ({
   default: {
@@ -82,5 +83,22 @@ describe('NotificationContext (smoke)', () => {
     });
     expect(consoleError).not.toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+
+  it('broadcastRoll отправляет сообщение в opener с targetOrigin=SAME_ORIGIN (не "*")', async () => {
+    const mockOpener = { closed: false, postMessage: vi.fn() };
+    Object.defineProperty(window, 'opener', { value: mockOpener, configurable: true });
+
+    const { result } = renderHook(() => useNotifier(), { wrapper });
+    await act(async () => {
+      await result.current.broadcastRoll('Маг', rollResult);
+    });
+
+    expect(mockOpener.postMessage).toHaveBeenCalled();
+    const [, targetOrigin] = mockOpener.postMessage.mock.calls[0]!;
+    expect(targetOrigin).toBe(SAME_ORIGIN);
+    expect(targetOrigin).not.toBe('*');
+
+    Object.defineProperty(window, 'opener', { value: null, configurable: true });
   });
 });

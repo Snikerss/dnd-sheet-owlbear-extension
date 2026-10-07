@@ -4,17 +4,18 @@ import { useNotifier } from '../context/NotificationContext';
 import { computePermissions } from '../hooks/usePermissions';
 
 interface CharacterCardProps {
+  characterId?: string;
   character: Character;
-  onSelect: () => void;
-  onDuplicate: () => void;
-  onDelete: () => void;
-  onExport: () => void;
-  onOpenStandalone?: () => void;
-  onSync?: () => void;
-  onClearCache?: () => void;
+  onSelect: (id: string) => void;
+  onDuplicate: (id: string) => void;
+  onDelete: (id: string) => void;
+  onExport: (id: string) => void;
+  onOpenStandalone?: (id: string) => void;
+  onSync?: (id: string) => void;
+  onClearCache?: (id: string) => void;
   isBroadcastingToGM?: boolean;
-  onSelectBroadcastGM?: () => void;
-  onUpdateOwnerName?: () => void;
+  onSelectBroadcastGM?: (id: string) => void;
+  onUpdateOwnerName?: (charId: string) => void;
   isSyncing?: boolean;
   pendingImagesCount?: number;
   currentUserId?: string | null;
@@ -23,6 +24,7 @@ interface CharacterCardProps {
 }
 
 export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
+  characterId,
   character,
   onSelect,
   onDuplicate,
@@ -50,9 +52,11 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
   }).canManage;
   const canDelete = canManage;
 
+  const targetId = characterId ?? '';
+
   const handleOpenClick = () => {
     if (onOpenStandalone) {
-      onOpenStandalone();
+      onOpenStandalone(targetId);
       // Show notice in Brave/Safari just in case popup blocker blocks it
       addNotification("Открываем лист персонажа в новой вкладке. Если окно заблокировано, разрешите всплывающие окна для сайта.", 'info');
     }
@@ -75,7 +79,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
           </span>
         </div>
       )}
-      <div className="relative flex-1 cursor-pointer group overflow-hidden flex flex-col min-h-0" onClick={onSelect}>
+      <div className="relative flex-1 cursor-pointer group overflow-hidden flex flex-col min-h-0" onClick={() => onSelect(targetId)}>
         <div className="flex-1 w-full min-h-[160px] bg-[var(--color-surface-well)] flex items-center justify-center overflow-hidden relative">
           {character.portraitUrl ? (
             <img src={character.portraitUrl} alt={character.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
@@ -88,13 +92,13 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
         {/* GM Broadcast Status Badge */}
         {isBroadcastingToGM ? (
           <div className="absolute top-2 left-2 z-10">
-            <span className="bg-emerald-500/90 text-white text-[10px] px-2 py-0.5 rounded-md backdrop-blur-sm border border-emerald-400/50 font-bold shadow-md flex items-center gap-1">
+            <span className="bg-emerald-500/90 text-white text-[10px] px-2 py-0.5 rounded-md backdrop-blur-xs border border-emerald-400/50 font-bold shadow-md flex items-center gap-1">
               <span>📡</span> Транслируется ГМу
             </span>
           </div>
         ) : (
           <div className="absolute top-2 left-2 z-10">
-            <span className="bg-slate-800/80 text-slate-300 text-[10px] px-2 py-0.5 rounded-md backdrop-blur-sm border border-slate-700/50 font-medium">
+            <span className="bg-slate-800/80 text-slate-300 text-[10px] px-2 py-0.5 rounded-md backdrop-blur-xs border border-slate-700/50 font-medium">
               <span>👤</span> Хранилище
             </span>
           </div>
@@ -105,10 +109,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
               onClick={(e) => {
                 e.stopPropagation();
                 if (onUpdateOwnerName) {
-                  onUpdateOwnerName();
+                  onUpdateOwnerName(targetId);
                 }
               }}
-              className={`bg-black/75 text-emerald-300 text-[11px] px-2 py-0.5 rounded-md backdrop-blur-sm border border-emerald-500/30 font-semibold shadow-md flex items-center gap-1 ${
+              className={`bg-black/75 text-emerald-300 text-[11px] px-2 py-0.5 rounded-md backdrop-blur-xs border border-emerald-500/30 font-semibold shadow-md flex items-center gap-1 ${
                 onUpdateOwnerName ? 'cursor-pointer hover:bg-black/90 hover:border-emerald-400 transition-all' : ''
               }`}
               title={onUpdateOwnerName ? 'Нажмите, чтобы изменить имя игрока' : undefined}
@@ -118,11 +122,11 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
             </span>
           </div>
         )}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-12 text-white">
+        <div className="absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-black/90 via-black/50 to-transparent pt-12 text-white">
           <h3 className="text-lg font-bold truncate drop-shadow-md" title={character.name}>
             {character.name}
           </h3>
-          <p className="text-xs text-white/80 truncate drop-shadow-sm" title={`${character.characterClass}, Уровень ${character.level}`}>
+          <p className="text-xs text-white/80 truncate drop-shadow-xs" title={`${character.characterClass}, Уровень ${character.level}`}>
             {`${character.characterClass}, Уровень ${character.level}`}
           </p>
         </div>
@@ -131,7 +135,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
         {/* Row 1: Small utility buttons */}
         <div className="flex items-center justify-around w-full">
             <button
-                onClick={onExport}
+                onClick={() => onExport(targetId)}
                 data-tooltip="Экспортировать персонажа"
                 aria-label="Экспортировать персонажа"
                 className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-base)] transition-colors"
@@ -141,7 +145,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
                 </svg>
             </button>
             <button
-              onClick={onDuplicate}
+              onClick={() => onDuplicate(targetId)}
               data-tooltip="Дублировать персонажа"
               aria-label="Дублировать персонажа"
               className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-base)] transition-colors"
@@ -153,7 +157,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
             </button>
             {onSync && (
               <button
-                onClick={onSync}
+                onClick={() => onSync(targetId)}
                 data-tooltip="Повторно синхронизировать"
                 aria-label="Повторно синхронизировать"
                 className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-teal-400 transition-colors"
@@ -165,7 +169,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
             )}
             {onClearCache && (isGM || !canDelete) && (
               <button
-                onClick={onClearCache}
+                onClick={() => onClearCache(targetId)}
                 data-tooltip={isGM ? "Удалить локальную копию у ГМа" : "Удалить чужую локальную копию"}
                 aria-label={isGM ? "Удалить локальную копию у ГМа" : "Удалить чужую локальную копию"}
                 className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-amber-400 transition-colors"
@@ -199,9 +203,9 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onSelectBroadcastGM();
+                onSelectBroadcastGM(targetId);
               }}
-              className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
                 isBroadcastingToGM ? 'bg-emerald-500' : 'bg-slate-700'
               }`}
               role="switch"
@@ -220,14 +224,14 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
         {/* Row 3: Select & Delete buttons */}
         <div className={`w-full pt-0.5 ${canDelete ? 'grid grid-cols-2 gap-2' : 'flex items-center'}`}>
           <button
-            onClick={onSelect}
+            onClick={() => onSelect(targetId)}
             className="w-full bg-[var(--color-accent-primary)] text-white font-bold py-2 px-2 rounded-lg hover:bg-[var(--color-accent-primary-hover)] transition-all shadow active:scale-95 text-xs sm:text-sm truncate flex items-center justify-center gap-1"
           >
             <span>Выбрать</span>
           </button>
           {canDelete && (
             <button
-              onClick={onDelete}
+              onClick={() => onDelete(targetId)}
               data-tooltip={isGM ? "Удалить локальную копию у ГМа" : "Удалить персонажа навсегда"}
               className="w-full bg-red-500/15 text-red-400 border border-red-500/40 hover:bg-red-600 hover:text-white font-bold py-2 px-2 rounded-lg transition-all shadow active:scale-95 text-xs sm:text-sm truncate flex items-center justify-center gap-1"
               aria-label="Удалить персонажа"
@@ -243,3 +247,5 @@ export const CharacterCard: React.FC<CharacterCardProps> = React.memo(({
     </div>
   );
 });
+
+CharacterCard.displayName = 'CharacterCard';

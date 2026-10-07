@@ -66,7 +66,7 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({ message, t
         <div className="ml-4 flex-shrink-0 flex">
           <button
             onClick={onClose}
-            className="rounded-md inline-flex text-[var(--color-text-muted)] hover:text-[var(--color-text-base)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)]"
+            className="rounded-md inline-flex text-[var(--color-text-muted)] hover:text-[var(--color-text-base)] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)]"
           >
             <span className="sr-only">Закрыть</span>
             <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

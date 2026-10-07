@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Character, InventoryItem, Rarity, ItemBonuses } from '../types';
+import { InventoryItem, Rarity, ItemBonuses } from '../types';
 import { RARITY_COLORS, RARITY_NAMES } from '../constants';
-import { useCharacter } from '../context/CharacterContext';
-import { useNotifier } from '../context/NotificationContext';
+import { useCharacterState } from '../context/CharacterContext';
 import { calculateItemWeight } from '../utils/inventory';
 import { computeTooltipPosition } from '../hooks/useGlobalTooltips';
 
@@ -84,7 +83,7 @@ const getBonusStrings = (bonuses?: ItemBonuses): string[] => {
   return parts;
 };
 
-export const CharacterDoll: React.FC<CharacterDollProps> = ({
+export const CharacterDoll: React.FC<CharacterDollProps> = React.memo(({
   onSlotClick,
   onItemDragStart,
   onItemDrop,
@@ -92,8 +91,7 @@ export const CharacterDoll: React.FC<CharacterDollProps> = ({
   onItemDragEnd,
   onItemUnequip
 }) => {
-  const { character } = useCharacter();
-  const { addNotification } = useNotifier();
+  const character = useCharacterState();
   const [isDragOver, setIsDragOver] = useState(false);
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
   const [hoveredElement, setHoveredElement] = useState<HTMLElement | null>(null);
@@ -265,7 +263,7 @@ export const CharacterDoll: React.FC<CharacterDollProps> = ({
           return (
             <div
               key={item.id}
-              className={`absolute w-16 h-16 rounded-lg flex items-center justify-center cursor-move transition-all duration-150 hover:scale-110 active:scale-95 opacity-80 hover:opacity-100 border-2 border-opacity-80 hover:border-opacity-100 shadow-lg bg-[var(--color-surface-well)]/90 backdrop-blur-xs ${
+              className={`absolute w-16 h-16 rounded-lg flex items-center justify-center cursor-move transition-all duration-150 hover:scale-110 active:scale-95 opacity-80 hover:opacity-100 border-2 shadow-lg bg-[var(--color-surface-well)]/90 backdrop-blur-xs ${
                 RARITY_COLORS[item.rarity]
               }`}
               style={{
@@ -499,4 +497,6 @@ export const CharacterDoll: React.FC<CharacterDollProps> = ({
       </div>
     </div>
   );
-};
+});
+
+CharacterDoll.displayName = 'CharacterDoll';

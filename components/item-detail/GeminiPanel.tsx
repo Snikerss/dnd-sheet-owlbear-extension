@@ -18,7 +18,7 @@ export const GeminiPanel: React.FC<GeminiPanelProps> = ({ baseItem, updateFormDa
               <button
                   type="button"
                   onClick={() => setIsSearchPanelOpen(!isSearchPanelOpen)}
-                  className="flex items-center justify-between w-full text-xs font-bold text-[var(--color-text-medium)] uppercase tracking-wider focus:outline-none"
+                  className="flex items-center justify-between w-full text-xs font-bold text-[var(--color-text-medium)] uppercase tracking-wider focus:outline-hidden"
               >
                   <span>🔮 Импорт из API / Google AI (Gemini)</span>
                   <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transform transition-transform duration-200 ${isSearchPanelOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">

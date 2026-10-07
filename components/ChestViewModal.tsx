@@ -27,7 +27,7 @@ export const ChestViewModal: React.FC<ChestViewModalProps> = ({
 }) => {
   const modalRef = useFocusTrap<HTMLDivElement>(isOpen, onClose);
 
-  const chestInventory = chestItem.chestInventory || [];
+  const chestInventory = useMemo(() => chestItem.chestInventory || [], [chestItem.chestInventory]);
 
   const totalContentWeight = useMemo(() => {
     return chestInventory.reduce((sum, item) => sum + calculateItemWeight(item), 0);

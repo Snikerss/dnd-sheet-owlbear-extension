@@ -67,11 +67,3 @@ export const computePermissions = (
   return { isReadOnly, canEdit: !isReadOnly, canManage };
 };
 
-/**
- * Хук-обёртка для React-компонентов, у которых актёр приходит из состояния
- * приложения. Чистая функция остаётся единственным источником логики.
- */
-export const usePermissions = (
-  character: Character | null | undefined,
-  actor: PermissionActor,
-): CharacterPermissions => computePermissions(character, actor);

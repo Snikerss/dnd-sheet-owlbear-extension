@@ -18,7 +18,7 @@ interface StatsGridProps {
     isReadOnly: boolean;
 }
 
-export const StatsGrid: React.FC<StatsGridProps> = ({
+export const StatsGrid: React.FC<StatsGridProps> = React.memo(({
     effectiveAbilityScores,
     abilityModifiers,
     equippedBonuses,
@@ -130,4 +130,6 @@ export const StatsGrid: React.FC<StatsGridProps> = ({
             })}
         </div>
     );
-};
+});
+
+StatsGrid.displayName = 'StatsGrid';

@@ -1,6 +1,5 @@
-import { Character, CharacterAction, CharacterSize } from '../../types';
-import { XP_THRESHOLDS, CHARACTER_SIZE_NAMES } from '../../constants';
-import { recalculateMaxHp } from '../../utils/characterCalculations';
+import { Character, CharacterAction } from '../../types';
+import { XP_THRESHOLDS } from '../../constants';
 import { selectEquippedBonuses } from '../../utils/selectors';
 
 export const metaReducer = (state: Character, action: CharacterAction): Character => {

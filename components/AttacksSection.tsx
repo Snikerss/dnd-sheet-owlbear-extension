@@ -109,7 +109,7 @@ const AttackCard: React.FC<AttackCardProps> = ({
                 <button 
                     onClick={() => onRollHit(`Атака: ${attack.name}`, toHitBonus, RollType.Normal, globalAttackDiceBonusToHitDice)} 
                     onContextMenu={(e) => onRequestRollHit(e, `Атака: ${attack.name}`, toHitBonus, globalAttackDiceBonusToHitDice)}
-                    className="roll-button flex-1 bg-[var(--color-accent-primary-darker-translucent)] hover:bg-[var(--color-accent-primary-darker)] border border-[var(--color-accent-primary-darker)] text-[var(--color-accent-primary-light)] font-bold py-2 px-3 rounded-lg transition-all shadow-sm hover:shadow-md active:scale-95 text-center"
+                    className="roll-button flex-1 bg-[var(--color-accent-primary-darker-translucent)] hover:bg-[var(--color-accent-primary-darker)] border border-[var(--color-accent-primary-darker)] text-[var(--color-accent-primary-light)] font-bold py-2 px-3 rounded-lg transition-all shadow-xs hover:shadow-md active:scale-95 text-center"
                     data-tooltip="ЛКМ: обычный бросок, ПКМ: опции"
                     aria-label={`Бросок на попадание для атаки ${attack.name}`}
                 >
@@ -117,7 +117,7 @@ const AttackCard: React.FC<AttackCardProps> = ({
                 </button>
                 <button 
                     onClick={() => onRollDamage(attack.name, fullDamageString)} 
-                    className="roll-button flex-1 bg-[var(--color-accent-tertiary-dark)]/40 hover:bg-[var(--color-accent-tertiary-dark)]/60 border border-[var(--color-accent-tertiary-dark)] text-[#e57dab] font-bold py-2 px-3 rounded-lg transition-all shadow-sm hover:shadow-md active:scale-95 text-center"
+                    className="roll-button flex-1 bg-[var(--color-accent-tertiary-dark)]/40 hover:bg-[var(--color-accent-tertiary-dark)]/60 border border-[var(--color-accent-tertiary-dark)] text-[#e57dab] font-bold py-2 px-3 rounded-lg transition-all shadow-xs hover:shadow-md active:scale-95 text-center"
                     aria-label={`Бросок урона для атаки ${attack.name}`}
                 >
                     Урон: <span className="text-base">{fullDamageString}</span>
@@ -176,7 +176,7 @@ export const AttacksSection: React.FC<AttacksSectionProps> = React.memo(({
                             value={globalAttackDiceBonusToHitDice}
                             onChange={(e) => onGlobalDiceBonusChange(e.target.value, globalAttackDiceBonusToDamageDice)}
                             placeholder="1d4"
-                            className="w-24 bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-2 text-sm text-center focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                            className="w-24 bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-2 text-sm text-center focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]"
                         />
                     </div>
                      <div className="flex items-center gap-2">
@@ -186,7 +186,7 @@ export const AttacksSection: React.FC<AttacksSectionProps> = React.memo(({
                             value={globalAttackDiceBonusToDamageDice}
                             onChange={(e) => onGlobalDiceBonusChange(globalAttackDiceBonusToHitDice, e.target.value)}
                             placeholder="1d6"
-                            className="w-24 bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-2 text-sm text-center focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                            className="w-24 bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-2 text-sm text-center focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]"
                         />
                     </div>
                 </div>

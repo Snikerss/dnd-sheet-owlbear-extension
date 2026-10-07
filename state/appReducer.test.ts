@@ -180,3 +180,69 @@ describe('charactersReducer — ДЕТЕРМИНИЗМ UNDO (баг #1)', () => 
         expect(state['char-1']!.history.present.maxHitPoints).toBe(14); // детерминированно 14, не переброс
     });
 });
+
+describe('charactersReducer — LWW lastModified chokepoint', () => {
+    it('DISPATCH_CHARACTER_ACTION обновляет lastModified в history.present', () => {
+        const char = makeTestCharacter({ name: 'Старое', lastModified: 1000 });
+        const state = makeState(char);
+        const before = Date.now();
+        const action: CharactersAction = {
+            type: 'DISPATCH_CHARACTER_ACTION',
+            payload: { id: 'char-1', action: { type: 'SET_FIELD', payload: { field: 'name', value: 'Новое' } } as CharacterAction }
+        };
+        const result = charactersReducer(state, action);
+        const after = Date.now();
+        expect(result['char-1']!.history.present.lastModified).toBeGreaterThanOrEqual(before);
+        expect(result['char-1']!.history.present.lastModified).toBeLessThanOrEqual(after);
+    });
+
+    it('UPDATE_CHARACTER обновляет lastModified в history.present', () => {
+        const char = makeTestCharacter({ name: 'Старое', lastModified: 1000 });
+        const state = makeState(char);
+        const before = Date.now();
+        const updatedChar = { ...char, name: 'Обновлённое' };
+        const action: CharactersAction = {
+            type: 'UPDATE_CHARACTER',
+            payload: { id: 'char-1', newState: updatedChar, logEntry: null }
+        };
+        const result = charactersReducer(state, action);
+        const after = Date.now();
+        expect(result['char-1']!.history.present.lastModified).toBeGreaterThanOrEqual(before);
+        expect(result['char-1']!.history.present.lastModified).toBeLessThanOrEqual(after);
+    });
+
+    it('ADD_CHARACTER проставляет текущее время при отсутствии lastModified', () => {
+        const state: CharactersState = {};
+        const char = makeTestCharacter({ name: 'Новый' });
+        delete char.lastModified;
+        const before = Date.now();
+        const result = charactersReducer(state, { type: 'ADD_CHARACTER', payload: { id: 'new-1', character: char } });
+        const after = Date.now();
+        expect(result['new-1']!.history.present.lastModified).toBeGreaterThanOrEqual(before);
+        expect(result['new-1']!.history.present.lastModified).toBeLessThanOrEqual(after);
+    });
+
+    it('ADD_CHARACTER сохраняет переданный lastModified, если он больше 0', () => {
+        const state: CharactersState = {};
+        const char = makeTestCharacter({ name: 'Новый', lastModified: 55555 });
+        const result = charactersReducer(state, { type: 'ADD_CHARACTER', payload: { id: 'new-1', character: char } });
+        expect(result['new-1']!.history.present.lastModified).toBe(55555);
+    });
+
+    it('UNDO и REDO обновляют lastModified до текущего времени', () => {
+        const char = makeTestCharacter({ name: 'Старое', lastModified: 1000 });
+        let state = makeState(char);
+        state = charactersReducer(state, {
+            type: 'DISPATCH_CHARACTER_ACTION',
+            payload: { id: 'char-1', action: { type: 'SET_FIELD', payload: { field: 'name', value: 'Новое' } } as CharacterAction }
+        });
+
+        const beforeUndo = Date.now();
+        state = charactersReducer(state, { type: 'UNDO', payload: { id: 'char-1' } });
+        expect(state['char-1']!.history.present.lastModified).toBeGreaterThanOrEqual(beforeUndo);
+
+        const beforeRedo = Date.now();
+        state = charactersReducer(state, { type: 'REDO', payload: { id: 'char-1' } });
+        expect(state['char-1']!.history.present.lastModified).toBeGreaterThanOrEqual(beforeRedo);
+    });
+});

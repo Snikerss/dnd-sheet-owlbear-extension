@@ -103,4 +103,5 @@ export const defaultCharacterState: Character = {
   tabOrder: ['stats', 'combat', 'inventory', 'features', 'notes'],
   viewMode: 'tabs',
   collapsedTabs: {},
+  lastModified: 0,
 };

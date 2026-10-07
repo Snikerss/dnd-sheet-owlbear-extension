@@ -129,8 +129,8 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
     const proficiencyBonus = calculateProficiencyBonus(character.level) + character.proficiencyBonusBonus;
 
     // Ability scores and modifiers
-    const effectiveAbilityScores: Record<Ability, number> = {} as any;
-    const abilityModifiers: Record<Ability, number> = {} as any;
+    const effectiveAbilityScores = {} as Record<Ability, number>;
+    const abilityModifiers = {} as Record<Ability, number>;
 
     (Object.values(Ability) as Ability[]).forEach(ability => {
       effectiveAbilityScores[ability] = character.scores[ability] + (equippedBonuses.abilityScores[ability] || 0);
@@ -404,7 +404,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
                 value={customRollName}
                 onChange={e => setCustomRollName(e.target.value)}
                 placeholder="Пользовательский бросок"
-                className="w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
+                className="w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-2 px-3 text-sm focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
               />
             </div>
 
@@ -422,7 +422,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
                       {die.toUpperCase()}
                     </span>
                     {qty > 0 && (
-                      <span className="absolute -top-1.5 -right-1.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-teal-500 text-white shadow-sm border border-teal-600">
+                      <span className="absolute -top-1.5 -right-1.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-teal-500 text-white shadow-xs border border-teal-600">
                         {qty}
                       </span>
                     )}
@@ -464,7 +464,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
                 <label htmlFor="custom-mod" className="block text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1">
                   Модификатор
                 </label>
-                <div className="flex rounded-lg shadow-sm">
+                <div className="flex rounded-lg shadow-xs">
                   <button
                     onClick={() => setCustomModifier(prev => prev - 1)}
                     className="px-3 bg-[var(--color-surface-raised)] border border-[var(--color-border-subtle)] border-r-0 rounded-l-lg hover:bg-[var(--color-surface-raised-hover)] text-sm font-bold"
@@ -476,7 +476,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
                     type="number"
                     value={customModifier}
                     onChange={e => setCustomModifier(parseInt(e.target.value, 10) || 0)}
-                    className="block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] text-center text-xs font-extrabold focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)] py-2"
+                    className="block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] text-center text-xs font-extrabold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)] py-2"
                   />
                   <button
                     onClick={() => setCustomModifier(prev => prev + 1)}
@@ -537,7 +537,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
               <button
                 onClick={handleCustomRollExecute}
                 disabled={isPoolEmpty}
-                className="w-full py-3 rounded-lg border border-transparent shadow-md bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white font-extrabold text-sm focus:outline-none transition-all duration-150 disabled:opacity-30 disabled:pointer-events-none active:scale-[0.98]"
+                className="w-full py-3 rounded-lg border border-transparent shadow-md bg-linear-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white font-extrabold text-sm focus:outline-hidden transition-all duration-150 disabled:opacity-30 disabled:pointer-events-none active:scale-[0.98]"
               >
                 🎲 Бросить кубы
               </button>
@@ -559,7 +559,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Поиск навыка, спасаброска, атаки..."
-                className="w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-2 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
+                className="w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-2 px-3 text-xs focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
               />
             </div>
 

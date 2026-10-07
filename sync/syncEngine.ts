@@ -2,17 +2,17 @@ import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } 
 import type { Character } from '../types';
 import { logger } from '../utils/logger';
 import OBR from '@owlbear-rodeo/sdk';
-import { isOwlbear, unminifyCharacter, loadFromLocalStorage, saveToLocalStorage, restoreLocalData, SESSION_CLIENT_ID, broadcastCharacterSync, purgeLocalCharacter } from '../utils/storage';
+import { isOwlbear, unminifyCharacter, loadFromLocalStorage, saveToLocalStorage, restoreLocalData, SESSION_CLIENT_ID, broadcastCharacterSync, purgeLocalCharacter, saveCharacterApi } from '../utils/storage';
 import { imageDb } from '../utils/indexedDbStore';
 import { localBridge } from '../utils/bridgeService';
 import { p2pRoomBridge } from '../utils/p2pBridge';
 import { SYNC_CHANNEL, parseSyncMessage, BridgeMessageType } from '../protocol/messages';
 import { ChunkAssembler } from '../protocol/chunkAssembler';
-import { resolveRole, getCachedRole } from '../auth/roleService';
+import { resolveRole, getCachedRole, resolveSenderIdentity } from '../auth/roleService';
 import { isAuthorizedUpdate, isAuthorizedDelete } from '../auth/authorization';
 import { isCharacter } from '../state/initialization';
 import { CharactersState, CharactersAction } from '../state/appReducer';
-import { parseCharactersData, serializeForCache, getTextChecksum, getImageChecksums } from '../state/persistence';
+import { parseCharactersData, serializeForCache, getTextChecksum, getImageChecksums, RawCharacterStorageData } from '../state/persistence';
 import type { NotificationType } from '../components/NotificationToast';
 
 interface ObrSyncChannelDeps {
@@ -26,7 +26,7 @@ interface ObrSyncChannelDeps {
   setSyncingCharacters: Dispatch<SetStateAction<Record<string, { status: 'images', pendingImages: string[]; startedAt?: number }>>>;
 }
 
-const isCharacterOwner = (character: any, currentUserId?: string): boolean => {
+const isCharacterOwner = (character: Partial<Character> | null | undefined, currentUserId?: string): boolean => {
   if (!character) return false;
   const myId = currentUserId || (isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '');
   const myName = typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_name') : '';
@@ -49,7 +49,7 @@ export const useObrSyncChannel = (deps: ObrSyncChannelDeps): void => {
         // Прогреваем кэш роли: hot-path проверки используют getCachedRole().
         void resolveRole();
 
-        const handleMessage = async (event: { data: unknown }) => {
+        const handleMessage = async (event: { data: unknown; connectionId?: string; senderId?: string }) => {
           // Единая точка входа: валидация конверта zod-схемой протокола.
           // Битые/чужие пакеты отбрасываются с логом (parseSyncMessage).
           const msg = parseSyncMessage(event.data);
@@ -58,6 +58,16 @@ export const useObrSyncChannel = (deps: ObrSyncChannelDeps): void => {
           // Собственные пакеты не приходят через OBR.broadcast, но защита
           // нужна на случай эха через мосты.
           if (msg.senderClientId === SESSION_CLIENT_ID) return;
+
+          const connectionId = event.connectionId || event.senderId;
+          const rawSenderPlayerId =
+            'senderPlayerId' in msg && typeof msg.senderPlayerId === 'string'
+              ? msg.senderPlayerId
+              : '';
+
+          // Резолвим доверенную идентичность отправителя из состояния комнаты OBR
+          const trustedSender = await resolveSenderIdentity(connectionId, rawSenderPlayerId);
+          const senderIsGM = trustedSender.role === 'GM';
 
           if (msg.type === 'REQUEST_FULL_CHARACTERS') {
             // Someone requested full sheets (e.g. GM joined). Broadcast all our owned sheets!
@@ -71,8 +81,9 @@ export const useObrSyncChannel = (deps: ObrSyncChannelDeps): void => {
               const activeBroadcastId = p2pRoomBridge.getActiveBoardCharacterId();
 
               for (const [id, charData] of Object.entries(localData)) {
-                if (!charData || !(charData as any).character) continue;
-                const fullChar = unminifyCharacter((charData as any).character);
+                const cd = charData as { character?: Character } | null | undefined;
+                if (!cd || !cd.character) continue;
+                const fullChar = unminifyCharacter(cd.character);
                 if (!isCharacterOwner(fullChar, myId)) continue;
 
                 // Only broadcast to GM if GM Broadcast toggle is ON for this character
@@ -86,8 +97,8 @@ export const useObrSyncChannel = (deps: ObrSyncChannelDeps): void => {
                   | undefined;
 
                   if (requesterVersion && typeof requesterVersion === 'object') {
-                    const currentTextHash = getTextChecksum(charData);
-                    const currentImgHashes = getImageChecksums(charData);
+                    const currentTextHash = getTextChecksum(charData as RawCharacterStorageData);
+                    const currentImgHashes = getImageChecksums(charData as RawCharacterStorageData);
 
                     const textMatch = requesterVersion.textChecksum === currentTextHash;
 
@@ -137,17 +148,21 @@ export const useObrSyncChannel = (deps: ObrSyncChannelDeps): void => {
 
                 const existingEntry = charactersStateRef.current[charId];
                 const existingChar = existingEntry?.history.present;
-                const senderPlayerId = (incomingData as any).senderPlayerId || msg.senderPlayerId || '';
+                const incomingObj = incomingData as Record<string, unknown>;
+                const payloadSenderId = (typeof incomingObj?.senderPlayerId === 'string' ? incomingObj.senderPlayerId : '') || rawSenderPlayerId;
+                // Доверенный ID отправителя из OBR имеет приоритет над самоаттестованным из payload
+                const senderPlayerIdForAuth = trustedSender.isTrusted ? trustedSender.playerId : payloadSenderId;
 
                 // RECEIVER-SIDE VERIFICATION FOR UPDATES:
-                // Единая функция авторизации закрывает дыры аудита (#7):
-                // пустой senderPlayerId больше не проходит; игрок не может
-                // протолкнуть чужой лист; получатель-игрок принимает только свои листы.
+                // Доверенная авторизация закрывает дыры P1-Sec-3 и спуффинга:
+                // невладелец-не-ГМ не может перезаписать чужой лист даже у ГМа;
+                // подделка senderPlayerId в payload блокируется доверенным senderId.
                 const authorized = isAuthorizedUpdate({
                   targetOwnerId: existingChar?.ownerId,
                   incomingOwnerId: fullChar?.ownerId,
                   incomingOwnerName: fullChar?.ownerName,
-                  senderPlayerId,
+                  senderPlayerId: senderPlayerIdForAuth,
+                  senderIsGM,
                   recipientIsGM: isGM,
                   recipientPlayerId: myId || '',
                   recipientPlayerName: typeof window !== 'undefined'
@@ -155,7 +170,8 @@ export const useObrSyncChannel = (deps: ObrSyncChannelDeps): void => {
                     : undefined,
                 });
                 if (!authorized) {
-                  logger.warn(`[DND Sheet] Rejected unauthorized P2P character update for ${charId} from sender ${senderPlayerId || '<empty>'}.`);
+                  logger.warn(`[DND Sheet] Rejected unauthorized P2P character update for ${charId} from sender ${senderPlayerIdForAuth || '<empty>'}.`);
+                  addNotification(`[Синхронизация] Отклонено неавторизованное обновление персонажа "${charName}".`, 'warning');
                   return;
                 }
 
@@ -194,6 +210,16 @@ export const useObrSyncChannel = (deps: ObrSyncChannelDeps): void => {
                     }
                   }
 
+                  const effectiveLastModified = (typeof incomingData.lastModified === 'number' ? incomingData.lastModified : undefined)
+                    || entry.history.present.lastModified
+                    || (entry.log && entry.log[0]?.timestamp)
+                    || Date.now();
+
+                  entry.history.present = {
+                    ...entry.history.present,
+                    lastModified: effectiveLastModified,
+                  };
+
                   dispatch({
                     type: 'SYNC_REMOTE_CHARACTER',
                     payload: {
@@ -218,27 +244,30 @@ export const useObrSyncChannel = (deps: ObrSyncChannelDeps): void => {
 
                   try {
                     localBridge.postMessage(syncPayload);
-                  } catch (e) {}
+                  } catch (e) {
+                    logger.debug('[DND Sheet Sync] Failed to postMessage syncPayload to localBridge:', e);
+                  }
 
                   // (Мёртвый блок __dndOpenedWindows удалён: дочерние окна
                   // получают рассылку через localBridge.registerChildWindow.)
 
-                  // Cache to our local LocalStorage
-                  try {
-                    const currentLocal = loadFromLocalStorage();
-                    currentLocal[charId] = restoredCloud[charId];
-                    saveToLocalStorage(currentLocal);
-                  } catch (err) {
-                    logger.error('Failed to cache remote character to LocalStorage:', err);
-                  }
-                  // Also update serialization cache to match so we don't trigger save
+                  // Also update serialization cache and present ref to match so we don't trigger auto-save loop
                   const obrCharData = {
                     character: entry.history.present,
                     log: entry.log || [],
                     history: { past: [], future: [] },
-                    imageCache: entry.imageCache ? Array.from(entry.imageCache.entries()) : []
+                    imageCache: entry.imageCache ? Array.from(entry.imageCache.entries()) : [],
+                    lastModified: effectiveLastModified
                   };
                   lastSerializedRef.current[charId] = serializeForCache(obrCharData);
+                  lastPresentRef.current[charId] = entry.history.present;
+
+                  // Persist to primary IndexedDB storage (and light mirror via saveCharacterApi)
+                  try {
+                    await saveCharacterApi(charId, obrCharData);
+                  } catch (err) {
+                    logger.error(`[DND Sheet] Failed to save remote character ${charId} to IndexedDB:`, err);
+                  }
                 } else if (isGM) {
                   addNotification(`[Синхронизация] Ошибка: Не удалось загрузить персонажа (${charName}). Данные не прошли валидацию.`, 'error');
                 }
@@ -257,6 +286,26 @@ export const useObrSyncChannel = (deps: ObrSyncChannelDeps): void => {
             // syncId не даёт смешаться передачам (#10).
             const assembledVal = chunkAssemblerRef.current.push(`char-img/${charId}/${imgId}`, msg);
             if (!assembledVal) return;
+
+            const existingEntry = charactersStateRef.current[charId];
+            const existingChar = existingEntry?.history?.present;
+            const senderPlayerIdForAuth = trustedSender.isTrusted ? trustedSender.playerId : msg.senderPlayerId;
+
+            if (existingChar?.ownerId) {
+              const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
+              const isGM = (await resolveRole()) === 'GM';
+              const authorized = isAuthorizedUpdate({
+                targetOwnerId: existingChar.ownerId,
+                senderPlayerId: senderPlayerIdForAuth,
+                senderIsGM,
+                recipientIsGM: isGM,
+                recipientPlayerId: myId || '',
+              });
+              if (!authorized) {
+                logger.warn(`[DND Sheet] Rejected unauthorized CHARACTER_IMAGE_CHUNK_SYNC for ${charId} from sender ${senderPlayerIdForAuth || '<empty>'}.`);
+                return;
+              }
+            }
 
               setSyncingCharacters(prev => {
                 const current = prev[charId];
@@ -309,6 +358,73 @@ export const useObrSyncChannel = (deps: ObrSyncChannelDeps): void => {
                 });
                 saveImageToDbAndCache(imgId, assembledVal);
               }
+          } else if (msg.type === 'CHARACTER_SYNC') {
+            const charId = msg.id || msg.charId;
+            if (!charId) return;
+
+            try {
+              const entryObj = msg.entry as { character?: Character; history?: { present?: Character } } | undefined;
+              const rawChar = (msg.character as Character | undefined) || entryObj?.character || entryObj?.history?.present;
+              if (!rawChar) return;
+
+              const fullChar = unminifyCharacter(rawChar);
+              const charName = fullChar?.name || charId;
+              const myId = isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : '';
+              const isGM = (await resolveRole()) === 'GM';
+
+              const existingEntry = charactersStateRef.current[charId];
+              const existingChar = existingEntry?.history.present;
+              const senderPlayerIdForAuth = trustedSender.isTrusted ? trustedSender.playerId : rawSenderPlayerId;
+
+              const authorized = isAuthorizedUpdate({
+                targetOwnerId: existingChar?.ownerId,
+                incomingOwnerId: fullChar?.ownerId,
+                incomingOwnerName: fullChar?.ownerName,
+                senderPlayerId: senderPlayerIdForAuth,
+                senderIsGM,
+                recipientIsGM: isGM,
+                recipientPlayerId: myId || '',
+                recipientPlayerName: typeof window !== 'undefined'
+                  ? localStorage.getItem('com.antigravity.dnd-sheet/player_name') || undefined
+                  : undefined,
+              });
+
+              if (!authorized) {
+                logger.warn(`[DND Sheet] Rejected unauthorized P2P CHARACTER_SYNC for ${charId} from sender ${senderPlayerIdForAuth || '<empty>'}.`);
+                addNotification(`[Синхронизация] Отклонено неавторизованное обновление персонажа "${charName}".`, 'warning');
+                return;
+              }
+
+              const localData = loadFromLocalStorage();
+              const restoredCloud = restoreLocalData({ [charId]: { character: fullChar } }, localData);
+              const parsedState = parseCharactersData(restoredCloud);
+              const entry = parsedState[charId];
+
+              if (entry) {
+                dispatch({
+                  type: 'SYNC_REMOTE_CHARACTER',
+                  payload: { id: charId, entry }
+                });
+
+                const obrCharData = {
+                  character: entry.history.present,
+                  log: entry.log || [],
+                  history: { past: [], future: [] },
+                  imageCache: entry.imageCache ? Array.from(entry.imageCache.entries()) : [],
+                  lastModified: Date.now()
+                };
+                lastSerializedRef.current[charId] = serializeForCache(obrCharData);
+                lastPresentRef.current[charId] = entry.history.present;
+
+                try {
+                  await saveCharacterApi(charId, obrCharData);
+                } catch (err) {
+                  logger.error(`[DND Sheet] Failed to save remote character ${charId} to IndexedDB:`, err);
+                }
+              }
+            } catch (err) {
+              logger.error('[DND Sheet] Failed to process CHARACTER_SYNC:', err);
+            }
           } else if (msg.type === 'DELETE_CHARACTER_SYNC') {
             const charId = msg.id;
 
@@ -317,18 +433,22 @@ export const useObrSyncChannel = (deps: ObrSyncChannelDeps): void => {
 
             const existingEntry = charactersStateRef.current[charId];
             const existingChar = existingEntry?.history.present;
+            const senderPlayerIdForAuth = trustedSender.isTrusted ? trustedSender.playerId : msg.senderPlayerId;
 
             // RECEIVER-SIDE AUTHORIZATION CHECK FOR DELETION:
-            // Общая функция закрывает дыру #7a: пустой senderPlayerId больше
-            // не проходит проверку; чужой лист игрок удалить не может.
+            // Доверенная авторизация закрывает дыру P1-6: роль получателя не даёт
+            // права удалять чужой лист; senderIsGM берётся из состояния комнаты OBR;
+            // невладелец-не-ГМ отклоняется с warning-нотификацией.
             const authorized = isAuthorizedDelete({
               targetOwnerId: existingChar?.ownerId,
-              senderPlayerId: msg.senderPlayerId,
+              senderPlayerId: senderPlayerIdForAuth,
+              senderIsGM,
               recipientIsGM: isGM,
               recipientPlayerId: myId || '',
             });
             if (!authorized) {
-              logger.warn(`[DND Sheet] Rejected unauthorized DELETE_CHARACTER_SYNC for character ${charId} from sender ${msg.senderPlayerId || '<empty>'}.`);
+              logger.warn(`[DND Sheet] Rejected unauthorized DELETE_CHARACTER_SYNC for character ${charId} from sender ${senderPlayerIdForAuth || '<empty>'}.`);
+              addNotification(`[Синхронизация] Отклонена неавторизованная команда удаления персонажа "${existingChar?.name || charId}".`, 'warning');
               return;
             }
 
@@ -357,12 +477,12 @@ export const useObrSyncChannel = (deps: ObrSyncChannelDeps): void => {
 
         // Request full sheets on startup to sync with already online players
         const localData = loadFromLocalStorage();
-        const cachedVersions: Record<string, any> = {};
+        const cachedVersions: Record<string, { textChecksum?: string; imageChecksums?: Record<string, string> }> = {};
         for (const [id, entry] of Object.entries(localData)) {
           if (entry) {
             cachedVersions[id] = {
-              textChecksum: getTextChecksum(entry),
-              imageChecksums: getImageChecksums(entry)
+              textChecksum: getTextChecksum(entry as RawCharacterStorageData),
+              imageChecksums: getImageChecksums(entry as RawCharacterStorageData)
             };
           }
         }

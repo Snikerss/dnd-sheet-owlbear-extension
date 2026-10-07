@@ -1,6 +1,6 @@
 import { SESSION_CLIENT_ID } from './sessionId';
 import { logger } from './logger';
-import { SAME_ORIGIN, isTrustedMessageOrigin } from './environment';
+import { SAME_ORIGIN, isTrustedMessageOrigin, isOwlbear, getOwlbearParentOrigin } from './environment';
 import { P2pMessageType } from '../protocol/messages';
 
 export interface RoomHandshakePayload {
@@ -10,7 +10,7 @@ export interface RoomHandshakePayload {
   activeCharacterId?: string;
   senderClientId: string;
   sentAt: number;
-  data?: any;
+  data?: unknown;
 }
 
 // Native HTML5 BroadcastChannel for sub-1ms tab-to-tab memory sync
@@ -30,7 +30,7 @@ const p2pBroadcastChannel = typeof window !== 'undefined' && typeof BroadcastCha
 class P2PRoomBridgeService {
   private currentRoomId: string | null = null;
   private currentRoomName: string = 'Owlbear Room';
-  private listeners: Set<(data: any) => void> = new Set();
+  private listeners: Set<(data: Record<string, unknown>) => void> = new Set();
   private childWindows: Set<Window> = new Set();
   private activeBoardCharacterId: string | null = null;
   /** Дедуп входящих сообщений по msgId (ключ → время последнего приёма). */
@@ -97,17 +97,19 @@ class P2PRoomBridgeService {
     return this.currentRoomName;
   }
 
-  public broadcast(data: any): void {
+  public broadcast(data: Record<string, unknown>): void {
     const roomId = this.currentRoomId || 'global_vault_bridge';
 
     let cleanData = data;
-    if (data && typeof data === 'object' && data.entry && data.entry.imageCache) {
-      const { imageCache, ...restEntry } = data.entry;
+    if (data && typeof data === 'object' && 'entry' in data && (data.entry as { imageCache?: unknown })?.imageCache) {
+      const restEntry = { ...(data.entry as Record<string, unknown>) };
+      delete restEntry.imageCache;
       cleanData = { ...data, entry: restEntry };
     }
 
     const payload: RoomHandshakePayload = {
       ...cleanData,
+      type: (cleanData.type as RoomHandshakePayload['type']) || 'ROOM_ANNOUNCE',
       roomId,
       roomName: this.currentRoomName,
       sentAt: Date.now(),
@@ -118,29 +120,37 @@ class P2PRoomBridgeService {
     if (p2pBroadcastChannel) {
       try {
         p2pBroadcastChannel.postMessage(payload);
-      } catch (e) {}
+      } catch (e) {
+        logger.debug('[DND Sheet P2P] BroadcastChannel postMessage failed:', e);
+      }
     }
 
-    // 3. Direct window.opener (чужой origin Owlbear — приём защищён фильтром)
+    // 3. Direct window.opener (окно приложения, открывшее эту вкладку)
     if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
       try {
-        window.opener.postMessage(payload, '*');
-      } catch (e) {}
+        window.opener.postMessage(payload, SAME_ORIGIN);
+      } catch (e) {
+        logger.debug('[DND Sheet P2P] Failed to postMessage to opener:', e);
+      }
     }
 
-    // 4. Direct window.parent (чужой origin Owlbear — приём защищён фильтром)
-    if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+    // 4. Direct window.parent (только внутри OBR-фрейма)
+    if (isOwlbear() && typeof window !== 'undefined' && window.parent && window.parent !== window) {
       try {
-        window.parent.postMessage(payload, '*');
-      } catch (e) {}
+        window.parent.postMessage(payload, getOwlbearParentOrigin());
+      } catch (e) {
+        logger.debug('[DND Sheet P2P] Failed to postMessage to parent:', e);
+      }
     }
 
     // 5. Registered child windows — всегда наш собственный origin
     this.childWindows.forEach((win) => {
       if (win && !win.closed) {
         try {
-          win.postMessage(payload, SAME_ORIGIN || '*');
-        } catch (e) {}
+          win.postMessage(payload, SAME_ORIGIN);
+        } catch (e) {
+          logger.debug('[DND Sheet P2P] Failed to postMessage to child window:', e);
+        }
       } else {
         this.childWindows.delete(win);
       }
@@ -153,15 +163,15 @@ class P2PRoomBridgeService {
     }
   }
 
-  public subscribe(callback: (data: any) => void): () => void {
+  public subscribe(callback: (data: Record<string, unknown>) => void): () => void {
     this.listeners.add(callback);
     return () => {
       this.listeners.delete(callback);
     };
   }
 
-  public notifyListeners(data: any): void {
-    const senderId = data.senderClientId || data.senderId;
+  public notifyListeners(data: Record<string, unknown>): void {
+    const senderId = (data.senderClientId || data.senderId) as string | undefined;
     if (senderId && senderId === SESSION_CLIENT_ID) {
       return;
     }
@@ -182,12 +192,12 @@ class P2PRoomBridgeService {
       }
     }
 
-    if (data.type === P2pMessageType.ROOM_ANNOUNCE && data.roomId) {
+    if (data.type === P2pMessageType.ROOM_ANNOUNCE && typeof data.roomId === 'string') {
       this.currentRoomId = data.roomId;
-      if (data.roomName) this.currentRoomName = data.roomName;
+      if (typeof data.roomName === 'string') this.currentRoomName = data.roomName;
     }
 
-    if (data.type === P2pMessageType.SET_ACTIVE_BOARD_CHAR && data.activeCharacterId) {
+    if (data.type === P2pMessageType.SET_ACTIVE_BOARD_CHAR && typeof data.activeCharacterId === 'string') {
       this.activeBoardCharacterId = data.activeCharacterId;
     }
 

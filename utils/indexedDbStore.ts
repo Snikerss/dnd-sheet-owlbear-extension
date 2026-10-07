@@ -3,7 +3,7 @@ class ImageIndexedDB {
   private dbName = 'dnd-sheet-images';
   private storeName = 'images';
   private db: IDBDatabase | null = null;
-  private memoryFallback: Map<string, any> = new Map();
+  private memoryFallback: Map<string, unknown> = new Map();
   private isSupported: boolean | null = null;
 
   async init(): Promise<IDBDatabase | null> {
@@ -40,27 +40,27 @@ class ImageIndexedDB {
     });
   }
 
-  async get(key: string): Promise<any | null> {
+  async get<T = unknown>(key: string): Promise<T | null> {
     try {
       const db = await this.init();
-      if (!db) return this.memoryFallback.get(key) || null;
+      if (!db) return (this.memoryFallback.get(key) as T) || null;
       return new Promise((resolve) => {
         try {
           const transaction = db.transaction(this.storeName, 'readonly');
           const store = transaction.objectStore(this.storeName);
           const request = store.get(key);
-          request.onsuccess = () => resolve(request.result || null);
-          request.onerror = () => resolve(this.memoryFallback.get(key) || null);
+          request.onsuccess = () => resolve((request.result as T) || null);
+          request.onerror = () => resolve((this.memoryFallback.get(key) as T) || null);
         } catch (e) {
-          resolve(this.memoryFallback.get(key) || null);
+          resolve((this.memoryFallback.get(key) as T) || null);
         }
       });
     } catch (e) {
-      return this.memoryFallback.get(key) || null;
+      return (this.memoryFallback.get(key) as T) || null;
     }
   }
 
-  async set(key: string, value: any): Promise<void> {
+  async set<T = unknown>(key: string, value: T): Promise<void> {
     this.memoryFallback.set(key, value);
     try {
       const db = await this.init();

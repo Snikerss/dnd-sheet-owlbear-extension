@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { inventoryReducer } from './inventory.reducer';
 import { makeTestCharacter } from '../testFixtures';
-import { CharacterAction, Currency, InventoryItem, RecoveryType, CharacterSize, Ability, DamageType } from '../../types';
+import { CharacterAction, Currency, InventoryItem, RecoveryType, Ability, DamageType } from '../../types';
 
 const makeItem = (id: string, overrides: Partial<InventoryItem> = {}): InventoryItem => ({
     id,

@@ -20,7 +20,7 @@ interface SheetTabNavigationProps {
 
 const DEFAULT_TAB_ORDER = ['stats', 'combat', 'inventory', 'features', 'notes'];
 
-export const SheetTabNavigation: React.FC<SheetTabNavigationProps> = ({
+export const SheetTabNavigation: React.FC<SheetTabNavigationProps> = React.memo(({
   character,
   activeTab,
   setActiveTab,
@@ -48,9 +48,9 @@ export const SheetTabNavigation: React.FC<SheetTabNavigationProps> = ({
   }, [propsTabOrder, character.tabOrder]);
 
   return (
-    <div className={`flex items-center border-b border-[var(--color-border)] pb-2 overflow-x-auto scrollbar-none gap-2 select-none justify-between w-full mb-4 ${isEditingTabs ? 'border-dashed border-teal-500/50' : ''}`}>
+    <div className={`flex items-center border-b border-[var(--color-border)] pb-2 overflow-x-auto gap-2 select-none justify-between w-full mb-4 ${isEditingTabs ? 'border-dashed border-teal-500/50' : ''}`}>
       {currentViewMode === 'tabs' ? (
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none flex-grow">
+        <div className="flex items-center gap-2 overflow-x-auto flex-grow">
           {tabOrder.map((tab) => {
             const isActive = activeTab === tab;
             const isBeingDragged = draggedTab === tab;
@@ -161,4 +161,6 @@ export const SheetTabNavigation: React.FC<SheetTabNavigationProps> = ({
       </div>
     </div>
   );
-};
+});
+
+SheetTabNavigation.displayName = 'SheetTabNavigation';

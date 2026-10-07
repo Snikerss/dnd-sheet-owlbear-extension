@@ -205,6 +205,8 @@ export interface Character {
   ownerName?: string;
   boundRooms?: { roomId: string; roomName: string; lastVisited: number }[];
   isGlobal?: boolean;
+  /** Метка времени последнего изменения персонажа (мс эпохи Unix) для LWW-синхронизации */
+  lastModified?: number;
 }
 
 export interface RollResult {
@@ -223,7 +225,7 @@ export interface RollResult {
 
 // --- ACTION TYPES for characterReducer ---
 export type CharacterAction =
-  | { type: 'SET_FIELD'; payload: { field: 'name' | 'race' | 'characterClass' | 'experience' | 'portraitUrl' | 'speed' | 'temporaryHitPoints' | 'ownerId' | 'ownerName'; value: any } }
+  | { type: 'SET_FIELD'; payload: { field: 'name' | 'race' | 'characterClass' | 'experience' | 'portraitUrl' | 'speed' | 'temporaryHitPoints' | 'ownerId' | 'ownerName'; value: string | number } }
   | { type: 'SET_SCORE'; payload: { ability: Ability; score: number } }
   | { type: 'SET_PROFICIENCY'; payload: string }
   | { type: 'SET_SAVING_THROW_PROF'; payload: Ability }
@@ -307,4 +309,14 @@ export interface LogEntry {
   id: string;
   timestamp: number;
   description: string;
+}
+
+declare global {
+  interface Window {
+    __currentRoomName?: string;
+    __handshakeTimeoutId?: ReturnType<typeof setTimeout> | number;
+    __dndSessionId?: string;
+    __dndOpenedWindows?: Window[];
+    sendDndMessageToOpener?: (msg: unknown) => void;
+  }
 }

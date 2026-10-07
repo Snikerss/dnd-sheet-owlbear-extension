@@ -2,9 +2,9 @@ import { CharacterDoll } from './CharacterDoll';
 import { logger } from '../utils/logger';
 import React, { useState, useMemo, useCallback } from 'react';
 // Fix: Changed a type-only import to a mixed value and type import. `CharacterSize`, `Rarity`, and `Currency` are enums used as values and must not be imported with `import type`.
-import { type InventoryItem, type DropLocation, Rarity, Currency, CharacterSize, EquipSlot } from '../types';
+import { type InventoryItem, type DropLocation, Rarity, Currency, CharacterSize } from '../types';
 import { InventoryGrid } from './InventoryGrid';
-import { RARITY_NAMES, RARITY_COLORS } from '../constants';
+import { RARITY_NAMES, RARITY_COLORS, RARITY_HOVER_BG_COLORS } from '../constants';
 import { calculateItemWeight, getEquippedItemBonuses } from '../utils/inventory';
 import { CurrencyTracker } from './CurrencyTracker';
 import { useCharacter } from '../context/CharacterContext';
@@ -413,7 +413,7 @@ export const Inventory: React.FC<InventoryProps> = React.memo(({
             <h2 className="text-xl font-bold tracking-wide text-[var(--color-text-base)]">Инвентарь</h2>
             <button
                 onClick={() => dispatch({ type: 'DAWN_RECOVERY' })}
-                className="group bg-[var(--color-surface-well)] hover:bg-[var(--color-surface-raised)] text-[var(--color-text-medium)] hover:text-[var(--color-text-base)] border border-[var(--color-border-subtle)] hover:border-[var(--color-border-hover)] font-bold py-1.5 px-3 rounded-lg transition-all duration-150 active:scale-95 text-xs flex items-center gap-1.5 shadow-sm"
+                className="group bg-[var(--color-surface-well)] hover:bg-[var(--color-surface-raised)] text-[var(--color-text-medium)] hover:text-[var(--color-text-base)] border border-[var(--color-border-subtle)] hover:border-[var(--color-border-hover)] font-bold py-1.5 px-3 rounded-lg transition-all duration-150 active:scale-95 text-xs flex items-center gap-1.5 shadow-xs"
                 data-tooltip="Восстановить заряды предметов, которые перезаряжаются на рассвете"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-amber-500/70 group-hover:text-amber-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -526,20 +526,18 @@ export const Inventory: React.FC<InventoryProps> = React.memo(({
                 placeholder="Поиск по названию..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full md:w-1/3 bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg py-2 px-3 text-[var(--color-text-medium)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] placeholder:text-[var(--color-text-subtle)]"
+                className="w-full md:w-1/3 bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg py-2 px-3 text-[var(--color-text-medium)] focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] placeholder:text-[var(--color-text-subtle)]"
             />
             <div className="flex flex-wrap gap-2 items-center">
                 {Object.entries(RARITY_NAMES).map(([rarityKey, rarityName]) => {
                     const rarity = parseInt(rarityKey) as Rarity;
                     const isActive = rarityFilter.includes(rarity);
-                    const colorClass = RARITY_COLORS[rarity].replace('border-', 'bg-') + '/20';
-                    const hoverColorClass = RARITY_COLORS[rarity].replace('border-', 'bg-') + '/40';
                     const activeClass = isActive ? `${RARITY_COLORS[rarity]} text-white/90` : `border-transparent text-[var(--color-text-muted)]`;
                     return (
                         <button 
                             key={rarity}
                             onClick={() => toggleRarityFilter(rarity)}
-                            className={`px-3 py-1 text-xs font-semibold rounded-full border-2 transition-colors ${activeClass} hover:${hoverColorClass}`}
+                            className={`px-3 py-1 text-xs font-semibold rounded-full border-2 transition-colors ${activeClass} ${RARITY_HOVER_BG_COLORS[rarity]}`}
                         >
                             {rarityName}
                         </button>
@@ -573,7 +571,7 @@ export const Inventory: React.FC<InventoryProps> = React.memo(({
             
             {/* Column 1: Attunement */}
             <div className="flex flex-col gap-3">
-              <div className="flex justify-between items-center bg-[var(--color-surface-well)] px-3.5 py-2 rounded-xl border border-[var(--color-border-subtle)] shadow-sm">
+              <div className="flex justify-between items-center bg-[var(--color-surface-well)] px-3.5 py-2 rounded-xl border border-[var(--color-border-subtle)] shadow-xs">
                 <span className="text-[10px] font-extrabold text-[var(--color-text-medium)] tracking-wider uppercase">
                   Настройка предметов ({currentAttunedCount} / {maxAttuned})
                 </span>
@@ -636,7 +634,7 @@ export const Inventory: React.FC<InventoryProps> = React.memo(({
                           {/* Attunement toggle button */}
                           <button
                             onClick={() => handleToggleAttunement(item, container, index)}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all duration-150 flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all duration-150 flex items-center gap-1.5 shadow-xs active:scale-95 ${
                               item.isAttuned
                                 ? 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border-blue-500/30'
                                 : 'bg-[var(--color-surface-well)] hover:bg-[var(--color-surface-well)]/80 text-[var(--color-text-muted)] border-[var(--color-border-subtle)]'
@@ -681,7 +679,7 @@ export const Inventory: React.FC<InventoryProps> = React.memo(({
 
             {/* Column 2: Charges */}
             <div className="flex flex-col gap-3">
-              <div className="flex justify-between items-center bg-[var(--color-surface-well)] px-3.5 py-2 rounded-xl border border-[var(--color-border-subtle)] shadow-sm">
+              <div className="flex justify-between items-center bg-[var(--color-surface-well)] px-3.5 py-2 rounded-xl border border-[var(--color-border-subtle)] shadow-xs">
                 <span className="text-[10px] font-extrabold text-[var(--color-text-medium)] tracking-wider uppercase">
                   Заряды предметов
                 </span>
@@ -807,7 +805,7 @@ export const Inventory: React.FC<InventoryProps> = React.memo(({
 
             {/* Column 3: Consumables */}
             <div className="flex flex-col gap-3">
-              <div className="flex justify-between items-center bg-[var(--color-surface-well)] px-3.5 py-2 rounded-xl border border-[var(--color-border-subtle)] shadow-sm">
+              <div className="flex justify-between items-center bg-[var(--color-surface-well)] px-3.5 py-2 rounded-xl border border-[var(--color-border-subtle)] shadow-xs">
                 <span className="text-[10px] font-extrabold text-[var(--color-text-medium)] tracking-wider uppercase">
                   Расходники ({consumableItems.length})
                 </span>

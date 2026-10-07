@@ -118,7 +118,7 @@ export const CustomIconPicker: React.FC<CustomIconPickerProps> = ({ icons, onSel
                         <button
                             type="button"
                             onClick={() => onSelect(iconUrl)}
-                            className="aspect-square w-full rounded-lg bg-[var(--color-surface-opaque)] overflow-hidden border-2 border-transparent hover:border-[var(--color-accent-primary-hover)] focus:outline-none focus:border-[var(--color-accent-primary-hover)] transition-all duration-150"
+                            className="aspect-square w-full rounded-lg bg-[var(--color-surface-opaque)] overflow-hidden border-2 border-transparent hover:border-[var(--color-accent-primary-hover)] focus:outline-hidden focus:border-[var(--color-accent-primary-hover)] transition-all duration-150"
                             aria-label={`Выбрать иконку ${index + 1}`}
                         >
                            <img src={iconUrl} alt={`Иконка ${index + 1}`} className="w-full h-full object-cover"/>

@@ -1,6 +1,7 @@
-import { Character, CharacterAction, DropLocation, InventoryItem, RecoveryType, EquipSlot } from '../../types';
+import { Character, CharacterAction, DropLocation, InventoryItem, RecoveryType } from '../../types';
 import { logger } from '../../utils/logger';
 import { recoverItemCharges } from '../../utils/inventory';
+import { INVENTORY_COLUMNS } from '../../constants';
 
 const findItemAndList = (state: Character, location: DropLocation): [ (InventoryItem|null)[] | null, InventoryItem | null, number ] => {
     const searchInventories = (inventories: (InventoryItem | null)[][]): [ (InventoryItem|null)[] | null, InventoryItem | null ] => {
@@ -111,7 +112,7 @@ export const inventoryReducer = (state: Character, action: CharacterAction): Cha
 
         case 'SET_INVENTORY_ROWS': {
             const newRows = Math.max(1, Math.min(20, action.payload));
-            const newSize = newRows * 10;
+            const newSize = newRows * INVENTORY_COLUMNS;
             const newInventory = [...state.inventory];
             newInventory.length = newSize;
             for (let i = state.inventory.length; i < newSize; i++) { newInventory[i] = null; }

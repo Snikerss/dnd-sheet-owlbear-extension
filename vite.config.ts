@@ -2,6 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(() => {
     return {
@@ -28,16 +29,29 @@ export default defineConfig(() => {
         },
       },
       plugins: [
+        tailwindcss(),
         react(),
         {
           name: 'patch-manifest-for-gh-pages',
           closeBundle() {
             const distDir = path.resolve(__dirname, 'dist');
             const manifestPath = path.resolve(distDir, 'manifest.json');
+            const constantsPath = path.resolve(__dirname, 'constants.ts');
             if (fs.existsSync(manifestPath)) {
               try {
                 const content = fs.readFileSync(manifestPath, 'utf-8');
                 const manifest = JSON.parse(content);
+
+                // Синхронизация версии из constants.ts (п.4)
+                if (fs.existsSync(constantsPath)) {
+                  const constantsContent = fs.readFileSync(constantsPath, 'utf-8');
+                  const match = constantsContent.match(/export\s+const\s+APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
+                  if (match && match[1]) {
+                    manifest.version = match[1];
+                  } else {
+                    console.error('[Vite Plugin] Failed to extract APP_VERSION from constants.ts');
+                  }
+                }
                 
                 // Ensure paths are absolute and include the subdirectory for GitHub Pages
                 const subDir = '/dnd-sheet-owlbear-extension/';
@@ -54,7 +68,7 @@ export default defineConfig(() => {
                 }
                 
                 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
-                console.log('[Vite Plugin] Successfully patched manifest.json with GitHub Pages subdirectory paths.');
+                console.log(`[Vite Plugin] Successfully patched manifest.json with GitHub Pages subdirectory paths and version ${manifest.version}.`);
               } catch (e) {
                 console.error('[Vite Plugin] Failed to patch manifest.json:', e);
               }
@@ -81,6 +95,10 @@ export default defineConfig(() => {
                     const parsed = JSON.parse(legacyContent);
                     if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
                       for (const [id, charData] of Object.entries(parsed)) {
+                        if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) {
+                          console.error(`[Vite API] Skipping invalid character ID during legacy migration: ${id}`);
+                          continue;
+                        }
                         const charFilePath = path.resolve(dirPath, `${id}.json`);
                         fs.writeFileSync(charFilePath, JSON.stringify(charData, null, 2), 'utf-8');
                       }
@@ -92,7 +110,7 @@ export default defineConfig(() => {
                 }
 
                 if (req.method === 'GET') {
-                  const charactersMap: Record<string, any> = {};
+                  const charactersMap: Record<string, unknown> = {};
                   try {
                     const files = fs.readdirSync(dirPath);
                     for (const file of files) {
@@ -108,7 +126,7 @@ export default defineConfig(() => {
                   res.setHeader('Content-Type', 'application/json');
                   res.end(JSON.stringify(charactersMap));
                 } else if (req.method === 'POST') {
-                  const chunks: any[] = [];
+                  const chunks: Buffer[] = [];
                   req.on('data', chunk => {
                     chunks.push(chunk);
                   });
@@ -118,6 +136,10 @@ export default defineConfig(() => {
                       const incomingMap = JSON.parse(body);
                       if (typeof incomingMap === 'object' && incomingMap !== null && !Array.isArray(incomingMap)) {
                         for (const [id, data] of Object.entries(incomingMap)) {
+                          if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) {
+                            console.error(`[Vite API] Skipping invalid character ID in POST: ${id}`);
+                            continue;
+                          }
                           const charFilePath = path.resolve(dirPath, `${id}.json`);
                           fs.writeFileSync(charFilePath, JSON.stringify(data, null, 2), 'utf-8');
                         }

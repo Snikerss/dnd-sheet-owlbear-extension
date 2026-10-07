@@ -1,15 +1,11 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useMemo, useCallback } from 'react';
 import { logger } from '../utils/logger';
 import { CharacterCard } from './CharacterCard';
-import { RoomBindingModal } from './RoomBindingModal';
 import type { Character } from '../types';
 import { isCharacter, migrateCharacterData } from '../state/initialization';
 import { useNotifier } from '../context/NotificationContext';
 import { generateUUID } from '../utils/uuid';
 import { compressCharacterImages } from '../utils/imageCompress';
-import { getKnownRooms, OwlbearRoomBinding } from '../utils/roomRegistry';
-import { isOwlbear } from '../utils/storage';
-import OBR from '@owlbear-rodeo/sdk';
 
 interface CharacterSelectionScreenProps {
   characters: Record<string, Character>;
@@ -55,10 +51,18 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { addNotification } = useNotifier();
 
+  // Фаза 1.3: зеркалирование через ref для стабильности callbacks в списке карточек
+  const charactersRef = useRef(characters);
+  charactersRef.current = characters;
+
+  const activeBoardCharacterIdRef = useRef(activeBoardCharacterId);
+  activeBoardCharacterIdRef.current = activeBoardCharacterId;
+
   const characterEntries = useMemo(() => Object.entries(characters), [characters]);
 
-  const handleExportCharacter = (id: string) => {
-    const character = characters[id];
+  const handleExportCharacter = useCallback((id: string) => {
+    if (!id) return;
+    const character = charactersRef.current[id];
     if (!character) return;
     const fileName = `${character.name.replace(/\s+/g, '_')}.dndchar.json`;
     const data = new Blob([JSON.stringify(character, null, 2)], { type: 'application/json' });
@@ -71,7 +75,12 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
     document.body.removeChild(link);
     URL.revokeObjectURL(href);
     addNotification(`Персонаж "${character.name}" успешно экспортирован.`, 'info');
-  };
+  }, [addNotification]);
+
+  const handleSelectBroadcastGM = useCallback((id: string) => {
+    if (!onSelectActiveBoardCharacter) return;
+    onSelectActiveBoardCharacter(id === activeBoardCharacterIdRef.current ? null : id);
+  }, [onSelectActiveBoardCharacter]);
 
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -139,7 +148,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
         <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
           <button
             onClick={() => onOpenStandalone('')}
-            className="bg-gradient-to-r from-emerald-700/70 to-teal-700/70 text-emerald-100 border border-emerald-500/40 font-bold py-2 px-5 rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all shadow-md active:scale-95 text-xs sm:text-sm flex items-center gap-2"
+            className="bg-linear-to-r from-emerald-700/70 to-teal-700/70 text-emerald-100 border border-emerald-500/40 font-bold py-2 px-5 rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all shadow-md active:scale-95 text-xs sm:text-sm flex items-center gap-2"
             title="Открыть Хранилище в отдельной вкладке браузера"
           >
             <span>🚀</span> Открыть в новой вкладке
@@ -155,7 +164,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
           {onExportVault && (
             <button
               onClick={onExportVault}
-              className="bg-gradient-to-r from-teal-700/60 to-cyan-700/60 text-teal-200 border border-teal-500/30 font-bold py-2 px-5 rounded-xl hover:from-teal-600 hover:to-cyan-600 transition-all shadow-md active:scale-95 text-xs sm:text-sm flex items-center gap-2"
+              className="bg-linear-to-r from-teal-700/60 to-cyan-700/60 text-teal-200 border border-teal-500/30 font-bold py-2 px-5 rounded-xl hover:from-teal-600 hover:to-cyan-600 transition-all shadow-md active:scale-95 text-xs sm:text-sm flex items-center gap-2"
             >
               <span>💾</span> Экспортировать Хранилище (.dndvault.json)
             </button>
@@ -172,17 +181,18 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
               return (
                 <CharacterCard
                   key={id}
+                  characterId={id}
                   character={character}
-                  onSelect={() => onSelectCharacter(id)}
-                  onDuplicate={() => onDuplicateCharacter(id)}
-                  onDelete={() => onDeleteCharacter(id)}
-                  onExport={() => handleExportCharacter(id)}
-                  onOpenStandalone={() => onOpenStandalone(id)}
-                  onSync={onSyncCharacter ? () => onSyncCharacter(id) : undefined}
-                  onClearCache={onClearLocalCache ? () => onClearLocalCache(id) : undefined}
+                  onSelect={onSelectCharacter}
+                  onDuplicate={onDuplicateCharacter}
+                  onDelete={onDeleteCharacter}
+                  onExport={handleExportCharacter}
+                  onOpenStandalone={onOpenStandalone}
+                  onSync={onSyncCharacter}
+                  onClearCache={onClearLocalCache}
                   isBroadcastingToGM={isBroadcastingToGM}
-                  onSelectBroadcastGM={onSelectActiveBoardCharacter ? () => onSelectActiveBoardCharacter(isBroadcastingToGM ? null : id) : undefined}
-                  onUpdateOwnerName={onUpdateOwnerName ? () => onUpdateOwnerName(id) : undefined}
+                  onSelectBroadcastGM={onSelectActiveBoardCharacter ? handleSelectBroadcastGM : undefined}
+                  onUpdateOwnerName={onUpdateOwnerName}
                   isSyncing={!!syncState}
                   pendingImagesCount={syncState?.pendingImages.length || 0}
                   currentUserId={currentUserId}
@@ -219,7 +229,7 @@ export const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> =
               </button>
               <button
                 onClick={() => onOpenStandalone('')}
-                className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold py-3 px-6 rounded-xl text-sm sm:text-base hover:from-emerald-500 hover:to-teal-500 transition-all shadow-lg active:scale-95 flex items-center gap-2 border border-emerald-400/30"
+                className="bg-linear-to-r from-emerald-600 to-teal-600 text-white font-bold py-3 px-6 rounded-xl text-sm sm:text-base hover:from-emerald-500 hover:to-teal-500 transition-all shadow-lg active:scale-95 flex items-center gap-2 border border-emerald-400/30"
               >
                 <span>🚀</span> Открыть в новой вкладке
               </button>

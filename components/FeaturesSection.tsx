@@ -206,7 +206,7 @@ export const FeaturesSection: React.FC<FeaturesSectionProps> = React.memo(({ onA
       e.dataTransfer.setData('text/plain', `feature:${featureId}`);
   };
 
-  const handleFeatureDragOver = (e: React.DragEvent, groupId: string, index: number) => {
+  const handleFeatureDragOver = (e: React.DragEvent, _groupId?: string, _index?: number) => {
       if (draggedFeatureInfo) {
           e.preventDefault();
       }
@@ -238,7 +238,7 @@ export const FeaturesSection: React.FC<FeaturesSectionProps> = React.memo(({ onA
       setDragOverGroupForFeature(null);
   };
 
-  const handleGroupBodyDragOver = (e: React.DragEvent, groupId: string) => {
+  const handleGroupBodyDragOver = (e: React.DragEvent, _groupId?: string) => {
       if (draggedFeatureInfo) {
           e.preventDefault();
       }
@@ -372,7 +372,7 @@ export const FeaturesSection: React.FC<FeaturesSectionProps> = React.memo(({ onA
                                             if (e.key === 'Escape') setEditingGroupId(null);
                                         }}
                                         onBlur={() => handleSaveRename(group.id)}
-                                        className="bg-[var(--color-background)] border border-[var(--color-accent-primary)] rounded px-1.5 py-0.5 text-sm font-bold text-[var(--color-text-base)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                                        className="bg-[var(--color-background)] border border-[var(--color-accent-primary)] rounded px-1.5 py-0.5 text-sm font-bold text-[var(--color-text-base)] focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]"
                                     />
                                 ) : (
                                     <div className="flex items-center gap-1.5 group/title min-w-0">

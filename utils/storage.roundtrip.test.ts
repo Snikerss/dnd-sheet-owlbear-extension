@@ -17,7 +17,8 @@ import { applyImages, extractImages } from './imageStore';
 import { ChunkAssembler } from '../protocol/chunkAssembler';
 import { parseSyncMessage } from '../protocol/messages';
 import { makeTestCharacter } from '../state/testFixtures';
-import { Attack, AttackType, Currency, DamageType, Rarity, Spell } from '../types';
+import { Attack, AttackType, Currency, DamageType, Rarity, Spell, InventoryItem } from '../types';
+import { INVENTORY_COLUMNS } from '../constants';
 
 const PORTRAIT = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 const ITEM_IMG = 'data:image/webp;base64,UklGRhIAAABXRUJQVlA4TAYAAAAvAAAAAAfQ//73v/+BiOh/AAA=';
@@ -36,10 +37,10 @@ const makeItem = (id: string, overrides: Record<string, unknown> = {}) => ({
 
 const buildRichCharacter = () => {
   const base = makeTestCharacter({ name: 'Круговорот', level: 5 });
-  // Производственная семантика: инвентарь всегда полного размера сетки,
+  // Производственная семантика: инвентарь всегда полного размера сетки (10 колонок),
   // свободные слоты — null (unminifyCharacter восстанавливает сетку целиком).
-  const invSize = base.inventoryRows * 5;
-  const inventory: any[] = [
+  const invSize = base.inventoryRows * INVENTORY_COLUMNS;
+  const inventory: (InventoryItem | null)[] = [
     makeItem('i-0', { isEquipped: true }),
     null,
     makeItem('i-2', { isChest: true, chestInventory: [makeItem('chest-0'), null] }),
@@ -97,6 +98,13 @@ const buildRichCharacter = () => {
     ],
     spellSlots: { ...base.spellSlots, 3: { total: 2, used: 1 } },
     currency: { CP: 0, SP: 2, EP: 0, GP: 50, PP: 1 },
+    notes: [
+      { id: 'n-1', title: 'Заметка 1', content: 'Текст заметки' },
+    ],
+    noteGroups: [
+      { id: 'ng-1', name: 'Папка 1', noteIds: ['n-1'] },
+      { id: 'ng-2', name: 'Папка 2', noteIds: [] },
+    ],
   };
   return char;
 };

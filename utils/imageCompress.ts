@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import type { Character } from '../types';
 /**
  * Utility to compress and resize a base64 image string using an offscreen canvas.
  */
@@ -63,7 +64,7 @@ export function compressBase64Image(base64Str: string, maxDimension = 256, quali
 /**
  * Recursively scans a character object and compresses all base64 images found inside it.
  */
-export async function compressCharacterImages(character: any): Promise<any> {
+export async function compressCharacterImages<T extends Partial<Character>>(character: T): Promise<T> {
   if (!character || typeof character !== 'object') return character;
 
   const cloned = structuredClone(character);

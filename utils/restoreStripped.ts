@@ -10,17 +10,41 @@
  *  - полная: сам InventoryItem          (React-state / memory-бэкап).
  */
 
+interface HasImageAndDesc {
+  id?: string;
+  imageUrl?: string;
+  description?: string;
+  notes?: string;
+  isChest?: boolean;
+  chestInventory?: HasImageAndDesc[];
+  components?: { materialDescription?: string };
+}
+
+interface StrippedCharRecord {
+  portraitUrl?: string;
+  notes?: Array<{ id: string; title?: string; content?: string }>;
+  spells?: Array<HasImageAndDesc>;
+  features?: Array<{ id: string; description?: string }>;
+  attacks?: Array<HasImageAndDesc>;
+  inventory?: unknown[];
+  equippedItems?: Array<HasImageAndDesc>;
+  [key: string]: unknown;
+}
+
 /** Извлекает предмет из записи инвентаря любой формы. */
-const unwrapInvItem = (entry: any, minified: boolean): any => {
-  if (!entry) return entry;
-  return minified ? entry.item : entry;
+const unwrapInvItem = (entry: unknown, minified: boolean): HasImageAndDesc | null | undefined => {
+  if (!entry || typeof entry !== 'object') return null;
+  return minified ? ((entry as { item?: HasImageAndDesc }).item ?? null) : (entry as HasImageAndDesc);
 };
 
 /**
  * Восстанавливает imageUrl/description облачного предмета из бэкапа.
  * Мутация — как и раньше у обоих прежних дубликатов.
  */
-export function restoreStrippedItemImages(cloudItem: any, backupItem: any): void {
+export function restoreStrippedItemImages(
+  cloudItem: HasImageAndDesc | null | undefined,
+  backupItem: HasImageAndDesc | null | undefined,
+): void {
   if (!cloudItem || !backupItem) return;
   const cloudImgIsToken = typeof cloudItem.imageUrl === 'string' && cloudItem.imageUrl.startsWith('img:ref:');
   if (backupItem.imageUrl?.startsWith('data:image/') && (!cloudItem.imageUrl || cloudImgIsToken)) {
@@ -30,13 +54,14 @@ export function restoreStrippedItemImages(cloudItem: any, backupItem: any): void
     cloudItem.description = backupItem.description;
   }
   if (cloudItem.isChest && Array.isArray(cloudItem.chestInventory) && Array.isArray(backupItem.chestInventory)) {
-    cloudItem.chestInventory.forEach((subItem: any, idx: number) => {
-      restoreStrippedItemImages(subItem, backupItem.chestInventory[idx]);
+    cloudItem.chestInventory.forEach((subItem, idx: number) => {
+      restoreStrippedItemImages(subItem, backupItem.chestInventory?.[idx]);
     });
   }
 }
 
-const findById = (list: any[], id: string): any => list.find((e: any) => e?.id === id);
+const findById = <T extends { id?: string }>(list: T[], id: string | undefined): T | undefined =>
+  id ? list.find((e) => e?.id === id) : undefined;
 
 /**
  * Глубокое восстановление stripped-полей одного персонажа.
@@ -46,8 +71,8 @@ const findById = (list: any[], id: string): any => list.find((e: any) => e?.id =
  * @param minifiedBackupInventory true если backupChar.inventory — записи {index,item}
  */
 export function restoreStrippedCharacter(
-  cloudChar: any,
-  backupChar: any,
+  cloudChar: StrippedCharRecord | null | undefined,
+  backupChar: StrippedCharRecord | null | undefined,
   minifiedCloudInventory = false,
   minifiedBackupInventory = false,
 ): void {
@@ -61,16 +86,16 @@ export function restoreStrippedCharacter(
 
   // 2. Заметки: содержимое
   if (Array.isArray(cloudChar.notes) && Array.isArray(backupChar.notes)) {
-    cloudChar.notes.forEach((n: any) => {
-      const match = backupChar.notes.find((ln: any) => ln.id === n.id);
+    cloudChar.notes.forEach((n) => {
+      const match = backupChar.notes?.find((ln) => ln.id === n.id);
       if (match && match.content && !n.content) n.content = match.content;
     });
   }
 
   // 3. Заклинания: описание, материал, картинка
   if (Array.isArray(cloudChar.spells) && Array.isArray(backupChar.spells)) {
-    cloudChar.spells.forEach((s: any) => {
-      const match = findById(backupChar.spells, s?.id);
+    cloudChar.spells.forEach((s) => {
+      const match = findById(backupChar.spells || [], s?.id);
       if (match) {
         restoreStrippedItemImages(s, match);
         if (match.description && !s.description) s.description = match.description;
@@ -83,16 +108,16 @@ export function restoreStrippedCharacter(
 
   // 4. Особенности: описание
   if (Array.isArray(cloudChar.features) && Array.isArray(backupChar.features)) {
-    cloudChar.features.forEach((f: any) => {
-      const match = findById(backupChar.features, f?.id);
+    cloudChar.features.forEach((f) => {
+      const match = findById(backupChar.features || [], f?.id);
       if (match && match.description && !f.description) f.description = match.description;
     });
   }
 
   // 5. Атаки: заметки и картинка
   if (Array.isArray(cloudChar.attacks) && Array.isArray(backupChar.attacks)) {
-    cloudChar.attacks.forEach((a: any) => {
-      const match = findById(backupChar.attacks, a?.id);
+    cloudChar.attacks.forEach((a) => {
+      const match = findById(backupChar.attacks || [], a?.id);
       if (match) {
         restoreStrippedItemImages(a, match);
         if (match.notes && !a.notes) a.notes = match.notes;
@@ -102,9 +127,9 @@ export function restoreStrippedCharacter(
 
   // 6. Инвентарь (позиционно, включая сундуки)
   if (Array.isArray(cloudChar.inventory) && Array.isArray(backupChar.inventory)) {
-    cloudChar.inventory.forEach((invEntry: any, idx: number) => {
+    cloudChar.inventory.forEach((invEntry, idx: number) => {
       const cloudItem = unwrapInvItem(invEntry, minifiedCloudInventory);
-      const backupItem = unwrapInvItem(backupChar.inventory[idx], minifiedBackupInventory);
+      const backupItem = unwrapInvItem(backupChar.inventory?.[idx], minifiedBackupInventory);
       if (cloudItem && backupItem) {
         restoreStrippedItemImages(cloudItem, backupItem);
       }
@@ -113,8 +138,8 @@ export function restoreStrippedCharacter(
 
   // 7. Экипированные предметы (по id)
   if (Array.isArray(cloudChar.equippedItems) && Array.isArray(backupChar.equippedItems)) {
-    cloudChar.equippedItems.forEach((eqItem: any) => {
-      const match = findById(backupChar.equippedItems, eqItem?.id);
+    cloudChar.equippedItems.forEach((eqItem) => {
+      const match = findById(backupChar.equippedItems || [], eqItem?.id);
       if (match) {
         restoreStrippedItemImages(eqItem, match);
       }

@@ -1,32 +1,90 @@
-import { useEffect, type MutableRefObject } from 'react';
+import { useEffect, useCallback, useMemo, useRef, type MutableRefObject } from 'react';
 import { Character, LogEntry } from '../types';
 import { applyImages, extractImages } from '../utils/imageStore';
 import { unminifyCharacter, minifyCharacter, saveCharacterApi } from '../utils/storage';
 import { isCharacter, migrateCharacterData } from './initialization';
 import { CharactersState } from './appReducer';
 import { logger } from '../utils/logger';
+import { debounce } from '../utils/debounce';
+import { PERSISTENCE_SAVE_DEBOUNCE_MS } from '../constants';
 import type { NotificationType } from '../components/NotificationToast';
 
+export interface RawCharacterStorageData {
+  character?: Character;
+  log?: LogEntry[];
+  history?: {
+    past?: Character[];
+    future?: Character[];
+    present?: Character;
+  };
+  imageCache?: [string, string][] | Map<string, string> | Record<string, string>;
+  lastModified?: number;
+}
+
+/**
+ * Безопасно парсит кеш изображений из различных форматов сериализации:
+ * - Map<string, string>
+ * - Массив пар [string, string][]
+ * - Обычный объект Record<string, string> (включая {} из легаси-экспортов)
+ * - При отсутствии или любом другом типе возвращает пустой Map (никогда не выбрасывает исключение)
+ */
+export function parseImageCache(raw: unknown): Map<string, string> {
+  if (!raw) {
+    return new Map();
+  }
+  if (raw instanceof Map) {
+    return new Map(raw);
+  }
+  if (Array.isArray(raw)) {
+    try {
+      const validPairs = raw.filter(
+        (entry): entry is [string, string] =>
+          Array.isArray(entry) && entry.length >= 2 && typeof entry[0] === 'string' && typeof entry[1] === 'string'
+      );
+      return new Map(validPairs);
+    } catch {
+      return new Map();
+    }
+  }
+  if (typeof raw === 'object' && raw !== null) {
+    try {
+      const map = new Map<string, string>();
+      for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+        if (typeof val === 'string') {
+          map.set(key, val);
+        }
+      }
+      return map;
+    } catch {
+      return new Map();
+    }
+  }
+  return new Map();
+}
+
 // Helper to safely parse character data structure from raw metadata
-export const parseCharactersData = (data: any): CharactersState => {
+export const parseCharactersData = (data: unknown): CharactersState => {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) {
     return {};
   }
   
-  return Object.entries(data).reduce((acc, [id, charData]) => {
+  return Object.entries(data as Record<string, unknown>).reduce((acc, [id, charData]) => {
     const item = charData as {
-      character: any;
+      character?: Character;
       log?: LogEntry[];
       history?: {
-        past?: any[];
-        future?: any[];
+        past?: Character[];
+        future?: Character[];
+        present?: Character;
       };
-      imageCache?: [string, string][];
+      imageCache?: unknown;
     };
     
-    if (!item || !item.character) return acc;
+    if (!item) return acc;
+
+    const characterObject = item.character || item.history?.present;
+    if (!characterObject) return acc;
     
-    const characterObject = item.character;
     const isMinified = characterObject && !('scores' in characterObject && 'STR' in characterObject.scores);
     const fullCharacter = isMinified ? unminifyCharacter(characterObject) : characterObject;
 
@@ -34,7 +92,7 @@ export const parseCharactersData = (data: any): CharactersState => {
     if (isCharacter(migratedData)) {
       const past = Array.isArray(item.history?.past) ? item.history!.past : [];
       const future = Array.isArray(item.history?.future) ? item.history!.future : [];
-      const imageCache = item.imageCache ? new Map(item.imageCache) : new Map();
+      const imageCache = parseImageCache(item.imageCache);
       const presentWithImages = applyImages(migratedData as Character, imageCache);
       
       acc[id] = {
@@ -52,8 +110,8 @@ export const parseCharactersData = (data: any): CharactersState => {
 };
 
 // Consistent serialization cache builder
-export const serializeForCache = (charData: any): string => {
-  if (!charData) return '';
+export const serializeForCache = (charData: RawCharacterStorageData | null | undefined): string => {
+  if (!charData || !charData.character) return '';
   
   const fullChar = unminifyCharacter(charData.character);
   
@@ -65,11 +123,9 @@ export const serializeForCache = (charData: any): string => {
   // Combine stored imageCache and newly extracted images
   const combinedImages = new Map<string, string>();
   
-  const storedList = Array.isArray(charData.imageCache) 
-    ? charData.imageCache 
-    : (charData.imageCache instanceof Map ? Array.from(charData.imageCache.entries()) : []);
+  const storedImages = parseImageCache(charData.imageCache);
     
-  for (const [id, val] of storedList) {
+  for (const [id, val] of storedImages.entries()) {
     combinedImages.set(id, val);
   }
   for (const [id, val] of extractedImages.entries()) {
@@ -97,8 +153,8 @@ export const getChecksum = (str: string): string => {
   return (hash >>> 0).toString(16);
 };
 
-export const getTextChecksum = (charData: any): string => {
-  if (!charData) return '';
+export const getTextChecksum = (charData: RawCharacterStorageData | null | undefined): string => {
+  if (!charData || !charData.character) return '';
   const fullChar = unminifyCharacter(charData.character);
   const { light } = extractImages(fullChar);
   const minifiedChar = minifyCharacter(light);
@@ -109,18 +165,16 @@ export const getTextChecksum = (charData: any): string => {
   return getChecksum(JSON.stringify(cleanText));
 };
 
-export const getImageChecksums = (charData: any): Record<string, string> => {
+export const getImageChecksums = (charData: RawCharacterStorageData | null | undefined): Record<string, string> => {
   const checksums: Record<string, string> = {};
-  if (!charData) return checksums;
+  if (!charData || !charData.character) return checksums;
   
   const fullChar = unminifyCharacter(charData.character);
   const { images: extractedImages } = extractImages(fullChar);
   
-  const storedList = Array.isArray(charData.imageCache) 
-    ? charData.imageCache 
-    : (charData.imageCache instanceof Map ? Array.from(charData.imageCache.entries()) : []);
+  const storedImages = parseImageCache(charData.imageCache);
     
-  for (const [id, val] of storedList) {
+  for (const [id, val] of storedImages.entries()) {
     if (val && val.startsWith('data:')) {
       checksums[id] = getChecksum(val);
     }
@@ -137,7 +191,7 @@ export const getImageChecksums = (charData: any): Record<string, string> => {
 // переезда логики в utils/restoreStripped.ts. Живой потребитель — syncEngine,
 // который восстанавливает данные через restoreLocalData из storage.ts.)
 
-interface SaveEffectDeps {
+export interface SaveEffectDeps {
   characters: CharactersState;
   isLoading: boolean;
   addNotification: (message: string, type?: NotificationType) => void;
@@ -145,11 +199,18 @@ interface SaveEffectDeps {
   lastPresentRef: MutableRefObject<Record<string, Character>>;
 }
 
-export const useSaveEffect = (deps: SaveEffectDeps): void => {
-  const { characters, isLoading, addNotification, lastSerializedRef, lastPresentRef } = deps;
+export interface DebouncedSaveController {
+  flush: () => void;
+  cancel: () => void;
+}
 
-  // 3. Save local modifications to the storage/metadata granularly
-  useEffect(() => {
+export const useSaveEffect = (deps: SaveEffectDeps): DebouncedSaveController => {
+  const { characters, isLoading } = deps;
+  const depsRef = useRef(deps);
+  depsRef.current = deps;
+
+  const performSave = useCallback((charsToSave: CharactersState) => {
+    const { isLoading, addNotification, lastSerializedRef, lastPresentRef } = depsRef.current;
     if (isLoading) return; // Do not save during initial loading phase
 
     try {
@@ -157,7 +218,7 @@ export const useSaveEffect = (deps: SaveEffectDeps): void => {
       let cacheUpdated = false;
 
       // Construct raw character structures from React state
-      const rawCharacters = Object.entries(characters).reduce((acc, [id, data]) => {
+      const rawCharacters = Object.entries(charsToSave).reduce((acc, [id, data]) => {
         acc[id] = {
           character: data.history.present,
           log: data.log || [],
@@ -168,7 +229,7 @@ export const useSaveEffect = (deps: SaveEffectDeps): void => {
           imageCache: data.imageCache ? Array.from(data.imageCache.entries()) : [],
         };
         return acc;
-      }, {} as Record<string, any>);
+      }, {} as Record<string, RawCharacterStorageData>);
 
       // A. Save or update characters that have changes.
       // Reference-based dirty detection: если ссылка present не менялась и запись
@@ -176,6 +237,7 @@ export const useSaveEffect = (deps: SaveEffectDeps): void => {
       // (structuredClone + extractImages + minify + JSON.stringify на каждое
       // изменение любого персонажа были главным CPU-расходом).
       for (const [id, rawChar] of Object.entries(rawCharacters)) {
+        if (!rawChar.character) continue;
         const presentRef = rawChar.character;
 
         // 1. Персонаж не менялся с прошлого прогона — целиком пропускаем.
@@ -237,5 +299,49 @@ export const useSaveEffect = (deps: SaveEffectDeps): void => {
       logger.error("Critical serialization error:", error);
       addNotification("Критическая ошибка: не удалось подготовить данные для сохранения.", 'error');
     }
-  }, [characters, isLoading, addNotification]);
+  }, []);
+
+  const debouncedSave = useMemo(() => {
+    return debounce((charsToSave: CharactersState) => {
+      performSave(charsToSave);
+    }, PERSISTENCE_SAVE_DEBOUNCE_MS);
+  }, [performSave]);
+
+  // Триггер на изменение characters
+  useEffect(() => {
+    if (isLoading) return;
+    debouncedSave(characters);
+  }, [characters, isLoading, debouncedSave]);
+
+  // Flush триггеры: beforeunload, visibilitychange (hidden) и unmount
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      debouncedSave.flush();
+    };
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        debouncedSave.flush();
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeunload', handleBeforeUnload);
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      }
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+      debouncedSave.flush();
+    };
+  }, [debouncedSave]);
+
+  return debouncedSave;
 };

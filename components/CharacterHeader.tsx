@@ -1,9 +1,11 @@
-import React, { useRef, useCallback, useMemo } from 'react';
+import React, { useRef, useCallback, useMemo, useState, useEffect } from 'react';
 import { logger } from '../utils/logger';
 import { useNotifier } from '../context/NotificationContext';
 import { useCharacter } from '../context/CharacterContext';
 import { isOwlbear } from '../utils/storage';
 import { SyncStatusIndicator, SyncStatusType } from './SyncStatusIndicator';
+import { debounce } from '../utils/debounce';
+import { HEADER_INPUT_DEBOUNCE_MS } from '../constants';
 import OBR from '@owlbear-rodeo/sdk';
 
 interface CharacterHeaderProps {
@@ -23,19 +25,68 @@ interface CharacterHeaderProps {
   isReadOnly?: boolean;
 }
 
-const EditableField: React.FC<{ value: string; onChange: (newValue: string) => void; label: string; placeholder: string; isReadOnly?: boolean }> = ({ value, onChange, label, placeholder, isReadOnly = false }) => (
-  <div className="flex-1">
-    <label className="block text-xs text-[var(--color-text-muted)] tracking-wider uppercase mb-1">{label}</label>
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      readOnly={isReadOnly}
-      className={`w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 text-lg text-[var(--color-text-base)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] focus:border-[var(--color-focus-ring)] transition-colors h-[50px] ${isReadOnly ? 'opacity-80' : ''}`}
-    />
-  </div>
-);
+export const EditableField: React.FC<{
+  value: string;
+  onChange: (newValue: string) => void;
+  label: string;
+  placeholder: string;
+  isReadOnly?: boolean;
+}> = ({ value, onChange, label, placeholder, isReadOnly = false }) => {
+  const [localValue, setLocalValue] = useState(value);
+  const pendingValueRef = useRef<string | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  // Синхронизируем локальное значение с props value при внешних изменениях (смена персонажа / undo / sync)
+  const lastPropValueRef = useRef(value);
+  useEffect(() => {
+    if (value !== lastPropValueRef.current) {
+      lastPropValueRef.current = value;
+      setLocalValue(value);
+      pendingValueRef.current = null;
+    }
+  }, [value]);
+
+  const debouncedOnChange = useMemo(() => {
+    return debounce((val: string) => {
+      pendingValueRef.current = null;
+      onChangeRef.current(val);
+    }, HEADER_INPUT_DEBOUNCE_MS);
+  }, []);
+
+  // Flush на unmount (закрытие листа, смена таба)
+  useEffect(() => {
+    return () => {
+      debouncedOnChange.flush();
+    };
+  }, [debouncedOnChange]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const nextVal = e.target.value;
+    setLocalValue(nextVal);
+    pendingValueRef.current = nextVal;
+    debouncedOnChange(nextVal);
+  };
+
+  const handleBlur = () => {
+    debouncedOnChange.flush();
+  };
+
+  return (
+    <div className="flex-1">
+      <label className="block text-xs text-[var(--color-text-muted)] tracking-wider uppercase mb-1">{label}</label>
+      <input
+        type="text"
+        value={localValue}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        placeholder={placeholder}
+        readOnly={isReadOnly}
+        className={`w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 text-lg text-[var(--color-text-base)] focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] focus:border-[var(--color-focus-ring)] transition-colors h-[50px] ${isReadOnly ? 'opacity-80' : ''}`}
+      />
+    </div>
+  );
+};
 
 const PortraitUploader: React.FC = React.memo(() => {
     const { character, dispatch } = useCharacter();
@@ -165,7 +216,7 @@ export const CharacterHeader: React.FC<CharacterHeaderProps> = React.memo(({
             <div className="flex-grow relative">
                 <EditableField value={character.name} onChange={(val) => dispatch({type: 'SET_FIELD', payload: {field: 'name', value: val}})} label="Имя персонажа" placeholder="Например, Эльдра" isReadOnly={isReadOnly} />
                 {(character.ownerName || isReadOnly) && (
-                  <div className="absolute top-0 right-0 transform -translate-y-6 flex items-center gap-1.5 bg-slate-800/85 border border-slate-700/50 text-[11px] text-white/90 px-2 py-0.5 rounded-md font-medium backdrop-blur-sm shadow-sm select-none">
+                  <div className="absolute top-0 right-0 transform -translate-y-6 flex items-center gap-1.5 bg-slate-800/85 border border-slate-700/50 text-[11px] text-white/90 px-2 py-0.5 rounded-md font-medium backdrop-blur-xs shadow-xs select-none">
                     {character.ownerName && <span>👤 Владелец: {character.ownerName}</span>}
                     {isReadOnly && <span className="text-amber-400 font-bold bg-amber-400/10 px-1 rounded text-[10px]">Только чтение</span>}
                   </div>

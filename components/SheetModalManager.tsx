@@ -140,7 +140,7 @@ export const SheetModalManager: React.FC<SheetModalManagerProps> = ({
       )}
 
       {overAttunedItem && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-fade-in">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[100] animate-fade-in">
           <div className="bg-[var(--color-surface-opaque)] rounded-xl shadow-2xl p-6 m-4 w-full max-w-md border border-[var(--color-border)] text-center">
             <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 mb-4">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -158,7 +158,7 @@ export const SheetModalManager: React.FC<SheetModalManagerProps> = ({
             )}
             <button
               onClick={handleConfirmOverAttunementRemoval}
-              className="w-full justify-center rounded-lg border border-transparent shadow-md px-4 py-2 bg-[var(--color-health)] text-base font-semibold text-white hover:bg-red-600 focus:outline-none transition-all duration-150 active:scale-95"
+              className="w-full justify-center rounded-lg border border-transparent shadow-md px-4 py-2 bg-[var(--color-health)] text-base font-semibold text-white hover:bg-red-600 focus:outline-hidden transition-all duration-150 active:scale-95"
             >
               Хорошо (Снять настройку)
             </button>

@@ -61,7 +61,7 @@ export const AttackDetailModal: React.FC<AttackDetailModalProps> = ({
       setFormData(prev => ({ ...prev, [name]: checked }));
     } else {
       const isNumeric = ['rangeNormal', 'rangeLong', 'hitBonus', 'damageBonus'].includes(name);
-      let parsedValue: any = value;
+      let parsedValue: string | number | null = value;
       if (isNumeric) {
           parsedValue = value === '' ? null : parseInt(value, 10);
           if (Number.isNaN(parsedValue)) parsedValue = name === 'rangeLong' ? null : 0;
@@ -122,7 +122,7 @@ export const AttackDetailModal: React.FC<AttackDetailModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 bg-[var(--color-surface-translucent)] backdrop-blur-sm flex items-center justify-center z-50"
+      className="fixed inset-0 bg-[var(--color-surface-translucent)] backdrop-blur-xs flex items-center justify-center z-50"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -139,7 +139,7 @@ export const AttackDetailModal: React.FC<AttackDetailModalProps> = ({
           <div className="flex gap-4">
             <div className="flex-grow">
                 <label htmlFor="name" className="block text-sm font-medium text-[var(--color-text-medium)]">Название</label>
-                <input type="text" name="name" id="name" value={formData.name} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]" required />
+                <input type="text" name="name" id="name" value={formData.name} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]" required />
             </div>
             <div className="flex-shrink-0">
                 <label className="block text-sm font-medium text-[var(--color-text-medium)]">Иконка</label>
@@ -159,17 +159,17 @@ export const AttackDetailModal: React.FC<AttackDetailModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label htmlFor="attackType" className="block text-sm font-medium text-[var(--color-text-medium)]">Тип атаки</label>
-              <select name="attackType" id="attackType" value={formData.attackType} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]">
+              <select name="attackType" id="attackType" value={formData.attackType} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]">
                 {Object.entries(ATTACK_TYPE_NAMES).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
               </select>
             </div>
             <div>
               <label htmlFor="rangeNormal" className="block text-sm font-medium text-[var(--color-text-medium)]">Дальность (фт.)</label>
-              <input type="number" name="rangeNormal" id="rangeNormal" value={formData.rangeNormal ?? ''} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
+              <input type="number" name="rangeNormal" id="rangeNormal" value={formData.rangeNormal ?? ''} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
             </div>
             <div>
               <label htmlFor="rangeLong" className="block text-sm font-medium text-[var(--color-text-medium)]">Дальняя (фт.)</label>
-              <input type="number" name="rangeLong" id="rangeLong" value={formData.rangeLong ?? ''} onChange={handleInputChange} disabled={formData.attackType === AttackType.Melee || formData.attackType === AttackType.Spell} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] disabled:opacity-50" />
+              <input type="number" name="rangeLong" id="rangeLong" value={formData.rangeLong ?? ''} onChange={handleInputChange} disabled={formData.attackType === AttackType.Melee || formData.attackType === AttackType.Spell} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] disabled:opacity-50" />
             </div>
           </div>
 
@@ -179,7 +179,7 @@ export const AttackDetailModal: React.FC<AttackDetailModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label htmlFor="hitAbility" className="block text-sm font-medium text-[var(--color-text-medium)]">Характеристика</label>
-                <select name="hitAbility" id="hitAbility" value={formData.hitAbility} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]">
+                <select name="hitAbility" id="hitAbility" value={formData.hitAbility} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]">
                   {Object.entries(ABILITY_NAMES).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
                 </select>
               </div>
@@ -191,7 +191,7 @@ export const AttackDetailModal: React.FC<AttackDetailModalProps> = ({
               </div>
               <div>
                 <label htmlFor="hitBonus" className="block text-sm font-medium text-[var(--color-text-medium)]">Бонус/Штраф</label>
-                <input type="number" name="hitBonus" id="hitBonus" value={formData.hitBonus ?? ''} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
+                <input type="number" name="hitBonus" id="hitBonus" value={formData.hitBonus ?? ''} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
               </div>
             </div>
           </div>
@@ -202,23 +202,23 @@ export const AttackDetailModal: React.FC<AttackDetailModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="md:col-span-2">
                 <label htmlFor="damageDice" className="block text-sm font-medium text-[var(--color-text-medium)]">Кости урона</label>
-                <input type="text" name="damageDice" id="damageDice" value={formData.damageDice} onChange={handleInputChange} placeholder="напр. 1d8 + 1d6" className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
+                <input type="text" name="damageDice" id="damageDice" value={formData.damageDice} onChange={handleInputChange} placeholder="напр. 1d8 + 1d6" className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
               </div>
               <div>
                 <label htmlFor="damageAbility" className="block text-sm font-medium text-[var(--color-text-medium)]">Характеристика</label>
-                <select name="damageAbility" id="damageAbility" value={formData.damageAbility} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]">
+                <select name="damageAbility" id="damageAbility" value={formData.damageAbility} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]">
                   <option value="None">Нет</option>
                   {Object.entries(ABILITY_NAMES).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
                 </select>
               </div>
                <div>
                 <label htmlFor="damageBonus" className="block text-sm font-medium text-[var(--color-text-medium)]">Бонус/Штраф</label>
-                <input type="number" name="damageBonus" id="damageBonus" value={formData.damageBonus ?? ''} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
+                <input type="number" name="damageBonus" id="damageBonus" value={formData.damageBonus ?? ''} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
               </div>
             </div>
             <div className="mt-4">
                 <label htmlFor="damageType" className="block text-sm font-medium text-[var(--color-text-medium)]">Тип урона</label>
-                <select name="damageType" id="damageType" value={formData.damageType} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]">
+                <select name="damageType" id="damageType" value={formData.damageType} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]">
                     {(Object.values(DamageType) as DamageType[]).map(type => <option key={type} value={type}>{DAMAGE_TYPE_NAMES[type]}</option>)}
                 </select>
             </div>
@@ -230,7 +230,7 @@ export const AttackDetailModal: React.FC<AttackDetailModalProps> = ({
                  <button
                     type="button"
                     onClick={() => setShowPicker(!showPicker)}
-                    className="w-full sm:w-auto self-start rounded-lg border border-[var(--color-border-subtle)] shadow-sm px-3 py-2 bg-[var(--color-surface-raised)] text-sm font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised-hover)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all duration-150 active:scale-95"
+                    className="w-full sm:w-auto self-start rounded-lg border border-[var(--color-border-subtle)] shadow-xs px-3 py-2 bg-[var(--color-surface-raised)] text-sm font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised-hover)] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all duration-150 active:scale-95"
                  >
                     {showPicker ? 'Скрыть библиотеку' : 'Выбрать иконку...'}
                  </button>
@@ -238,7 +238,7 @@ export const AttackDetailModal: React.FC<AttackDetailModalProps> = ({
                     <button
                         type="button"
                         onClick={handleRemoveImage}
-                        className="w-full sm:w-auto self-start rounded-lg border border-transparent px-3 py-1 bg-transparent text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-health)] focus:outline-none"
+                        className="w-full sm:w-auto self-start rounded-lg border border-transparent px-3 py-1 bg-transparent text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-health)] focus:outline-hidden"
                     >
                         Убрать иконку
                     </button>
@@ -270,9 +270,9 @@ export const AttackDetailModal: React.FC<AttackDetailModalProps> = ({
         
         {/* Actions */}
         <div className="mt-6 flex flex-col sm:flex-row-reverse gap-3">
-          <button onClick={handleSave} className="w-full sm:w-auto justify-center rounded-lg border border-transparent shadow-md px-4 py-2 bg-[var(--color-accent-primary-active)] text-base font-medium text-white hover:bg-[var(--color-accent-primary-dark)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all duration-150 active:scale-95">Сохранить</button>
-          {attack && <button onClick={handleDelete} className="w-full sm:w-auto justify-center rounded-lg border border-[var(--color-border-subtle)] shadow-sm px-4 py-2 bg-[var(--color-surface-raised)] text-base font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised-hover)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all duration-150 active:scale-95">Удалить</button>}
-          <button onClick={onClose} className="close-button w-full sm:w-auto justify-center rounded-lg border border-[var(--color-border-subtle)] shadow-sm px-4 py-2 bg-transparent text-base font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] sm:mt-0 sm:mr-auto transition-all duration-150 active:scale-95">Отмена</button>
+          <button onClick={handleSave} className="w-full sm:w-auto justify-center rounded-lg border border-transparent shadow-md px-4 py-2 bg-[var(--color-accent-primary-active)] text-base font-medium text-white hover:bg-[var(--color-accent-primary-dark)] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all duration-150 active:scale-95">Сохранить</button>
+          {attack && <button onClick={handleDelete} className="w-full sm:w-auto justify-center rounded-lg border border-[var(--color-border-subtle)] shadow-xs px-4 py-2 bg-[var(--color-surface-raised)] text-base font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised-hover)] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all duration-150 active:scale-95">Удалить</button>}
+          <button onClick={onClose} className="close-button w-full sm:w-auto justify-center rounded-lg border border-[var(--color-border-subtle)] shadow-xs px-4 py-2 bg-transparent text-base font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised)] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] sm:mt-0 sm:mr-auto transition-all duration-150 active:scale-95">Отмена</button>
         </div>
       </div>
     </div>

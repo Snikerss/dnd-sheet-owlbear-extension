@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import DOMPurify from 'dompurify';
+import { sanitizeEditorContent, RICH_TEXT_SANITIZE_CONFIG } from '../utils/sanitizeRichText';
 
 // Preset Palette Colors
 export const TEXT_COLORS = [
@@ -199,7 +199,7 @@ export const TextFormattingContextMenu: React.FC<TextFormattingContextMenuProps>
 
   const handleFormat = (
     type: 'bold' | 'italic' | 'underline' | 'strikethrough' | 'color' | 'highlight' | 'heading' | 'clear',
-    val?: any
+    val?: string | { bg: string; text: string }
   ) => {
     if (targetElement) {
       const res = applyFormattingToTarget(targetElement, type, val);
@@ -340,7 +340,7 @@ export const RichTextToolbar: React.FC<RichTextToolbarProps> = ({
 }) => {
   const handleBtnClick = (
     type: 'bold' | 'italic' | 'underline' | 'strikethrough' | 'color' | 'highlight' | 'heading' | 'clear',
-    val?: any
+    val?: string | { bg: string; text: string }
   ) => {
     if (targetRef.current) {
       const res = applyFormattingToTarget(targetRef.current, type, val);
@@ -450,12 +450,9 @@ export const RichTextToolbar: React.FC<RichTextToolbarProps> = ({
 };
 
 /**
- * Safely renders HTML formatted strings (b, i, u, s, mark, span style, font, br).
+ * Безопасно рендерит строки с HTML-разметкой (форматирование, списки, таблицы, картинки base64).
  */
-const SANITIZE_CONFIG = {
-  ALLOWED_TAGS: ['b', 'i', 'u', 's', 'mark', 'span', 'br', 'h3', 'strong', 'em'],
-  ALLOWED_ATTR: ['style', 'class'],
-};
+export const SANITIZE_CONFIG = RICH_TEXT_SANITIZE_CONFIG;
 
 export const FormattedText: React.FC<{ content: string; className?: string; placeholder?: string }> = ({
   content,
@@ -472,7 +469,7 @@ export const FormattedText: React.FC<{ content: string; className?: string; plac
   return (
     <div
       className={`formatted-text-content ${className}`}
-      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(formattedHtml, SANITIZE_CONFIG) }}
+      dangerouslySetInnerHTML={{ __html: sanitizeEditorContent(formattedHtml) }}
     />
   );
 };
@@ -496,8 +493,10 @@ export const RichTextDescriptionEditor: React.FC<RichTextDescriptionEditorProps>
 
   useEffect(() => {
     if (editorRef.current) {
-      if (editorRef.current.innerHTML !== (value || '')) {
-        editorRef.current.innerHTML = value || '';
+      const isFocused = document.activeElement === editorRef.current;
+      const sanitized = sanitizeEditorContent(value || '');
+      if (!isFocused && editorRef.current.innerHTML !== sanitized) {
+        editorRef.current.innerHTML = sanitized;
       }
     }
   }, [value]);
@@ -524,7 +523,7 @@ export const RichTextDescriptionEditor: React.FC<RichTextDescriptionEditorProps>
         onInput={handleInput}
         onBlur={handleInput}
         style={{ minHeight }}
-        className="w-full p-3 text-sm leading-relaxed text-[var(--color-text-base)] outline-none overflow-y-auto max-h-[300px] focus:bg-[var(--color-surface-well)]/20 transition-all font-sans"
+        className="w-full p-3 text-sm leading-relaxed text-[var(--color-text-base)] outline-hidden overflow-y-auto max-h-[300px] focus:bg-[var(--color-surface-well)]/20 transition-all font-sans"
         data-placeholder={placeholder}
       />
     </div>

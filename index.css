@@ -1,18 +1,16 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@layer utilities {
-  @keyframes roll-settle {
-    0% { transform: scale(0.3) rotate(0deg); opacity: 0; filter: blur(5px); }
-    50% { transform: scale(1.15) rotate(360deg); opacity: 1; filter: blur(0); }
-    70% { transform: scale(0.9) rotate(540deg); }
-    100% { transform: scale(1) rotate(720deg); }
-  }
+@source inline("border-[#61fa79] border-[#0095ff] border-[#a335ee] border-[#ff8000] border-[#e5cc80] border-transparent bg-[#61fa79]/20 bg-[#0095ff]/20 bg-[#a335ee]/20 bg-[#ff8000]/20 bg-[#e5cc80]/20 bg-[#61fa79]/40 bg-[#0095ff]/40 bg-[#a335ee]/40 bg-[#ff8000]/40 bg-[#e5cc80]/40");
 
-  .animate-roll-settle {
-    animation: roll-settle 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
+@keyframes roll-settle {
+  0% { transform: scale(0.3) rotate(0deg); opacity: 0; filter: blur(5px); }
+  50% { transform: scale(1.15) rotate(360deg); opacity: 1; filter: blur(0); }
+  70% { transform: scale(0.9) rotate(540deg); }
+  100% { transform: scale(1) rotate(720deg); }
+}
+
+.animate-roll-settle {
+  animation: roll-settle 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* Read-only styles for characters owned by other players */

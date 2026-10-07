@@ -5,7 +5,7 @@ import {
   type FormDataUpdater
 } from './itemDetailShared';
 
-const BONUS_INPUT_CLASS = "mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]";
+const BONUS_INPUT_CLASS = "mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-2 text-sm focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]";
 
 interface BonusNumberFieldProps {
   id: string;
@@ -50,7 +50,7 @@ const AbilityBonusGrid: React.FC<AbilityBonusGridProps> = ({ label, values, onAb
                           const val = parseInt(e.target.value, 10) || 0;
                           onAbilityChange(ability, val);
                       }}
-                      className="w-full text-right bg-transparent text-sm font-bold focus:outline-none p-0 border-none text-[var(--color-text-base)]"
+                      className="w-full text-right bg-transparent text-sm font-bold focus:outline-hidden p-0 border-none text-[var(--color-text-base)]"
                       placeholder="0"
                   />
               </div>
@@ -241,7 +241,7 @@ export const ItemBonusesEditor: React.FC<ItemBonusesEditorProps> = ({
                                 });
                                 e.target.value = "";
                             }}
-                            className="text-xs bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded py-0.5 px-2 focus:outline-none text-[var(--color-text-base)]"
+                            className="text-xs bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded py-0.5 px-2 focus:outline-hidden text-[var(--color-text-base)]"
                         >
                             <option value="">+ Добавить навык...</option>
                             {Object.keys(SKILLS)

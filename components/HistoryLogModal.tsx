@@ -15,7 +15,7 @@ export const HistoryLogModal: React.FC<HistoryLogModalProps> = ({ isOpen, onClos
 
   return (
     <div
-      className="fixed inset-0 bg-[var(--color-surface-translucent)] backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in"
+      className="fixed inset-0 bg-[var(--color-surface-translucent)] backdrop-blur-xs flex items-center justify-center z-50 animate-fade-in"
       onClick={onClose}
       aria-modal="true"
       role="dialog"

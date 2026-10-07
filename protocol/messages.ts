@@ -92,6 +92,7 @@ export const ROLLS_CHANNEL = 'com.antigravity.dnd-sheet/rolls';
  * сюда, а не на строковые литералы (критерий плана 1.1 — источник бага #1).
  */
 export const SyncMessageType = {
+  CHARACTER_SYNC: 'CHARACTER_SYNC',
   CHARACTER_CHUNK_SYNC: 'CHARACTER_CHUNK_SYNC',
   CHARACTER_IMAGE_CHUNK_SYNC: 'CHARACTER_IMAGE_CHUNK_SYNC',
   DELETE_CHARACTER_SYNC: 'DELETE_CHARACTER_SYNC',
@@ -116,6 +117,16 @@ const chunkEnvelope = {
 };
 
 // --- Сообщения sync-канала ---
+
+/** Прямая (нечанкованная) передача листа персонажа в P2P sync-канале. */
+export const CharacterSyncSchema = z.object({
+  type: z.literal('CHARACTER_SYNC'),
+  id: z.string().optional(),
+  charId: z.string().optional(),
+  ...envelope,
+  entry: z.unknown().optional(),
+  character: z.unknown().optional(),
+});
 
 /** Часть полезной нагрузки листа персонажа (лист разбивается на чанки ≤20KB). */
 export const CharacterChunkSyncSchema = z.object({
@@ -157,6 +168,7 @@ export const RequestFullCharactersSchema = z.object({
 });
 
 export const SyncMessageSchema = z.discriminatedUnion('type', [
+  CharacterSyncSchema,
   CharacterChunkSyncSchema,
   CharacterImageChunkSyncSchema,
   DeleteCharacterSyncSchema,
@@ -164,6 +176,7 @@ export const SyncMessageSchema = z.discriminatedUnion('type', [
 ]);
 
 export type SyncMessage = z.infer<typeof SyncMessageSchema>;
+export type CharacterSyncMessage = z.infer<typeof CharacterSyncSchema>;
 export type CharacterChunkSyncMessage = z.infer<typeof CharacterChunkSyncSchema>;
 export type CharacterImageChunkSyncMessage = z.infer<typeof CharacterImageChunkSyncSchema>;
 export type DeleteCharacterSyncMessage = z.infer<typeof DeleteCharacterSyncSchema>;

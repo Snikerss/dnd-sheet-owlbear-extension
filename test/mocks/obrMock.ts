@@ -1,12 +1,12 @@
 export interface ObrBroadcastMessageEvent {
-  data: any;
+  data: unknown;
 }
 
 export type ObrMessageListener = (event: ObrBroadcastMessageEvent) => void;
 
 export interface ObrMockClient {
   broadcast: {
-    sendMessage(channel: string, payload: any): Promise<void>;
+    sendMessage(channel: string, payload: unknown): Promise<void>;
     onMessage(channel: string, listener: ObrMessageListener): () => void;
   };
   player: {
@@ -42,7 +42,7 @@ export function createObrRoomMock(opts?: CreateObrRoomMockOptions): ObrMockClien
     return created;
   };
 
-  const deliverToOthers = (fromIndex: number, channel: string, payload: any): void => {
+  const deliverToOthers = (fromIndex: number, channel: string, payload: unknown): void => {
     for (let targetIndex = 0; targetIndex < CLIENT_COUNT; targetIndex++) {
       if (targetIndex === fromIndex) continue;
       setTimeout(() => {
@@ -59,7 +59,7 @@ export function createObrRoomMock(opts?: CreateObrRoomMockOptions): ObrMockClien
 
   const makeSendMessage =
     (clientIndex: number) =>
-    async (channel: string, payload: any): Promise<void> => {
+    async (channel: string, payload: unknown): Promise<void> => {
       const remaining = failTimes.get(clientIndex) ?? 0;
       if (remaining > 0) {
         failTimes.set(clientIndex, remaining - 1);

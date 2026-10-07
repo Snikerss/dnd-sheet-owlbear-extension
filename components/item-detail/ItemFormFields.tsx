@@ -51,7 +51,7 @@ export const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
                 id="name"
                 value={name}
                 onChange={onInputChange}
-                className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]"
                 required
             />
         </div>
@@ -63,7 +63,7 @@ export const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
                 id="quantity"
                 value={quantity}
                 onChange={onInputChange}
-                className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]"
                 min="1"
                 disabled={isChest}
             />
@@ -78,27 +78,27 @@ export const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
                 id="weight"
                 value={weight}
                 onChange={onInputChange}
-                className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]"
                 min="0"
                 step="0.1"
             />
         </div>
         <div>
             <label className="block text-sm font-medium text-[var(--color-text-medium)]">Стоимость</label>
-            <div className="mt-1 flex rounded-lg shadow-sm">
+            <div className="mt-1 flex rounded-lg shadow-xs">
                 <input
                     type="number"
                     name="amount"
                     value={cost.amount}
                     onChange={handleCostChange}
-                    className="block w-full flex-1 rounded-none rounded-l-lg bg-[var(--color-background)] border border-[var(--color-border-subtle)] py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] z-10"
+                    className="block w-full flex-1 rounded-none rounded-l-lg bg-[var(--color-background)] border border-[var(--color-border-subtle)] py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] z-10"
                     min="0"
                 />
                 <select
                     name="currency"
                     value={cost.currency}
                     onChange={handleCostChange}
-                    className="block w-auto rounded-none rounded-r-lg bg-[var(--color-background)] border border-l-0 border-[var(--color-border-subtle)] py-2 pl-3 pr-8 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                    className="block w-auto rounded-none rounded-r-lg bg-[var(--color-background)] border border-l-0 border-[var(--color-border-subtle)] py-2 pl-3 pr-8 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]"
                 >
                     {Object.entries(CURRENCY_NAMES).map(([key, _currencyName]) => (
                         <option key={key} value={key}>{key}</option>
@@ -114,7 +114,7 @@ export const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
             id="rarity"
             value={rarity}
             onChange={(e) => onChange(prev => ({...prev, rarity: parseInt(e.target.value) as Rarity}))}
-            className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+            className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]"
         >
             {Object.entries(RARITY_NAMES).map(([key, rarityName]) => (
                 <option key={key} value={key}>{rarityName}</option>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Ability, HitDie, BonusField } from '../types';
-import { useCharacterDispatch } from '../context/CharacterContext';
-import { calculateModifier, calculateProficiencyBonus, recalculateMaxHp } from '../utils/characterCalculations';
+import { useCharacterDispatch, useCharacterId } from '../context/CharacterContext';
+import { calculateProficiencyBonus } from '../utils/characterCalculations';
 import { ABILITY_NAMES } from '../constants';
 import { EditableBonus } from './EditableBonus';
 
@@ -53,7 +53,7 @@ const StatDisplay: React.FC<StatDisplayProps> = React.memo(({ label, value, base
             onChange={(e) => setEditedBonus(parseInt(e.target.value, 10))}
             onBlur={onSubmit}
             onKeyDown={onKeyDown}
-            className="w-16 h-8 bg-[var(--color-background)] border border-slate-700/50 hover:border-teal-500/30 focus:border-[var(--color-accent-primary-hover)] rounded-xl text-center text-xs font-extrabold focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-primary-hover)] text-[var(--color-text-base)] shadow-inner transition-all duration-150"
+            className="w-16 h-8 bg-[var(--color-background)] border border-slate-700/50 hover:border-teal-500/30 focus:border-[var(--color-accent-primary-hover)] rounded-xl text-center text-xs font-extrabold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-accent-primary-hover)] text-[var(--color-text-base)] shadow-inner transition-all duration-150"
             autoFocus
             onFocus={(e) => e.target.select()}
           />
@@ -91,22 +91,24 @@ export const CombatStats: React.FC<{
   itemMaxHpBonus?: number;
   baseAC: number;
   acAbilitySources: Record<Ability, boolean>;
-  onStatChange?: (field: string, value: any) => void;
   onBonusChange: (field: BonusField, value: number) => void;
   onBaseACChange: (value: number) => void;
   onToggleAbilitySource: (ability: Ability) => void;
   flat?: boolean;
 }> = React.memo(({
-  scores, abilityBonuses, level, currentHitPoints = 0, maxHitPoints = 0, temporaryHitPoints = 0,
-  hitDie = HitDie.d8, acBonus, itemAcBonus = 0, initiativeBonus, itemInitiativeBonus = 0, proficiencyBonusBonus, itemProficiencyBonus = 0, maxHpBonus = 0, itemMaxHpBonus = 0,
-  baseAC, acAbilitySources, onStatChange, onBonusChange, onBaseACChange, onToggleAbilitySource, flat = false
+  scores, abilityBonuses, level,
+  currentHitPoints = 0, maxHitPoints = 0, temporaryHitPoints: _temporaryHitPoints = 0, hitDie = HitDie.d8,
+  acBonus, itemAcBonus = 0, initiativeBonus, itemInitiativeBonus = 0, proficiencyBonusBonus, itemProficiencyBonus = 0,
+  baseAC, acAbilitySources, onBonusChange, onBaseACChange, onToggleAbilitySource, flat = false
 }) => {
   const dispatch = useCharacterDispatch();
+  const characterId = useCharacterId();
+  const storageSuffix = characterId ? `_${characterId}` : '';
 
-  // --- LOCAL TACTICAL AC STATE ---
+  // --- LOCAL TACTICAL AC STATE (scoped by characterId to prevent cross-character leakage) ---
   const [isShieldActive, setIsShieldActive] = useState(() => {
     try {
-        return localStorage.getItem('dnd_ac_shield_active') === 'true';
+        return localStorage.getItem(`dnd_ac_shield_active${storageSuffix}`) === 'true';
     } catch {
         return false;
     }
@@ -114,32 +116,41 @@ export const CombatStats: React.FC<{
 
   const [coverType, setCoverType] = useState<'none' | 'half' | 'three-quarters'>(() => {
     try {
-        return (localStorage.getItem('dnd_ac_cover_type') as any) || 'none';
+        const val = localStorage.getItem(`dnd_ac_cover_type${storageSuffix}`);
+        if (val === 'half' || val === 'three-quarters') return val;
+        return 'none';
     } catch {
         return 'none';
     }
   });
 
+  // Re-sync tactical AC state when active character changes
   useEffect(() => {
     try {
-        localStorage.setItem('dnd_ac_shield_active', isShieldActive.toString());
+      setIsShieldActive(localStorage.getItem(`dnd_ac_shield_active${storageSuffix}`) === 'true');
+      const val = localStorage.getItem(`dnd_ac_cover_type${storageSuffix}`);
+      setCoverType(val === 'half' || val === 'three-quarters' ? val : 'none');
     } catch {}
-  }, [isShieldActive]);
+  }, [storageSuffix]);
 
   useEffect(() => {
     try {
-        localStorage.setItem('dnd_ac_cover_type', coverType);
+        localStorage.setItem(`dnd_ac_shield_active${storageSuffix}`, isShieldActive.toString());
     } catch {}
-  }, [coverType]);
+  }, [isShieldActive, storageSuffix]);
+
+  useEffect(() => {
+    try {
+        localStorage.setItem(`dnd_ac_cover_type${storageSuffix}`, coverType);
+    } catch {}
+  }, [coverType, storageSuffix]);
 
   // --- LOCAL EDITING STATE ---
   const [isEditingInitiative, setIsEditingInitiative] = useState(false);
   const [isEditingProficiency, setIsEditingProficiency] = useState(false);
-  const [isEditingMaxHPBonus, setIsEditingMaxHPBonus] = useState(false);
 
   const [editedInitiativeBonus, setEditedInitiativeBonus] = useState(initiativeBonus);
   const [editedProficiencyBonus, setEditedProficiencyBonus] = useState(proficiencyBonusBonus);
-  const [editedMaxHPBonus, setEditedMaxHPBonus] = useState(maxHpBonus);
 
   // Sync edits with props
   useEffect(() => {
@@ -150,17 +161,13 @@ export const CombatStats: React.FC<{
     if (!isEditingProficiency) setEditedProficiencyBonus(proficiencyBonusBonus);
   }, [proficiencyBonusBonus, isEditingProficiency]);
 
-  useEffect(() => {
-    if (!isEditingMaxHPBonus) setEditedMaxHPBonus(maxHpBonus);
-  }, [maxHpBonus, isEditingMaxHPBonus]);
-
   // --- DERIVED CALCULATIONS ---
   const dexModifier = useMemo(() => {
     return Math.floor((scores.DEX - 10) / 2) + (abilityBonuses.DEX || 0);
   }, [scores.DEX, abilityBonuses.DEX]);
 
   const abilityModifiers = useMemo(() => {
-    const mods: Record<Ability, number> = {} as any;
+    const mods = {} as Record<Ability, number>;
     (Object.keys(Ability) as Ability[]).forEach(ability => {
         mods[ability] = Math.floor((scores[ability] - 10) / 2) + (abilityBonuses[ability] || 0);
     });
@@ -187,18 +194,6 @@ export const CombatStats: React.FC<{
     return ac;
   }, [baseAC, acBonus, itemAcBonus, acAbilitySources, abilityModifiers, isShieldActive, coverType]);
 
-  const baseMaxHitPoints = useMemo(() => {
-    const conMod = Math.floor((scores.CON - 10) / 2) + (abilityBonuses.CON || 0);
-    return recalculateMaxHp(level, hitDie, conMod);
-  }, [scores.CON, abilityBonuses.CON, level, hitDie]);
-
-  const [hpAmount, setHpAmount] = useState<number>(0);
-
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseInt(e.target.value, 10);
-    setHpAmount(isNaN(val) ? 0 : Math.max(0, val));
-  };
-
   const handleInitiativeBonusSubmit = () => {
     const newBonus = isNaN(editedInitiativeBonus) ? 0 : editedInitiativeBonus;
     if (newBonus !== initiativeBonus) onBonusChange('initiativeBonus', newBonus);
@@ -209,12 +204,6 @@ export const CombatStats: React.FC<{
     const newBonus = isNaN(editedProficiencyBonus) ? 0 : editedProficiencyBonus;
     if (newBonus !== proficiencyBonusBonus) onBonusChange('proficiencyBonusBonus', newBonus);
     setIsEditingProficiency(false);
-  };
-
-  const handleMaxHPBonusSubmit = () => {
-    const newBonus = isNaN(editedMaxHPBonus) ? 0 : editedMaxHPBonus;
-    if (newBonus !== maxHpBonus) onBonusChange('maxHpBonus', newBonus);
-    setIsEditingMaxHPBonus(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, submitFn: () => void) => {
@@ -252,7 +241,7 @@ export const CombatStats: React.FC<{
                     type="number" 
                     value={baseAC}
                     onChange={handleBaseACChange}
-                    className="w-14 bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-0.5 px-1.5 text-center text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                    className="w-14 bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-0.5 px-1.5 text-center text-xs font-semibold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]"
                 />
             </div>
             <div className="flex justify-between items-center">
@@ -290,6 +279,7 @@ export const CombatStats: React.FC<{
         <div className="absolute left-2 top-2 flex items-center gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
             {/* Shield Toggle */}
             <button
+                data-testid="ac-shield-toggle"
                 onClick={(e) => {
                     e.stopPropagation();
                     setIsShieldActive(!isShieldActive);
@@ -307,6 +297,7 @@ export const CombatStats: React.FC<{
             </button>
             {/* Cover Toggle */}
             <button
+                data-testid="ac-cover-toggle"
                 onClick={(e) => {
                     e.stopPropagation();
                     setCoverType(prev => prev === 'none' ? 'half' : prev === 'half' ? 'three-quarters' : 'none');
@@ -435,7 +426,7 @@ export const CombatStats: React.FC<{
                   <select
                       value={hitDie}
                       onChange={(e) => dispatch({ type: 'SET_HIT_DIE', payload: parseInt(e.target.value, 10) as HitDie })}
-                      className="bg-[var(--color-surface-well)] hover:bg-[var(--color-surface-raised)] border border-[var(--color-border-subtle)] rounded py-1 pl-2.5 pr-6 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] transition-all cursor-pointer text-[var(--color-text-medium)] hover:text-[var(--color-text-base)] appearance-none"
+                      className="bg-[var(--color-surface-well)] hover:bg-[var(--color-surface-raised)] border border-[var(--color-border-subtle)] rounded py-1 pl-2.5 pr-6 text-xs font-bold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] transition-all cursor-pointer text-[var(--color-text-medium)] hover:text-[var(--color-text-base)] appearance-none"
                       style={{ backgroundImage: 'none', paddingRight: '24px' }}
                       data-tooltip="Кость Хитов вашего класса"
                   >
@@ -447,7 +438,7 @@ export const CombatStats: React.FC<{
                   <span className="absolute right-2 pointer-events-none text-[var(--color-text-muted)] text-[8px] leading-none">▼</span>
               </div>
               <div className="relative group flex items-center justify-center">
-                  <div className="text-2xl font-bold cursor-pointer hover:text-[var(--color-accent-primary)] transition-colors" onClick={() => !isEditingMaxHPBonus && setIsEditingMaxHPBonus(true)} data-tooltip="Изменить бонус ОЗ">
+                  <div className="text-2xl font-bold transition-colors">
                       {maxHitPoints}
                   </div>
               </div>

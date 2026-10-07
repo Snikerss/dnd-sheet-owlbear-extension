@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Spell, Ability, MagicSchool, RollType } from '../types';
-import { MAGIC_SCHOOL_NAMES, MAGIC_SCHOOL_COLORS, ABILITY_NAMES } from '../constants';
+import { MAGIC_SCHOOL_NAMES, MAGIC_SCHOOL_COLORS, MAGIC_SCHOOL_HOVER_BG_COLORS, ABILITY_NAMES } from '../constants';
 import { EditableBonus } from './EditableBonus';
 import { useCharacter } from '../context/CharacterContext';
 import { useNotifier } from '../context/NotificationContext';
@@ -413,7 +413,7 @@ export const SpellsSection: React.FC<SpellsSectionProps> = React.memo(({ onAddSp
                     {!isGloballyCollapsed && (
                         <button
                             onClick={onAddSpell}
-                            className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 border border-teal-500/30 text-white font-bold py-1.5 px-3.5 rounded-lg text-xs transition-all duration-150 shadow active:scale-[0.97] flex items-center gap-1"
+                            className="bg-linear-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 border border-teal-500/30 text-white font-bold py-1.5 px-3.5 rounded-lg text-xs transition-all duration-150 shadow active:scale-[0.97] flex items-center gap-1"
                         >
                             <span>+ Добавить</span>
                         </button>
@@ -427,7 +427,7 @@ export const SpellsSection: React.FC<SpellsSectionProps> = React.memo(({ onAddSp
                                 <select 
                                     value={spellcastingAbility} 
                                     onChange={e => dispatch({type: 'SET_SPELLCASTING_ABILITY', payload: e.target.value as Ability})} 
-                                    className="bg-[var(--color-surface-inset)] hover:bg-[var(--color-surface-raised)] border border-slate-700/50 rounded-xl py-1 pl-2.5 pr-8 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] transition-all cursor-pointer text-[var(--color-text-medium)] hover:text-[var(--color-text-base)] appearance-none h-8"
+                                    className="bg-[var(--color-surface-inset)] hover:bg-[var(--color-surface-raised)] border border-slate-700/50 rounded-xl py-1 pl-2.5 pr-8 text-xs font-bold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] transition-all cursor-pointer text-[var(--color-text-medium)] hover:text-[var(--color-text-base)] appearance-none h-8"
                                     style={{ backgroundImage: 'none', paddingRight: '28px' }}
                                     data-tooltip="Характеристика, используемая для сотворения заклинаний вашего класса"
                                 >
@@ -482,7 +482,7 @@ export const SpellsSection: React.FC<SpellsSectionProps> = React.memo(({ onAddSp
                                 value={maxPreparedSpells}
                                 onChange={(e) => dispatch({ type: 'SET_MAX_PREPARED_SPELLS', payload: parseInt(e.target.value) || 0 })}
                                 min={0}
-                                className="w-14 bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-1 text-center text-lg font-bold focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                                className="w-14 bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-1 text-center text-lg font-bold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]"
                                 data-tooltip="Максимальное количество подготавливаемых заклинаний (0 для классов без подготовки)"
                             />
                         </div>
@@ -491,10 +491,10 @@ export const SpellsSection: React.FC<SpellsSectionProps> = React.memo(({ onAddSp
                     <div className="space-y-4">
                         <div className="p-3 bg-[var(--color-surface-inset)] rounded-lg space-y-3">
                             <div className="flex flex-col md:flex-row gap-3">
-                                <input type="text" placeholder="Поиск по названию..." value={nameFilter} onChange={e => setNameFilter(e.target.value)} className="w-full md:w-1/3 bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg py-2 px-3 text-[var(--color-text-medium)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] placeholder:text-[var(--color-text-subtle)]" />
+                                <input type="text" placeholder="Поиск по названию..." value={nameFilter} onChange={e => setNameFilter(e.target.value)} className="w-full md:w-1/3 bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg py-2 px-3 text-[var(--color-text-medium)] focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] placeholder:text-[var(--color-text-subtle)]" />
                                 <div className="flex items-center gap-2">
                                     <label className="text-sm text-[var(--color-text-muted)]">Сортировать по:</label>
-                                    <select value={sortBy} onChange={e => setSortBy(e.target.value as any)} className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]">
+                                    <select value={sortBy} onChange={e => setSortBy(e.target.value as 'manual' | 'name' | 'school')} className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg py-2 px-3 text-sm focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]">
                                         <option value="manual">Вручную</option>
                                         <option value="name">Названию</option>
                                         <option value="school">Школе</option>
@@ -512,9 +512,8 @@ export const SpellsSection: React.FC<SpellsSectionProps> = React.memo(({ onAddSp
                                 {Object.entries(MAGIC_SCHOOL_NAMES).map(([key, name]) => {
                                     const school = parseInt(key) as MagicSchool;
                                     const isActive = schoolFilter.includes(school);
-                                    const colorClass = MAGIC_SCHOOL_COLORS[school].replace('border-', 'bg-');
                                     const activeClass = isActive ? `${MAGIC_SCHOOL_COLORS[school]} text-white/90` : `border-transparent text-[var(--color-text-muted)]`;
-                                    return <button key={school} onClick={() => toggleSchoolFilter(school)} className={`px-3 py-1 text-xs font-semibold rounded-full border-2 transition-colors ${activeClass} hover:${colorClass}/40`}>{name}</button>
+                                    return <button key={school} onClick={() => toggleSchoolFilter(school)} className={`px-3 py-1 text-xs font-semibold rounded-full border-2 transition-colors ${activeClass} ${MAGIC_SCHOOL_HOVER_BG_COLORS[school]}`}>{name}</button>
                                 })}
                                 {isFilterActive && <button onClick={resetFilters} className="px-3 py-1 text-xs font-semibold rounded-full text-[var(--color-text-muted)] hover:bg-[var(--color-health)]/20 hover:text-[var(--color-health)] transition-colors">Сбросить</button>}
                             </div>

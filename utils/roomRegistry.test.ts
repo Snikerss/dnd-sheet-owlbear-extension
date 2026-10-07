@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getKnownRooms, saveKnownRooms, registerCurrentRoom, updateRoomAlias } from './roomRegistry';
+import { getKnownRooms, registerCurrentRoom, updateRoomAlias } from './roomRegistry';
 
 const mockStorage: Record<string, string> = {};
 
 if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
-  (global as any).window = global;
-  (global as any).localStorage = {
+  (globalThis as unknown as { window: unknown; localStorage: unknown }).window = globalThis;
+  (globalThis as unknown as { window: unknown; localStorage: unknown }).localStorage = {
     getItem: (key: string) => mockStorage[key] || null,
     setItem: (key: string, val: string) => { mockStorage[key] = val; },
     removeItem: (key: string) => { delete mockStorage[key]; },

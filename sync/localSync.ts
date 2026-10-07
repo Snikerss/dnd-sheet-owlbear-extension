@@ -31,7 +31,6 @@ export const useLocalBridgeSync = (deps: LocalBridgeSyncDeps): void => {
   useEffect(() => {
     const unsubscribe = localBridge.subscribe((event) => {
       const payload = event.data;
-      const sourceWindow = event.source as Window | undefined;
       if (!payload || typeof payload !== 'object') return;
 
       const senderId = payload.senderClientId || payload.senderId;
@@ -110,7 +109,10 @@ export const useLocalBridgeSync = (deps: LocalBridgeSyncDeps): void => {
             logger.debug('[DND Sheet] Action received for unknown character. Requesting full sync:', payload.charId);
             localBridge.postMessage({ type: BridgeMessageType.REQUEST_CHARACTER_DATA, charId: payload.charId });
           } else if (currentEntry.history?.present) {
-            const updatedPresent = characterReducer(currentEntry.history.present, payload.action);
+            const updatedPresent: Character = {
+              ...characterReducer(currentEntry.history.present, payload.action),
+              lastModified: Date.now(),
+            };
             const updatedEntry = {
               ...currentEntry,
               history: {
@@ -129,10 +131,12 @@ export const useLocalBridgeSync = (deps: LocalBridgeSyncDeps): void => {
         if (!rawChar) return;
 
         const localEntry = charactersStateRef.current[payload.charId];
+        const remoteEntry = payload.entry as { lastModified?: number };
+        const remoteTime = Number(rawChar.lastModified ?? remoteEntry.lastModified) || 0;
+
         let shouldUpdate = true;
         if (localEntry && localEntry.history?.present) {
-          const localTime = (localEntry.history.present as any)?.updatedAt || (localEntry.history.present as any)?.lastModified || 0;
-          const remoteTime = (rawChar as any)?.updatedAt || (rawChar as any)?.lastModified || 0;
+          const localTime = Number(localEntry.history.present.lastModified) || 0;
           if (localTime > remoteTime) {
             logger.debug(`[DND Sheet] Keeping local character ${payload.charId} (local version is newer or equal).`);
             shouldUpdate = false;
@@ -140,15 +144,21 @@ export const useLocalBridgeSync = (deps: LocalBridgeSyncDeps): void => {
         }
 
         if (shouldUpdate) {
+          // Если удалённая запись несла lastModified на уровне entry, проставляем его и в объект персонажа
+          const charWithLastModified: Character = remoteTime > 0 && rawChar.lastModified !== remoteTime
+            ? { ...rawChar, lastModified: remoteTime }
+            : rawChar;
+
           const imageMap = Array.isArray(payload.entry.imageCache) 
             ? new Map(payload.entry.imageCache) 
             : (payload.entry.imageCache instanceof Map ? payload.entry.imageCache : new Map());
 
           const entryWithHistory = {
+            character: charWithLastModified,
             log: payload.entry.log || [],
             history: payload.entry.history && payload.entry.history.present
-              ? { ...payload.entry.history, present: rawChar }
-              : { past: [], present: rawChar, future: [] },
+              ? { ...payload.entry.history, present: charWithLastModified }
+              : { past: [], present: charWithLastModified, future: [] },
             imageCache: imageMap
           };
 
@@ -159,7 +169,9 @@ export const useLocalBridgeSync = (deps: LocalBridgeSyncDeps): void => {
               type: 'SYNC_REMOTE_CHARACTER',
               payload: { id: payload.charId, entry: entryWithHistory }
             });
-            saveCharacterApi(payload.charId, entryWithHistory).catch(console.error);
+            saveCharacterApi(payload.charId, entryWithHistory).catch((err) => {
+              logger.error('[LocalSync] Failed to save character:', err);
+            });
           }
         }
 
@@ -168,9 +180,9 @@ export const useLocalBridgeSync = (deps: LocalBridgeSyncDeps): void => {
         if (payload.charId === urlCharId) {
           if (isLoadingRef.current) {
             logger.debug('[DND Sheet] Received requested character data. Stopping loading.');
-            if ((window as any).__handshakeTimeoutId) {
-              clearTimeout((window as any).__handshakeTimeoutId);
-              delete (window as any).__handshakeTimeoutId;
+            if (window.__handshakeTimeoutId) {
+              clearTimeout(window.__handshakeTimeoutId);
+              delete window.__handshakeTimeoutId;
             }
             setIsLoading(false);
           }

@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import type { ReactElement } from 'react';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { CharacterSheet } from '../CharacterSheet';
 import { NotificationProvider } from '../../context/NotificationContext';

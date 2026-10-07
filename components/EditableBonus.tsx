@@ -43,7 +43,7 @@ export const EditableBonus: React.FC<EditableBonusProps> = React.memo(({ value, 
         onChange={(e) => setCurrentValue(parseInt(e.target.value, 10))}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
-        className="w-16 h-8 bg-[var(--color-background)] border border-[var(--color-focus-ring)] rounded-xl py-0 px-1 text-center text-xs font-bold focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
+        className="w-16 h-8 bg-[var(--color-background)] border border-[var(--color-focus-ring)] rounded-xl py-0 px-1 text-center text-xs font-bold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
         autoFocus
         onFocus={(e) => e.target.select()}
         aria-label="Редактировать бонус"

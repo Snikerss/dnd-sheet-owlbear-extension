@@ -49,41 +49,50 @@ export const getEquippedItemBonuses = (character: Character) => {
     attunementMax: 0,
   };
 
+  const parseBonusNumber = (val: unknown): number => {
+    if (typeof val === 'number') return isNaN(val) ? 0 : val;
+    if (typeof val === 'string') {
+      const parsed = parseInt(val, 10);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0;
+  };
+
   const processItem = (item: InventoryItem | null, isImplicitlyEquipped = false) => {
     if (item && (item.isEquipped || isImplicitlyEquipped) && item.bonuses) {
-      if (item.bonuses.ac) bonuses.ac += parseInt(item.bonuses.ac as any, 10) || 0;
-      if (item.bonuses.initiative) bonuses.initiative += parseInt(item.bonuses.initiative as any, 10) || 0;
+      if (item.bonuses.ac) bonuses.ac += parseBonusNumber(item.bonuses.ac);
+      if (item.bonuses.initiative) bonuses.initiative += parseBonusNumber(item.bonuses.initiative);
       if (item.bonuses.attackHit) {
-        const val = parseInt(item.bonuses.attackHit as any, 10);
-        if (!isNaN(val)) bonuses.attackHit += val;
+        const val = parseBonusNumber(item.bonuses.attackHit);
+        bonuses.attackHit += val;
       }
-      if (item.bonuses.speed) bonuses.speed += parseInt(item.bonuses.speed as any, 10) || 0;
-      if (item.bonuses.longJump) bonuses.longJump += parseInt(item.bonuses.longJump as any, 10) || 0;
-      if (item.bonuses.highJump) bonuses.highJump += parseInt(item.bonuses.highJump as any, 10) || 0;
-      if (item.bonuses.passivePerception) bonuses.passivePerception += parseInt(item.bonuses.passivePerception as any, 10) || 0;
-      if (item.bonuses.passiveInvestigation) bonuses.passiveInvestigation += parseInt(item.bonuses.passiveInvestigation as any, 10) || 0;
-      if (item.bonuses.passiveInsight) bonuses.passiveInsight += parseInt(item.bonuses.passiveInsight as any, 10) || 0;
-      if (item.bonuses.spellSaveDC) bonuses.spellSaveDC += parseInt(item.bonuses.spellSaveDC as any, 10) || 0;
-      if (item.bonuses.carryCapacity) bonuses.carryCapacity += parseInt(item.bonuses.carryCapacity as any, 10) || 0;
-      if (item.bonuses.maxHp) bonuses.maxHp += parseInt(item.bonuses.maxHp as any, 10) || 0;
-      if (item.bonuses.proficiencyBonus) bonuses.proficiencyBonus += parseInt(item.bonuses.proficiencyBonus as any, 10) || 0;
-      if (item.bonuses.attunementMax) bonuses.attunementMax += parseInt(item.bonuses.attunementMax as any, 10) || 0;
+      if (item.bonuses.speed) bonuses.speed += parseBonusNumber(item.bonuses.speed);
+      if (item.bonuses.longJump) bonuses.longJump += parseBonusNumber(item.bonuses.longJump);
+      if (item.bonuses.highJump) bonuses.highJump += parseBonusNumber(item.bonuses.highJump);
+      if (item.bonuses.passivePerception) bonuses.passivePerception += parseBonusNumber(item.bonuses.passivePerception);
+      if (item.bonuses.passiveInvestigation) bonuses.passiveInvestigation += parseBonusNumber(item.bonuses.passiveInvestigation);
+      if (item.bonuses.passiveInsight) bonuses.passiveInsight += parseBonusNumber(item.bonuses.passiveInsight);
+      if (item.bonuses.spellSaveDC) bonuses.spellSaveDC += parseBonusNumber(item.bonuses.spellSaveDC);
+      if (item.bonuses.carryCapacity) bonuses.carryCapacity += parseBonusNumber(item.bonuses.carryCapacity);
+      if (item.bonuses.maxHp) bonuses.maxHp += parseBonusNumber(item.bonuses.maxHp);
+      if (item.bonuses.proficiencyBonus) bonuses.proficiencyBonus += parseBonusNumber(item.bonuses.proficiencyBonus);
+      if (item.bonuses.attunementMax) bonuses.attunementMax += parseBonusNumber(item.bonuses.attunementMax);
       
       if (item.bonuses.abilityScores) {
         Object.entries(item.bonuses.abilityScores).forEach(([ability, value]) => {
           const ab = ability.toUpperCase() as Ability;
-          bonuses.abilityScores[ab] = (bonuses.abilityScores[ab] || 0) + (parseInt(value as any, 10) || 0);
+          bonuses.abilityScores[ab] = (bonuses.abilityScores[ab] || 0) + parseBonusNumber(value);
         });
       }
       if (item.bonuses.skills) {
         Object.entries(item.bonuses.skills).forEach(([skillName, value]) => {
-          bonuses.skills[skillName] = (bonuses.skills[skillName] || 0) + (parseInt(value as any, 10) || 0);
+          bonuses.skills[skillName] = (bonuses.skills[skillName] || 0) + parseBonusNumber(value);
         });
       }
       if (item.bonuses.savingThrows) {
         Object.entries(item.bonuses.savingThrows).forEach(([ability, value]) => {
           const ab = ability.toUpperCase() as Ability;
-          bonuses.savingThrows[ab] = (bonuses.savingThrows[ab] || 0) + (parseInt(value as any, 10) || 0);
+          bonuses.savingThrows[ab] = (bonuses.savingThrows[ab] || 0) + parseBonusNumber(value);
         });
       }
     }

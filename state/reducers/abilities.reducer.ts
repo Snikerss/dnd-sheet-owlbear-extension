@@ -1,5 +1,4 @@
 import { Character, CharacterAction, ProficiencyLevel, Ability } from '../../types';
-import { recalculateMaxHp } from '../../utils/characterCalculations';
 import { selectEquippedBonuses } from '../../utils/selectors';
 import { BONUS_FIELDS } from '../../constants';
 

@@ -4,6 +4,7 @@ import OBR from '@owlbear-rodeo/sdk';
 import { NotificationToast, NotificationType } from '../components/NotificationToast';
 import { generateUUID } from '../utils/uuid';
 import { isOwlbear, SESSION_CLIENT_ID } from '../utils/storage';
+import { SAME_ORIGIN } from '../utils/environment';
 import { localBridge } from '../utils/bridgeService';
 import { ROLLS_CHANNEL, BridgeMessageType } from '../protocol/messages';
 import { RollResult, RollType } from '../types';
@@ -109,14 +110,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       } catch (e) {}
 
       if (typeof window !== 'undefined') {
-        if ((window as any).sendDndMessageToOpener) {
+        if (window.sendDndMessageToOpener) {
           try {
-            (window as any).sendDndMessageToOpener(payload);
-          } catch (e) {}
+            window.sendDndMessageToOpener(payload);
+          } catch (e) {
+            logger.debug('[DND Sheet] Failed to call sendDndMessageToOpener:', e);
+          }
         } else if (window.opener) {
           try {
-            window.opener.postMessage(payload, '*');
-          } catch (e) {}
+            window.opener.postMessage(payload, SAME_ORIGIN);
+          } catch (e) {
+            logger.debug('[DND Sheet] Failed to postMessage to opener:', e);
+          }
         }
       }
     }
@@ -220,10 +225,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             } catch (e) {}
 
             if (typeof window !== 'undefined') {
-              const opened = (window as any).__dndOpenedWindows || [];
-              opened.forEach((win: any) => {
+              const opened = window.__dndOpenedWindows || [];
+              opened.forEach((win: Window) => {
                 if (win && !win.closed) {
-                  win.postMessage(notifPayload, '*');
+                  try {
+                    win.postMessage(notifPayload, SAME_ORIGIN);
+                  } catch (e) {
+                    logger.debug('[DND Sheet] Failed to postMessage to child window:', e);
+                  }
                 }
               });
             }

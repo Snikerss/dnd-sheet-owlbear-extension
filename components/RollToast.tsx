@@ -36,7 +36,7 @@ export const RollToast: React.FC<RollToastProps> = ({ result }) => {
         className={`bg-[var(--color-surface-opaque)] rounded-lg shadow-2xl p-4 min-w-[320px] max-w-sm border-2 ${borderColor}`}
       >
         <div className="text-center">
-          <h2 className={`text-xl font-bold font-[var(--font-heading)] ${titleColor} mb-1 truncate`}>{result.name}</h2>
+          <h2 className={`text-xl font-bold font-(family-name:--font-heading) ${titleColor} mb-1 truncate`}>{result.name}</h2>
           {isCriticalSuccess && <p className="text-sm font-bold text-[var(--color-critical-success)]">Критический успех!</p>}
           {isCriticalFailure && <p className="text-sm font-bold text-[var(--color-critical-failure)]">Критический провал!</p>}
           {rollTypeName && <p className="text-sm font-semibold text-[var(--color-text-medium)] -mt-1">{rollTypeName}</p>}

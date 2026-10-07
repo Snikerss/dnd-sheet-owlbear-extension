@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { logger } from './utils/logger';
 import OBR from '@owlbear-rodeo/sdk';
 import { CharacterSelectionScreen } from './components/CharacterSelectionScreen';
@@ -24,6 +24,10 @@ const AppContent: React.FC = () => {
   const { addNotification } = useNotifier();
   const { characters, isLoading, syncStatus, syncingCharacters, addCharacter, deleteCharacter, updateCharacter, undo, redo, syncCharacter, clearLocalCache, exportVaultData, importVaultData } = useCharacterManager();
 
+  // Фаза 1.1: зеркало рекорда персонажей через ref для стабилизации callbacks без потери актуальности на момент рендера.
+  const charactersRef = useRef(characters);
+  charactersRef.current = characters;
+
   useGlobalTooltips();
 
   const [activeCharacterId, setActiveCharacterId] = useState<string | null>(null);
@@ -32,7 +36,7 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     const unsubscribe = p2pRoomBridge.subscribe((payload) => {
       if (payload && (payload.type === 'SET_ACTIVE_BOARD_CHAR' || payload.type === 'ROOM_ANNOUNCE')) {
-        setActiveBoardCharacterId(payload.activeCharacterId || null);
+        setActiveBoardCharacterId((payload.activeCharacterId as string) || null);
       }
     });
     return unsubscribe;
@@ -225,11 +229,10 @@ const AppContent: React.FC = () => {
   }, [addCharacter, playerName, userId, userRole]);
 
   const handleDeleteCharacter = useCallback((id: string) => {
-    const characterToDelete = characters[id]?.history.present;
+    const characterToDelete = charactersRef.current[id]?.history.present;
     if (!characterToDelete) return;
 
     const myId = userId || (isOwlbear() && typeof OBR !== 'undefined' ? OBR.player?.id : (typeof window !== 'undefined' ? localStorage.getItem('com.antigravity.dnd-sheet/player_id') : ''));
-    const isGM = userRole === 'GM';
     // План 3.4: формула владельца — из computePermissions (canManage).
     const isOwner = computePermissions(characterToDelete, { role: userRole, userId: myId, userName: playerName }).canManage;
 
@@ -239,10 +242,10 @@ const AppContent: React.FC = () => {
     }
 
     setCharacterPendingDeletion({ id, name: characterToDelete.name });
-  }, [characters, userId, userRole, playerName, addNotification]);
+  }, [userId, userRole, playerName, addNotification]);
 
   const handleDuplicateCharacter = useCallback((id: string) => {
-    const characterToCopy = characters[id]?.history.present;
+    const characterToCopy = charactersRef.current[id]?.history.present;
     if (!characterToCopy) return;
 
     const newId = generateUUID();
@@ -259,7 +262,7 @@ const AppContent: React.FC = () => {
 
     addCharacter(newId, newCharacter);
     setActiveCharacterId(newId);
-  }, [characters, addCharacter, playerName, userId, userRole]);
+  }, [addCharacter, playerName, userId, userRole]);
 
   const handleAddCharacter = useCallback((id: string, character: Character) => {
     const charWithNewOwner = { ...character };
@@ -317,7 +320,7 @@ const AppContent: React.FC = () => {
 
   const handleUpdateCharacter = useCallback((action: CharacterAction) => {
     if (activeCharacterId) {
-      const activeCharacterState = characters[activeCharacterId];
+      const activeCharacterState = charactersRef.current[activeCharacterId];
       const activeChar = activeCharacterState?.history.present;
       if (checkIsReadOnly(activeChar)) {
         logger.warn('[DND Sheet] Blocked update for read-only character:', activeCharacterId);
@@ -325,25 +328,25 @@ const AppContent: React.FC = () => {
       }
       updateCharacter(activeCharacterId, action);
     }
-  }, [activeCharacterId, updateCharacter, characters, checkIsReadOnly]);
+  }, [activeCharacterId, updateCharacter, checkIsReadOnly]);
 
   const handleUndo = useCallback(() => {
     if (activeCharacterId) {
-      const activeCharacterState = characters[activeCharacterId];
+      const activeCharacterState = charactersRef.current[activeCharacterId];
       const activeChar = activeCharacterState?.history.present;
       if (checkIsReadOnly(activeChar)) return;
       undo(activeCharacterId);
     }
-  }, [activeCharacterId, undo, characters, checkIsReadOnly]);
+  }, [activeCharacterId, undo, checkIsReadOnly]);
 
   const handleRedo = useCallback(() => {
     if (activeCharacterId) {
-      const activeCharacterState = characters[activeCharacterId];
+      const activeCharacterState = charactersRef.current[activeCharacterId];
       const activeChar = activeCharacterState?.history.present;
       if (checkIsReadOnly(activeChar)) return;
       redo(activeCharacterId);
     }
-  }, [activeCharacterId, redo, characters, checkIsReadOnly]);
+  }, [activeCharacterId, redo, checkIsReadOnly]);
 
   const handleSyncActiveCharacter = useCallback(() => {
     if (!activeCharacterId) return;
@@ -364,6 +367,53 @@ const AppContent: React.FC = () => {
     if (!activeCharacterId) return;
     handleOpenStandalone(activeCharacterId);
   }, [activeCharacterId, handleOpenStandalone]);
+
+  const handleOpenCharacterManager = useCallback(() => {
+    setActiveCharacterId(null);
+  }, []);
+
+  const handleOpenHistoryLog = useCallback(() => {
+    setIsHistoryLogOpen(true);
+  }, []);
+
+  const handleUpdateOwnerName = useCallback((charId: string) => {
+    setEditingOwnerNameCharId(charId);
+  }, []);
+
+  // Хоткеи отмены/повтора (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z)
+  useEffect(() => {
+    if (!activeCharacterId) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      if (e.altKey) return;
+
+      const target = e.target;
+      if (target instanceof Node) {
+        const el = target instanceof Element ? target : target.parentElement;
+        if (el?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) {
+          return;
+        }
+        if (target instanceof HTMLElement && target.isContentEditable) {
+          return;
+        }
+      }
+
+      const key = e.key.toLowerCase();
+      if (key === 'y' || (key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        handleRedo();
+      } else if (key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeCharacterId, handleUndo, handleRedo]);
 
   // Преобразуем полное состояние персонажей в упрощенный Record<string, Character> для экрана выбора.
   const characterList = useMemo(() => {
@@ -407,7 +457,7 @@ const AppContent: React.FC = () => {
     <>
       {/* Connection Lost Warning Banner */}
       {isConnectionLost && (
-        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[10000] w-[94%] max-w-xl bg-gradient-to-r from-amber-950/95 via-slate-900/98 to-amber-950/95 border border-amber-500/60 backdrop-blur-md text-amber-200 px-4 py-3 rounded-2xl shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[10000] w-[94%] max-w-xl bg-linear-to-r from-amber-950/95 via-slate-900/98 to-amber-950/95 border border-amber-500/60 backdrop-blur-md text-amber-200 px-4 py-3 rounded-2xl shadow-2xl flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <span className="text-xl animate-pulse">⚠️</span>
             <div className="flex flex-col">
@@ -461,15 +511,15 @@ const AppContent: React.FC = () => {
       />
 
       {activeCharacter && activeCharacterId ? (
-        <CharacterProvider character={activeCharacter} dispatch={handleUpdateCharacter}>
+        <CharacterProvider character={activeCharacter} characterId={activeCharacterId} dispatch={handleUpdateCharacter}>
             <CharacterSheet
               key={activeCharacterId}
-              onOpenCharacterManager={() => setActiveCharacterId(null)}
+              onOpenCharacterManager={handleOpenCharacterManager}
               onUndo={handleUndo}
               onRedo={handleRedo}
               canUndo={canUndo}
               canRedo={canRedo}
-              onOpenHistoryLog={() => setIsHistoryLogOpen(true)}
+              onOpenHistoryLog={handleOpenHistoryLog}
               isReadOnly={!!isReadOnly}
               syncStatus={syncStatus}
               onSyncCharacter={handleSyncActiveCharacter}
@@ -497,7 +547,7 @@ const AppContent: React.FC = () => {
           onClearLocalCache={clearLocalCache}
           onExportVault={exportVaultData}
           onImportVault={importVaultData}
-          onUpdateOwnerName={(charId) => setEditingOwnerNameCharId(charId)}
+          onUpdateOwnerName={handleUpdateOwnerName}
           isGM={isGM}
         />
       )}

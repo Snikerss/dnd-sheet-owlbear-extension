@@ -11,7 +11,7 @@ const makeItem = (id: string, overrides: Record<string, unknown> = {}) => ({
   description: '',
   imageUrl: '',
   isChest: false,
-  chestInventory: undefined,
+  chestInventory: undefined as Array<{ id: string; imageUrl?: string; description?: string }> | undefined,
   ...overrides,
 });
 
@@ -30,7 +30,7 @@ describe('restoreStrippedItemImages', () => {
     const cloudChest = makeItem('chest', { isChest: true, chestInventory: [makeItem('inner', { imageUrl: TOKEN })] });
     const backupChest = makeItem('chest', { isChest: true, chestInventory: [makeItem('inner', { imageUrl: IMG })] });
     restoreStrippedItemImages(cloudChest, backupChest);
-    expect((cloudChest.chestInventory as unknown as any[])[0]!.imageUrl).toBe(IMG);
+    expect(cloudChest.chestInventory![0]!.imageUrl).toBe(IMG);
   });
 
   it('дозаполняет пустое описание', () => {
@@ -63,9 +63,9 @@ describe('restoreStrippedCharacter', () => {
   });
 
   it('заметки/заклинания/фичи/атаки восстанавливаются по id', () => {
-    const cloud: any = {
+    const cloud = {
       notes: [{ id: 'n1', title: '', content: '' }],
-      spells: [{ id: 's1', description: '', components: {} }],
+      spells: [{ id: 's1', description: '', components: {} as { materialDescription?: string } }],
       features: [{ id: 'f1', description: '' }],
       attacks: [{ id: 'a1', notes: '' }],
     };

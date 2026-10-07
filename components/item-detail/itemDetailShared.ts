@@ -49,25 +49,25 @@ export const DEFAULT_ITEM: ItemFormData = {
   }
 };
 
-export const normalizeSavingThrows = (savingThrows: any): Partial<Record<Ability, number>> => {
+export const normalizeSavingThrows = (savingThrows: Record<string, unknown> | null | undefined): Partial<Record<Ability, number>> => {
   if (!savingThrows) return {};
   const normalized: Partial<Record<Ability, number>> = {};
   Object.entries(savingThrows).forEach(([key, val]) => {
     const uppercaseKey = key.toUpperCase() as Ability;
     if (Object.values(Ability).includes(uppercaseKey)) {
-      normalized[uppercaseKey] = parseInt(val as any, 10) || 0;
+      normalized[uppercaseKey] = parseInt(String(val), 10) || 0;
     }
   });
   return normalized;
 };
 
-export const normalizeAbilityScores = (abilityScores: any): Partial<Record<Ability, number>> => {
+export const normalizeAbilityScores = (abilityScores: Record<string, unknown> | null | undefined): Partial<Record<Ability, number>> => {
   if (!abilityScores) return {};
   const normalized: Partial<Record<Ability, number>> = {};
   Object.entries(abilityScores).forEach(([key, val]) => {
     const uppercaseKey = key.toUpperCase() as Ability;
     if (Object.values(Ability).includes(uppercaseKey)) {
-      normalized[uppercaseKey] = parseInt(val as any, 10) || 0;
+      normalized[uppercaseKey] = parseInt(String(val), 10) || 0;
     }
   });
   return normalized;

@@ -50,6 +50,25 @@ const DEFAULT_SPELL: Omit<Spell, 'id'> = {
   },
 };
 
+interface AiGeneratedSpell {
+  error?: string;
+  name?: string;
+  level?: number;
+  school?: string;
+  requiresConcentration?: boolean;
+  isRitual?: boolean;
+  castingTime?: string;
+  range?: string;
+  duration?: string;
+  components?: {
+    verbal?: boolean;
+    somatic?: boolean;
+    material?: boolean;
+    materialDescription?: string;
+  };
+  description?: string;
+}
+
 export const SpellDetailModal: React.FC<SpellDetailModalProps> = ({ isOpen, onClose, onSave, onDelete, spell, customIcons, onAddCustomIcon, onDeleteCustomIcon }) => {
   const [formData, setFormData] = useState<Omit<Spell, 'id'>>(() => spell || DEFAULT_SPELL);
   const [showPicker, setShowPicker] = useState(false);
@@ -178,7 +197,7 @@ ${isOfficial ? `
             });
         }
 
-        const parsedSpell = parseRobustJSON(jsonText);
+        const parsedSpell = parseRobustJSON<AiGeneratedSpell>(jsonText);
         
         if (parsedSpell.error) {
             setAiError(parsedSpell.error);
@@ -206,10 +225,10 @@ ${isOfficial ? `
         });
         
         setIsSearchPanelOpen(false);
-        addNotification(isOfficial ? `Заклинание "${parsedSpell.name}" успешно импортировано!` : `Заклинание "${parsedSpell.name}" успешно сгенерировано ИИ!`, 'info');
-    } catch (err: any) {
+        addNotification(isOfficial ? `Заклинание "${parsedSpell.name}" успешно импортирован!` : `Заклинание "${parsedSpell.name}" успешно сгенерировано ИИ!`, 'info');
+    } catch (err: unknown) {
         logger.error(err);
-        setAiError(`Не удалось сгенерировать заклинание: ${err.message || 'ошибка сети или неверный API-ключ'}`);
+        setAiError(`Не удалось сгенерировать заклинание: ${err instanceof Error ? err.message : 'ошибка сети или неверный API-ключ'}`);
     } finally {
         setIsAiGenerating(false);
     }
@@ -248,9 +267,9 @@ ${isOfficial ? `
         setFormData(prev => ({ ...prev, imageUrl }));
         setShowAiImagePrompt(false);
         addNotification('Изображение успешно сгенерировано ИИ!', 'success');
-    } catch (err: any) {
+    } catch (err: unknown) {
         logger.error(err);
-        setAiImageError(err.message || 'Ошибка генерации изображения');
+        setAiImageError(err instanceof Error ? err.message : 'Ошибка генерации изображения');
     } finally {
         setIsAiGeneratingImage(false);
     }
@@ -329,7 +348,7 @@ ${isOfficial ? `
         
         const allResults = await Promise.all(fetchPromises);
         const seen = new Set<string>();
-        const mergedResults: any[] = [];
+        const mergedResults: { index: string; name: string; url: string }[] = [];
         for (const list of allResults) {
             for (const item of list) {
                 if (!seen.has(item.index)) {
@@ -430,7 +449,7 @@ ${isOfficial ? `
   };
 
   return (
-    <div className="fixed inset-0 bg-[var(--color-surface-translucent)] backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="spell-modal-title">
+    <div className="fixed inset-0 bg-[var(--color-surface-translucent)] backdrop-blur-xs flex items-center justify-center z-50" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="spell-modal-title">
       <div ref={modalRef} className="bg-[var(--color-surface-opaque)] rounded-xl shadow-2xl p-6 m-4 w-full max-w-4xl border border-[var(--color-border)] animate-fade-in" onClick={e => e.stopPropagation()}>
         <h2 id="spell-modal-title" className="text-2xl font-bold text-[var(--color-accent-primary)] mb-4">{spell ? 'Редактировать' : 'Новое'} заклинание</h2>
         <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-3">
@@ -439,7 +458,7 @@ ${isOfficial ? `
               <button
                   type="button"
                   onClick={() => setIsSearchPanelOpen(!isSearchPanelOpen)}
-                  className="flex items-center justify-between w-full text-xs font-bold text-[var(--color-text-medium)] uppercase tracking-wider focus:outline-none"
+                  className="flex items-center justify-between w-full text-xs font-bold text-[var(--color-text-medium)] uppercase tracking-wider focus:outline-hidden"
               >
                   <span>🔮 Импорт из API / Google AI (Gemini)</span>
                   <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transform transition-transform duration-200 ${isSearchPanelOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -526,7 +545,7 @@ ${isOfficial ? `
                                       onChange={(e) => setSearchQuery(e.target.value)}
                                       onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                                       placeholder="Название заклинания на русском или английском..." 
-                                      className="flex-grow bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
+                                      className="flex-grow bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-3 text-sm focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
                                   />
                                   <button
                                       type="button"
@@ -619,7 +638,7 @@ ${isOfficial ? `
                                       value={geminiKey}
                                       onChange={(e) => handleGeminiKeyChange(e.target.value)}
                                       placeholder="AIzaSy..." 
-                                      className="w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
+                                      className="w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-3 text-xs focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
                                   />
                               </div>
 
@@ -637,7 +656,7 @@ ${isOfficial ? `
                                           ? "Введите точное русское или английское название (например: Огненный шар / Fireball)..." 
                                           : "Опишите ваше хоумбрю заклинание (например: Ледяное дыхание дракона, стреляет конусом холода, наносит 3d6 урона, замедляет)..."
                                       }
-                                      className="w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1.5 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)] resize-none"
+                                      className="w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1.5 px-3 text-xs focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)] resize-none"
                                   />
                               </div>
 
@@ -645,7 +664,7 @@ ${isOfficial ? `
                                   type="button"
                                   onClick={handleAIImport}
                                   disabled={isAiGenerating || !aiDescription.trim()}
-                                  className="w-full py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:from-purple-900 disabled:to-indigo-900 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-1 shadow-md active:scale-[0.98]"
+                                  className="w-full py-1.5 bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:from-purple-900 disabled:to-indigo-900 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-1 shadow-md active:scale-[0.98]"
                               >
                                   {isAiGenerating ? (
                                       <>
@@ -670,19 +689,19 @@ ${isOfficial ? `
           </div>
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-[var(--color-text-medium)]">Название</label>
-            <input type="text" name="name" id="name" value={formData.name} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]" required />
+            <input type="text" name="name" id="name" value={formData.name} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]" required />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label htmlFor="level" className="block text-sm font-medium text-[var(--color-text-medium)]">Уровень</label>
-              <select name="level" id="level" value={formData.level} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]">
+              <select name="level" id="level" value={formData.level} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]">
                 <option value="0">Заговор</option>
                 {[...Array(9)].map((_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
               </select>
             </div>
             <div className="md:col-span-2">
               <label htmlFor="school" className="block text-sm font-medium text-[var(--color-text-medium)]">Школа магии</label>
-              <select name="school" id="school" value={formData.school} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]">
+              <select name="school" id="school" value={formData.school} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]">
                 {Object.entries(MAGIC_SCHOOL_NAMES).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
               </select>
             </div>
@@ -700,15 +719,15 @@ ${isOfficial ? `
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
                 <label htmlFor="castingTime" className="block text-sm font-medium text-[var(--color-text-medium)]">Время накладывания</label>
-                <input type="text" name="castingTime" id="castingTime" value={formData.castingTime} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
+                <input type="text" name="castingTime" id="castingTime" value={formData.castingTime} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
             </div>
             <div>
                 <label htmlFor="range" className="block text-sm font-medium text-[var(--color-text-medium)]">Дистанция</label>
-                <input type="text" name="range" id="range" value={formData.range} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
+                <input type="text" name="range" id="range" value={formData.range} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
             </div>
             <div>
                 <label htmlFor="duration" className="block text-sm font-medium text-[var(--color-text-medium)]">Длительность</label>
-                <input type="text" name="duration" id="duration" value={formData.duration} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
+                <input type="text" name="duration" id="duration" value={formData.duration} onChange={handleInputChange} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
             </div>
           </div>
            <div>
@@ -730,7 +749,7 @@ ${isOfficial ? `
                 </div>
                 {formData.components.material && (
                   <div className="flex-grow">
-                    <input type="text" name="component-materialDescription" value={formData.components.materialDescription} onChange={handleInputChange} placeholder="Опишите материальные компоненты..." className="block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
+                    <input type="text" name="component-materialDescription" value={formData.components.materialDescription} onChange={handleInputChange} placeholder="Опишите материальные компоненты..." className="block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
                   </div>
                 )}
               </div>
@@ -762,7 +781,7 @@ ${isOfficial ? `
               </div>
               <div className="flex flex-col gap-2">
                  <div className="flex flex-wrap gap-2">
-                     <button type="button" onClick={() => setShowPicker(!showPicker)} className="rounded-lg border border-[var(--color-border-subtle)] shadow-sm px-3 py-2 bg-[var(--color-surface-raised)] text-sm font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised-hover)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all">
+                     <button type="button" onClick={() => setShowPicker(!showPicker)} className="rounded-lg border border-[var(--color-border-subtle)] shadow-xs px-3 py-2 bg-[var(--color-surface-raised)] text-sm font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised-hover)] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all">
                         {showPicker ? 'Скрыть библиотеку' : 'Выбрать иконку...'}
                      </button>
                      <button 
@@ -773,12 +792,12 @@ ${isOfficial ? `
                                 setAiImagePrompt(formData.name);
                             }
                         }} 
-                        className="rounded-lg border border-[var(--color-border-subtle)] shadow-sm px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] transition-all flex items-center gap-1 active:scale-95"
+                        className="rounded-lg border border-[var(--color-border-subtle)] shadow-xs px-3 py-2 bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-sm font-medium focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] transition-all flex items-center gap-1 active:scale-95"
                      >
                         🎨 Сгенерировать ИИ
                      </button>
                  </div>
-                 {formData.imageUrl && <button type="button" onClick={handleRemoveImage} className="rounded-lg border border-transparent px-3 py-1 bg-transparent text-sm font-medium text-[var(--color-text-muted)] hover:text-red-400 focus:outline-none text-left w-fit">Убрать картинку</button>}
+                 {formData.imageUrl && <button type="button" onClick={handleRemoveImage} className="rounded-lg border border-transparent px-3 py-1 bg-transparent text-sm font-medium text-[var(--color-text-muted)] hover:text-red-400 focus:outline-hidden text-left w-fit">Убрать картинку</button>}
               </div>
             </div>
              {showAiImagePrompt && (
@@ -791,7 +810,7 @@ ${isOfficial ? `
                              value={aiImagePrompt}
                              onChange={(e) => setAiImagePrompt(e.target.value)}
                              placeholder="Например: Ледяная стрела, светящаяся синей энергией..." 
-                             className="flex-grow bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1.5 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
+                             className="flex-grow bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1.5 px-3 text-xs focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
                          />
                          <button 
                              type="button" 
@@ -815,9 +834,9 @@ ${isOfficial ? `
           </div>
         </div>
         <div className="mt-6 flex flex-col sm:flex-row-reverse gap-3">
-          <button onClick={handleSave} className="w-full sm:w-auto justify-center rounded-lg border border-transparent shadow-md px-4 py-2 bg-[var(--color-accent-primary-active)] text-base font-medium text-white hover:bg-[var(--color-accent-primary-dark)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all">Сохранить</button>
-          {spell && <button onClick={handleDelete} className="w-full sm:w-auto justify-center rounded-lg border border-[var(--color-border-subtle)] shadow-sm px-4 py-2 bg-[var(--color-surface-raised)] text-base font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised-hover)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all">Удалить</button>}
-          <button onClick={onClose} className="close-button w-full sm:w-auto justify-center rounded-lg border border-[var(--color-border-subtle)] shadow-sm px-4 py-2 bg-transparent text-base font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] sm:mt-0 sm:mr-auto transition-all">Отмена</button>
+          <button onClick={handleSave} className="w-full sm:w-auto justify-center rounded-lg border border-transparent shadow-md px-4 py-2 bg-[var(--color-accent-primary-active)] text-base font-medium text-white hover:bg-[var(--color-accent-primary-dark)] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all">Сохранить</button>
+          {spell && <button onClick={handleDelete} className="w-full sm:w-auto justify-center rounded-lg border border-[var(--color-border-subtle)] shadow-xs px-4 py-2 bg-[var(--color-surface-raised)] text-base font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised-hover)] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all">Удалить</button>}
+          <button onClick={onClose} className="close-button w-full sm:w-auto justify-center rounded-lg border border-[var(--color-border-subtle)] shadow-xs px-4 py-2 bg-transparent text-base font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised)] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] sm:mt-0 sm:mr-auto transition-all">Отмена</button>
         </div>
       </div>
     </div>

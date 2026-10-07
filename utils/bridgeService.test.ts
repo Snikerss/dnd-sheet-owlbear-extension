@@ -2,9 +2,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { localBridge, SESSION_CLIENT_ID } from './bridgeService';
 import { p2pRoomBridge } from './p2pBridge';
+import { SAME_ORIGIN } from './environment';
 
 describe('LocalBridgeService & Native Window Target Resolution', () => {
-  let mockWin: any;
+  let mockWin: { closed: boolean; postMessage: ReturnType<typeof vi.fn>; location: { href: string } };
 
   beforeEach(() => {
     mockWin = {
@@ -44,15 +45,38 @@ describe('LocalBridgeService & Native Window Target Resolution', () => {
     unsubscribe();
   });
 
-  it('registers child windows and broadcasts postMessage to registered targets', () => {
+  it('registers child windows and broadcasts postMessage to registered targets with exact SAME_ORIGIN', () => {
     localBridge.registerChildWindow(mockWin as unknown as Window);
     localBridge.postMessage({ type: 'HANDSHAKE_PING', charId: 'char-101' });
 
     expect(mockWin.postMessage).toHaveBeenCalled();
-    const [payload] = mockWin.postMessage.mock.calls[0];
+    const [payload, targetOrigin] = mockWin.postMessage.mock.calls[0]!;
     expect(payload.type).toBe('HANDSHAKE_PING');
     expect(payload.charId).toBe('char-101');
     expect(payload.senderClientId).toBe(SESSION_CLIENT_ID);
+    expect(targetOrigin).toBe(SAME_ORIGIN);
+    expect(targetOrigin).not.toBe('*');
+  });
+
+  it('posts to opener with exact SAME_ORIGIN instead of wildcard', () => {
+    const mockOpener = { closed: false, postMessage: vi.fn() };
+    Object.defineProperty(window, 'opener', { value: mockOpener, configurable: true });
+
+    localBridge.postMessage({ type: 'HANDSHAKE_PING' });
+
+    expect(mockOpener.postMessage).toHaveBeenCalled();
+    const [, targetOrigin] = mockOpener.postMessage.mock.calls[0]!;
+    expect(targetOrigin).toBe(SAME_ORIGIN);
+    expect(targetOrigin).not.toBe('*');
+
+    Object.defineProperty(window, 'opener', { value: null, configurable: true });
+  });
+
+  it('does NOT post to window.parent in standalone mode (parent === window)', () => {
+    const parentSpy = vi.spyOn(window, 'postMessage');
+    localBridge.postMessage({ type: 'HANDSHAKE_PING' });
+    expect(parentSpy).not.toHaveBeenCalled();
+    parentSpy.mockRestore();
   });
 
   it('reconnects standalone windows by broadcasting VTT_FRAME_READY over bridge', () => {
@@ -100,7 +124,9 @@ describe('P2PRoomBridgeService (Native Browser Bridge)', () => {
     });
 
     expect(mockChild.postMessage).toHaveBeenCalled();
-    const [payload] = mockChild.postMessage.mock.calls[0]!;
+    const [payload, targetOrigin] = mockChild.postMessage.mock.calls[0]!;
     expect(payload.entry.imageCache).toBeUndefined();
+    expect(targetOrigin).toBe(SAME_ORIGIN);
+    expect(targetOrigin).not.toBe('*');
   });
 });

@@ -65,6 +65,105 @@ export function subscribeRole(cb: (role: UserRole) => void): () => void {
   };
 }
 
+export interface TrustedSenderIdentity {
+  /** Доверенный ID игрока из состояния комнаты OBR */
+  playerId: string;
+  /** Доверенная роль игрока (GM или PLAYER) из OBR room/party */
+  role: UserRole;
+  /** Имя игрока из OBR (если доступно) */
+  name?: string;
+  /** Идентификатор соединения OBR */
+  connectionId?: string;
+  /** Признак доверенности (true если идентичность подтверждена OBR party/player) */
+  isTrusted: boolean;
+}
+
+/**
+ * Определяет доверенную идентичность отправителя сетевого сообщения через OBR room state.
+ *
+ * OBR при доставке broadcast-сообщения заполняет event.connectionId на уровне сетевого слоя.
+ * Содержимое payload (включая senderPlayerId) самоаттестовано отправителем и не защищено от спуффинга.
+ * Эта функция сопоставляет connectionId со списком игроков комнаты OBR.party.getPlayers()
+ * для получения реального playerId и роли (GM vs PLAYER).
+ */
+export async function resolveSenderIdentity(
+  connectionId?: string,
+  fallbackSenderPlayerId?: string,
+): Promise<TrustedSenderIdentity> {
+  if (!isOwlbear() || typeof OBR === 'undefined') {
+    return {
+      playerId: fallbackSenderPlayerId || '',
+      role: 'PLAYER',
+      isTrusted: false,
+    };
+  }
+
+  // 1. Если connectionId предоставлен OBR — ищем в party
+  if (connectionId) {
+    try {
+      if (typeof OBR.party?.getPlayers === 'function') {
+        const players = await OBR.party.getPlayers();
+        if (Array.isArray(players)) {
+          const found = players.find(
+            (p) => p && (p.connectionId === connectionId || p.id === connectionId),
+          );
+          if (found) {
+            return {
+              playerId: found.id,
+              role: found.role === 'GM' ? 'GM' : 'PLAYER',
+              name: found.name,
+              connectionId,
+              isTrusted: true,
+            };
+          }
+        }
+      }
+    } catch (err) {
+      logger.warn('[RoleService] Ошибка вызова OBR.party.getPlayers:', err);
+    }
+
+    // Проверяем локального игрока (если сообщение от себя/локальный echo)
+    try {
+      const myConnId =
+        typeof OBR.player?.getConnectionId === 'function'
+          ? await OBR.player.getConnectionId()
+          : undefined;
+      if (myConnId === connectionId || OBR.player?.id === connectionId) {
+        const myRole =
+          typeof OBR.player?.getRole === 'function'
+            ? await OBR.player.getRole()
+            : getCachedRole();
+        const myName =
+          typeof OBR.player?.getName === 'function'
+            ? await OBR.player.getName()
+            : undefined;
+        return {
+          playerId: OBR.player?.id || '',
+          role: myRole === 'GM' ? 'GM' : 'PLAYER',
+          name: myName,
+          connectionId,
+          isTrusted: true,
+        };
+      }
+    } catch {}
+
+    // connectionId был передан, но участник не найден в комнате — недоверенный источник
+    return {
+      playerId: fallbackSenderPlayerId || '',
+      role: 'PLAYER',
+      connectionId,
+      isTrusted: false,
+    };
+  }
+
+  // 2. connectionId не передан (fallback для моков/локальных тестов)
+  return {
+    playerId: fallbackSenderPlayerId || '',
+    role: 'PLAYER',
+    isTrusted: false,
+  };
+}
+
 function attachPlayerListener(): void {
   if (listenerAttached || !isOwlbear() || typeof OBR === 'undefined') return;
   try {

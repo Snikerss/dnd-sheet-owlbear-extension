@@ -94,4 +94,46 @@ describe('charactersReducer — MERGE_REMOTE_CHARACTERS (баг #9)', () => {
         const result = charactersReducer(state, { type: 'MERGE_REMOTE_CHARACTERS', payload: incoming });
         expect(result).toBe(state);
     });
+
+    it('LWW: lastModified имеет приоритет над логом — удалённая с большим lastModified побеждает', () => {
+        const localEntry = makeEntry('Локальная', 500); // лог 500
+        localEntry.history.present.lastModified = 100;
+
+        const remoteEntry = makeEntry('Удалённая', 10); // лог всего 10
+        remoteEntry.history.present.lastModified = 200; // но lastModified 200 > 100
+
+        const state: CharactersState = { 'c1': localEntry };
+        const incoming: CharactersState = { 'c1': remoteEntry };
+
+        const result = charactersReducer(state, { type: 'MERGE_REMOTE_CHARACTERS', payload: incoming });
+        expect(result['c1']!.history.present.name).toBe('Удалённая');
+    });
+
+    it('LWW: lastModified имеет приоритет над логом — локальная с большим lastModified сохраняется', () => {
+        const localEntry = makeEntry('Локальная свежая', 10);
+        localEntry.history.present.lastModified = 300;
+
+        const remoteEntry = makeEntry('Удалённая со старым lastModified', 500); // лог 500
+        remoteEntry.history.present.lastModified = 200; // lastModified 200 < 300
+
+        const state: CharactersState = { 'c1': localEntry };
+        const incoming: CharactersState = { 'c1': remoteEntry };
+
+        const result = charactersReducer(state, { type: 'MERGE_REMOTE_CHARACTERS', payload: incoming });
+        expect(result['c1']).toBe(localEntry);
+    });
+
+    it('LWW: фолбэк на верхушку лога, если lastModified отсутствует у записей', () => {
+        const localEntry = makeEntry('Локальная без даты', 100);
+        delete localEntry.history.present.lastModified;
+
+        const remoteEntry = makeEntry('Удалённая без даты', 200);
+        delete remoteEntry.history.present.lastModified;
+
+        const state: CharactersState = { 'c1': localEntry };
+        const incoming: CharactersState = { 'c1': remoteEntry };
+
+        const result = charactersReducer(state, { type: 'MERGE_REMOTE_CHARACTERS', payload: incoming });
+        expect(result['c1']!.history.present.name).toBe('Удалённая без даты');
+    });
 });

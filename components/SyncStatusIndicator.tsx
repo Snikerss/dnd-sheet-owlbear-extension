@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { isOwlbear, getKnownRooms } from '../utils/storage';
+import { isOwlbear } from '../utils/storage';
 import { p2pRoomBridge } from '../utils/p2pBridge';
-import { Character } from '../types';
 
 export type SyncStatusType = 'synced' | 'syncing' | 'connected_tab' | 'disconnected' | 'error';
 
@@ -24,7 +23,6 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
 }) => {
   const inOwlbear = isOwlbear();
   const [showModal, setShowModal] = useState(false);
-  const knownRooms = getKnownRooms();
   const currentRoomId = p2pRoomBridge.getCurrentRoomId() || 'global_vault_bridge';
   const currentRoomName = p2pRoomBridge.getCurrentRoomName();
 
@@ -110,7 +108,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
         type="button"
         onClick={handleClick}
         title={title}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border backdrop-blur-sm shadow-sm transition-all duration-200 select-none hover:scale-105 ${badgeColor} ${className}`}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border backdrop-blur-xs shadow-xs transition-all duration-200 select-none hover:scale-105 ${badgeColor} ${className}`}
       >
         <span className="relative flex h-2 w-2">
           <span className={`relative inline-flex rounded-full h-2 w-2 ${dotColor}`} />
@@ -122,8 +120,8 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
 
       {/* Sync Control Hub Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-[9999] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6 flex flex-col gap-5 text-slate-100 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-[9999] bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6 flex flex-col gap-5 text-slate-100">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
@@ -225,7 +223,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
                               e.stopPropagation();
                               onSelectActiveBoardCharacter(isBroadcasting ? null : char.id);
                             }}
-                            className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
                               isBroadcasting ? 'bg-emerald-500' : 'bg-slate-700'
                             }`}
                             role="switch"

@@ -42,7 +42,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
         if (this.props.variant === 'inline') {
             return (
-                <div className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
                     <div className="max-w-sm w-full bg-[var(--color-surface-opaque)] border border-red-500/40 rounded-xl shadow-2xl p-5 text-center space-y-3">
                         <div className="text-3xl">⚠️</div>
                         <h2 className="text-sm font-bold text-[var(--color-text-base)]">

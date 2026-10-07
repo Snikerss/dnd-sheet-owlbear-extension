@@ -16,7 +16,7 @@ interface StatusDashboardProps {
     onOpenShortRest: () => void;
 }
 
-export const StatusDashboard: React.FC<StatusDashboardProps> = ({
+export const StatusDashboard: React.FC<StatusDashboardProps> = React.memo(({
     equippedBonuses,
     effectiveAbilityScores,
     onOpenShortRest,
@@ -94,7 +94,7 @@ export const StatusDashboard: React.FC<StatusDashboardProps> = ({
                                         onChange={(e) => setEditedMaxHPBonus(parseInt(e.target.value, 10))}
                                         onBlur={handleMaxHPBonusSubmit}
                                         onKeyDown={(e) => { if (e.key === 'Enter') handleMaxHPBonusSubmit(); }}
-                                        className="w-16 h-8 bg-[var(--color-background)] border border-slate-700/50 hover:border-teal-500/30 focus:border-[var(--color-accent-primary-hover)] rounded-xl text-center text-xs font-extrabold focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-primary-hover)] text-[var(--color-text-base)] shadow-inner transition-all duration-150"
+                                        className="w-16 h-8 bg-[var(--color-background)] border border-slate-700/50 hover:border-teal-500/30 focus:border-[var(--color-accent-primary-hover)] rounded-xl text-center text-xs font-extrabold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-accent-primary-hover)] text-[var(--color-text-base)] shadow-inner transition-all duration-150"
                                         autoFocus
                                         onFocus={(e) => e.target.select()}
                                       />
@@ -126,7 +126,7 @@ export const StatusDashboard: React.FC<StatusDashboardProps> = ({
                             <select
                                 value={character.hitDie}
                                 onChange={(e) => dispatch({ type: 'SET_HIT_DIE', payload: parseInt(e.target.value, 10) as HitDie })}
-                                className="bg-[var(--color-surface-well)] hover:bg-[var(--color-surface-raised)] border border-[var(--color-border-subtle)] rounded py-1 pl-2.5 pr-6 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] transition-all cursor-pointer text-[var(--color-text-medium)] hover:text-[var(--color-text-base)] appearance-none"
+                                className="bg-[var(--color-surface-well)] hover:bg-[var(--color-surface-raised)] border border-[var(--color-border-subtle)] rounded py-1 pl-2.5 pr-6 text-xs font-bold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] transition-all cursor-pointer text-[var(--color-text-medium)] hover:text-[var(--color-text-base)] appearance-none"
                                 style={{ backgroundImage: 'none', paddingRight: '24px' }}
                             >
                                 <option value={HitDie.d6}>d6</option>
@@ -168,26 +168,26 @@ export const StatusDashboard: React.FC<StatusDashboardProps> = ({
                             type="number"
                             value={hpAmount}
                             onChange={(e) => setHpAmount(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                            className="w-16 h-8 bg-[var(--color-background)] border border-slate-700/50 hover:border-teal-500/30 focus:border-[var(--color-accent-primary-hover)] rounded-xl text-center text-xs font-extrabold focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-primary-hover)] text-[var(--color-text-base)] shadow-inner transition-all duration-150"
+                            className="w-16 h-8 bg-[var(--color-background)] border border-slate-700/50 hover:border-teal-500/30 focus:border-[var(--color-accent-primary-hover)] rounded-xl text-center text-xs font-extrabold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-accent-primary-hover)] text-[var(--color-text-base)] shadow-inner transition-all duration-150"
                             min="0"
                             placeholder="0"
                         />
                         <div className="grid grid-cols-3 gap-1.5 flex-grow">
                             <button
                                 onClick={() => dispatch({ type: 'APPLY_HEALTH_CHANGE', payload: { amount: hpAmount, type: 'damage' } })}
-                                className="bg-gradient-to-r from-red-600/80 to-rose-600/80 hover:from-red-500 hover:to-rose-600 border border-red-500/30 text-white font-semibold py-1 px-1 rounded-lg transition-all duration-150 text-[10px] shadow active:scale-[0.97] text-center whitespace-nowrap"
+                                className="bg-linear-to-r from-red-600/80 to-rose-600/80 hover:from-red-500 hover:to-rose-600 border border-red-500/30 text-white font-semibold py-1 px-1 rounded-lg transition-all duration-150 text-[10px] shadow active:scale-[0.97] text-center whitespace-nowrap"
                             >
                                 Урон
                             </button>
                             <button
                                 onClick={() => dispatch({ type: 'APPLY_HEALTH_CHANGE', payload: { amount: hpAmount, type: 'heal' } })}
-                                className="bg-gradient-to-r from-emerald-600/80 to-teal-600/80 hover:from-emerald-500 hover:to-teal-600 border border-emerald-500/30 text-white font-semibold py-1 px-1 rounded-lg transition-all duration-150 text-[10px] shadow active:scale-[0.97] text-center whitespace-nowrap"
+                                className="bg-linear-to-r from-emerald-600/80 to-teal-600/80 hover:from-emerald-500 hover:to-teal-600 border border-emerald-500/30 text-white font-semibold py-1 px-1 rounded-lg transition-all duration-150 text-[10px] shadow active:scale-[0.97] text-center whitespace-nowrap"
                             >
                                 Лечение
                             </button>
                             <button
                                 onClick={() => dispatch({ type: 'APPLY_HEALTH_CHANGE', payload: { amount: hpAmount, type: 'temp' } })}
-                                className="bg-gradient-to-r from-blue-600/80 to-indigo-600/80 hover:from-blue-500 hover:to-indigo-600 border border-blue-500/30 text-white font-semibold py-1 px-1 rounded-lg transition-all duration-150 text-[10px] shadow active:scale-[0.97] text-center whitespace-nowrap"
+                                className="bg-linear-to-r from-blue-600/80 to-indigo-600/80 hover:from-blue-500 hover:to-indigo-600 border border-blue-500/30 text-white font-semibold py-1 px-1 rounded-lg transition-all duration-150 text-[10px] shadow active:scale-[0.97] text-center whitespace-nowrap"
                             >
                                 Врем. ОЗ
                             </button>
@@ -218,7 +218,7 @@ export const StatusDashboard: React.FC<StatusDashboardProps> = ({
                                                 setIsEditingHitDice(false);
                                             }
                                         }}
-                                        className="w-10 bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded py-0 px-1 text-center text-xs font-bold focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
+                                        className="w-10 bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded py-0 px-1 text-center text-xs font-bold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
                                         autoFocus
                                         onFocus={(e) => e.target.select()}
                                         min="0"
@@ -246,7 +246,7 @@ export const StatusDashboard: React.FC<StatusDashboardProps> = ({
                                 id="character-size"
                                 value={character.size}
                                 onChange={(e) => dispatch({ type: 'SET_SIZE', payload: parseInt(e.target.value, 10) as CharacterSize })}
-                                className="w-full bg-[var(--color-surface-inset)] border border-[var(--color-border-subtle)] rounded-lg py-1.5 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-xs font-bold text-[var(--color-text-base)] cursor-pointer"
+                                className="w-full bg-[var(--color-surface-inset)] border border-[var(--color-border-subtle)] rounded-lg py-1.5 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] text-xs font-bold text-[var(--color-text-base)] cursor-pointer"
                             >
                                 {Object.entries(CHARACTER_SIZE_NAMES).map(([sizeKey, sizeName]) => (
                                     <option key={sizeKey} value={sizeKey}>{sizeName}</option>
@@ -259,13 +259,13 @@ export const StatusDashboard: React.FC<StatusDashboardProps> = ({
                     <div className="grid grid-cols-2 gap-2">
                         <button
                             onClick={onOpenShortRest}
-                            className="bg-gradient-to-r from-teal-700/50 to-cyan-700/50 hover:from-teal-600/70 hover:to-cyan-600/70 border border-teal-500/20 text-teal-200 font-semibold py-1.5 px-3 rounded-lg text-xs transition-all duration-150 shadow active:scale-[0.97]"
+                            className="bg-linear-to-r from-teal-700/50 to-cyan-700/50 hover:from-teal-600/70 hover:to-cyan-600/70 border border-teal-500/20 text-teal-200 font-semibold py-1.5 px-3 rounded-lg text-xs transition-all duration-150 shadow active:scale-[0.97]"
                         >
                             Короткий отдых
                         </button>
                         <button
                             onClick={() => dispatch({ type: 'LONG_REST' })}
-                            className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 border border-teal-500/30 text-white font-bold py-1.5 px-3 rounded-lg text-xs transition-all duration-150 shadow-md active:scale-[0.97]"
+                            className="bg-linear-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 border border-teal-500/30 text-white font-bold py-1.5 px-3 rounded-lg text-xs transition-all duration-150 shadow-md active:scale-[0.97]"
                         >
                             Длинный отдых
                         </button>
@@ -347,4 +347,6 @@ export const StatusDashboard: React.FC<StatusDashboardProps> = ({
             </div>
         </div>
     );
-};
+});
+
+StatusDashboard.displayName = 'StatusDashboard';

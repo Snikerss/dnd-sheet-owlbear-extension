@@ -3,19 +3,19 @@ import { loadCharactersApi, saveCharacterApi, deleteCharacterApi, loadFromLocalS
 import { imageDb } from './indexedDbStore';
 
 export interface IStorageRepository {
-  loadCharacters(): Promise<any>;
-  saveCharacter(id: string, entry: any): Promise<void>;
+  loadCharacters(): Promise<Record<string, unknown> | null>;
+  saveCharacter(id: string, entry: unknown): Promise<void>;
   deleteCharacter(id: string): Promise<void>;
   clearLocalImageCache(id: string): Promise<void>;
 }
 
 export class StorageRepository implements IStorageRepository {
-  public async loadCharacters(): Promise<any> {
+  public async loadCharacters(): Promise<Record<string, unknown> | null> {
     return await loadCharactersApi();
   }
 
-  public async saveCharacter(id: string, entry: any): Promise<void> {
-    await saveCharacterApi(id, entry);
+  public async saveCharacter(id: string, entry: unknown): Promise<void> {
+    await saveCharacterApi(id, entry as Record<string, unknown>);
     // Also save lightweight text backup locally
     const currentLocal = loadFromLocalStorage();
     saveToLocalStorage({

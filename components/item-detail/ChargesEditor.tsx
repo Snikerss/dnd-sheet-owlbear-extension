@@ -41,16 +41,16 @@ export const ChargesEditor: React.FC<ChargesEditorProps> = ({
             <div className="grid grid-cols-2 gap-4">
                 <div>
                     <label htmlFor="currentCharges" className="block text-xs font-medium text-[var(--color-text-medium)]">Текущие заряды</label>
-                    <input type="number" name="currentCharges" id="currentCharges" value={currentCharges} onChange={onInputChange} min="0" max={totalCharges} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
+                    <input type="number" name="currentCharges" id="currentCharges" value={currentCharges} onChange={onInputChange} min="0" max={totalCharges} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
                 </div>
                  <div>
                     <label htmlFor="totalCharges" className="block text-xs font-medium text-[var(--color-text-medium)]">Максимум зарядов</label>
-                    <input type="number" name="totalCharges" id="totalCharges" value={totalCharges} onChange={onInputChange} min="0" className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
+                    <input type="number" name="totalCharges" id="totalCharges" value={totalCharges} onChange={onInputChange} min="0" className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]" />
                 </div>
             </div>
              <div>
                 <label htmlFor="chargeRecovery" className="block text-sm font-medium text-[var(--color-text-medium)]">Восстановление зарядов</label>
-                <select name="chargeRecovery" id="chargeRecovery" value={chargeRecovery} onChange={(e) => onChange(prev => ({...prev, chargeRecovery: parseInt(e.target.value) as RecoveryType}))} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]">
+                <select name="chargeRecovery" id="chargeRecovery" value={chargeRecovery} onChange={(e) => onChange(prev => ({...prev, chargeRecovery: parseInt(e.target.value) as RecoveryType}))} className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]">
                     {Object.entries(RECOVERY_TYPE_NAMES).map(([key, recoveryName]) => (
                         <option key={key} value={key}>{recoveryName}</option>
                     ))}

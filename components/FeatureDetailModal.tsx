@@ -61,7 +61,7 @@ export const FeatureDetailModal: React.FC<FeatureDetailModalProps> = ({ isOpen, 
 
   return (
     <div 
-      className="fixed inset-0 bg-[var(--color-surface-translucent)] backdrop-blur-sm flex items-center justify-center z-50"
+      className="fixed inset-0 bg-[var(--color-surface-translucent)] backdrop-blur-xs flex items-center justify-center z-50"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -83,7 +83,7 @@ export const FeatureDetailModal: React.FC<FeatureDetailModalProps> = ({ isOpen, 
                 id="name"
                 value={formData.name}
                 onChange={handleInputChange}
-                className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]"
                 required
               />
             </div>
@@ -95,7 +95,7 @@ export const FeatureDetailModal: React.FC<FeatureDetailModalProps> = ({ isOpen, 
                 id="totalUses"
                 value={formData.totalUses}
                 onChange={handleInputChange}
-                className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]"
                 min="0"
               />
             </div>
@@ -108,7 +108,7 @@ export const FeatureDetailModal: React.FC<FeatureDetailModalProps> = ({ isOpen, 
                 id="recovery"
                 value={formData.recovery}
                 onChange={(e) => setFormData(prev => ({ ...prev, recovery: parseInt(e.target.value) as RecoveryType }))}
-                className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]"
               >
                 {Object.entries(RECOVERY_TYPE_NAMES).map(([key, name]) => (
                   <option key={key} value={key}>{name}</option>
@@ -122,7 +122,7 @@ export const FeatureDetailModal: React.FC<FeatureDetailModalProps> = ({ isOpen, 
                 id="group"
                 value={selectedGroupId}
                 onChange={(e) => setSelectedGroupId(e.target.value)}
-                className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)]"
+                className="mt-1 block w-full bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg shadow-xs py-2 px-3 focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)]"
               >
                 {groups.map(g => (
                   <option key={g.id} value={g.id}>{g.name}</option>
@@ -143,21 +143,21 @@ export const FeatureDetailModal: React.FC<FeatureDetailModalProps> = ({ isOpen, 
         <div className="mt-6 flex flex-col sm:flex-row-reverse gap-3">
           <button
             onClick={handleSave}
-            className="w-full sm:w-auto justify-center rounded-lg border border-transparent shadow-md px-4 py-2 bg-[var(--color-accent-primary-active)] text-base font-medium text-white hover:bg-[var(--color-accent-primary-dark)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all duration-150 active:scale-95"
+            className="w-full sm:w-auto justify-center rounded-lg border border-transparent shadow-md px-4 py-2 bg-[var(--color-accent-primary-active)] text-base font-medium text-white hover:bg-[var(--color-accent-primary-dark)] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all duration-150 active:scale-95"
           >
             Сохранить
           </button>
           {feature && (
             <button
               onClick={handleDelete}
-              className="w-full sm:w-auto justify-center rounded-lg border border-[var(--color-border-subtle)] shadow-sm px-4 py-2 bg-[var(--color-surface-raised)] text-base font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised-hover)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all duration-150 active:scale-95"
+              className="w-full sm:w-auto justify-center rounded-lg border border-[var(--color-border-subtle)] shadow-xs px-4 py-2 bg-[var(--color-surface-raised)] text-base font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised-hover)] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-[var(--color-surface-opaque)] transition-all duration-150 active:scale-95"
             >
               Удалить
             </button>
           )}
           <button
             onClick={onClose}
-            className="close-button w-full sm:w-auto justify-center rounded-lg border border-[var(--color-border-subtle)] shadow-sm px-4 py-2 bg-transparent text-base font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] sm:mt-0 sm:mr-auto transition-all duration-150 active:scale-95"
+            className="close-button w-full sm:w-auto justify-center rounded-lg border border-[var(--color-border-subtle)] shadow-xs px-4 py-2 bg-transparent text-base font-medium text-[var(--color-text-medium)] hover:bg-[var(--color-surface-raised)] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-focus-ring)] sm:mt-0 sm:mr-auto transition-all duration-150 active:scale-95"
           >
             Отмена
           </button>

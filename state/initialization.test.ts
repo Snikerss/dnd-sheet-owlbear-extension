@@ -54,7 +54,7 @@ describe('migrateCharacterData — миграции', () => {
             inventory: [{ id: 'i1', name: 'Старый предмет', description: '', quantity: 1, imageUrl: '', cost: { amount: 0, currency: Currency.GP }, rarity: Rarity.Common }],
         };
         const migrated = migrateCharacterData(char);
-        expect(migrated.inventory[0].weight).toBe(0);
+        expect(migrated.inventory[0]?.weight).toBe(0);
     });
 
     it('мигрирует предметы без cost, добавляя дефолт', () => {
@@ -63,7 +63,7 @@ describe('migrateCharacterData — миграции', () => {
             inventory: [{ id: 'i1', name: 'Без цены', description: '', quantity: 1, imageUrl: '', weight: 1, rarity: Rarity.Common }],
         };
         const migrated = migrateCharacterData(char);
-        expect(migrated.inventory[0].cost).toEqual({ amount: 0, currency: Currency.GP });
+        expect(migrated.inventory[0]?.cost).toEqual({ amount: 0, currency: Currency.GP });
     });
 
     it('мигрирует систему зарядов для старых предметов', () => {
@@ -72,10 +72,10 @@ describe('migrateCharacterData — миграции', () => {
             inventory: [{ id: 'i1', name: 'Посох', description: '', quantity: 1, imageUrl: '', weight: 1, cost: { amount: 0, currency: Currency.GP }, rarity: Rarity.Rare }],
         };
         const migrated = migrateCharacterData(char);
-        expect(migrated.inventory[0].hasCharges).toBe(false);
-        expect(migrated.inventory[0].totalCharges).toBe(0);
-        expect(migrated.inventory[0].currentCharges).toBe(0);
-        expect(migrated.inventory[0].chargeRecovery).toBeDefined();
+        expect(migrated.inventory[0]?.hasCharges).toBe(false);
+        expect(migrated.inventory[0]?.totalCharges).toBe(0);
+        expect(migrated.inventory[0]?.currentCharges).toBe(0);
+        expect(migrated.inventory[0]?.chargeRecovery).toBeDefined();
     });
 
     it('создаёт featureGroups, если их не было', () => {
@@ -83,14 +83,14 @@ describe('migrateCharacterData — миграции', () => {
         const migrated = migrateCharacterData(char);
         expect(migrated.featureGroups).toBeDefined();
         expect(migrated.featureGroups).toHaveLength(1);
-        expect(migrated.featureGroups[0].featureIds).toContain('f1');
+        expect(migrated.featureGroups?.[0]?.featureIds).toContain('f1');
     });
 
     it('создаёт noteGroups, если их не было', () => {
         const char = { ...defaultCharacterState, noteGroups: undefined, notes: [{ id: 'n1', title: 'Заметка', content: '' }] };
         const migrated = migrateCharacterData(char);
         expect(migrated.noteGroups).toBeDefined();
-        expect(migrated.noteGroups[0].noteIds).toContain('n1');
+        expect(migrated.noteGroups?.[0]?.noteIds).toContain('n1');
     });
 
     it('нормализует spellSlots в полный объект 1-9 уровней', () => {
@@ -102,7 +102,7 @@ describe('migrateCharacterData — миграции', () => {
     });
 
     it('устанавливает spellcastingAbility по умолчанию, если невалидный', () => {
-        const char = { ...defaultCharacterState, spellcastingAbility: 'INVALID' as any };
+        const char = { ...defaultCharacterState, spellcastingAbility: 'INVALID' as unknown as Ability };
         const migrated = migrateCharacterData(char);
         expect(migrated.spellcastingAbility).toBe(Ability.INT);
     });

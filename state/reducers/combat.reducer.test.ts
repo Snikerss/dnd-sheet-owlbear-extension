@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { combatReducer } from './combat.reducer';
 import { makeCombatCharacter } from '../testFixtures';
 import { Ability, CharacterAction, RecoveryType, HitDie } from '../../types';
-import { Feature, InventoryItem } from '../../types';
+import { Feature } from '../../types';
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -179,7 +179,7 @@ describe('combatReducer — LONG_REST', () => {
             spellSlots: {
                 1: { total: 4, used: 4 },
                 2: { total: 2, used: 1 },
-            } as any,
+            } as Record<number, { total: number; used: number }>,
         });
         const action: CharacterAction = { type: 'LONG_REST' };
         const result = combatReducer(char, action);

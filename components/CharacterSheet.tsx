@@ -42,6 +42,18 @@ interface CharacterSheetProps {
     isGM?: boolean;
 }
 
+type SheetTab = 'stats' | 'combat' | 'inventory' | 'features' | 'notes';
+const isSheetTab = (t: string): t is SheetTab =>
+    ['stats', 'combat', 'inventory', 'features', 'notes'].includes(t);
+
+const TAB_NAMES: Record<SheetTab, string> = {
+    stats: 'Характеристики',
+    combat: 'Бой',
+    inventory: 'Инвентарь',
+    features: 'Умения',
+    notes: 'Заметки',
+};
+
 export const CharacterSheet: React.FC<CharacterSheetProps> = ({
     onOpenCharacterManager,
     onUndo,
@@ -73,12 +85,12 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
     const [isLevelUpModalOpen, setIsLevelUpModalOpen] = useState(false);
     const [isShortRestModalOpen, setIsShortRestModalOpen] = useState(false);
     const [isDiceRollerOpen, setIsDiceRollerOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState<'stats' | 'combat' | 'inventory' | 'features' | 'notes'>('stats');
+    const [activeTab, setActiveTab] = useState<SheetTab>('stats');
     const [isEditingTabs, setIsEditingTabs] = useState(false);
     const [draggedTabIndex, setDraggedTabIndex] = useState<number | null>(null);
     const [dragOverTabIndex, setDragOverTabIndex] = useState<number | null>(null);
 
-    const defaultTabOrder = useMemo(() => ['stats', 'combat', 'inventory', 'features', 'notes'], []);
+    const defaultTabOrder = useMemo<SheetTab[]>(() => ['stats', 'combat', 'inventory', 'features', 'notes'], []);
     const tabLabels: Record<string, string> = useMemo(() => ({
         stats: 'Характеристики и навыки',
         combat: 'Бой и заклинания',
@@ -87,17 +99,17 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
         notes: 'Заметки'
     }), []);
 
-    const tabOrder = useMemo(() => {
+    const tabOrder = useMemo<SheetTab[]>(() => {
         const savedOrder = character.tabOrder || [];
-        const filteredSaved = savedOrder.filter(id => defaultTabOrder.includes(id));
+        const filteredSaved = savedOrder.filter(isSheetTab);
         const missing = defaultTabOrder.filter(id => !filteredSaved.includes(id));
         return [...filteredSaved, ...missing];
     }, [character.tabOrder, defaultTabOrder]);
 
     // Гарантируем, что activeTab всегда существует в tabOrder
     useEffect(() => {
-        if (!tabOrder.includes(activeTab) && tabOrder.length > 0) {
-            setActiveTab(tabOrder[0] as any);
+        if (!tabOrder.includes(activeTab) && tabOrder.length > 0 && tabOrder[0]) {
+            setActiveTab(tabOrder[0]);
         }
     }, [tabOrder, activeTab]);
 
@@ -181,7 +193,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
         if (!editingSlot) return null;
         const { container, index, chestId } = editingSlot;
         if (container === 'inventory') return character.inventory[index] ?? null;
-        if (container === 'doll' as any) return (character.equippedItems || [])[index] ?? null;
+        if (container === 'doll') return (character.equippedItems || [])[index] ?? null;
         if (container === 'chest' && chestId) {
             const allItems = [...(character.inventory || []), ...(character.equippedItems || [])];
             const chestItem = allItems.find(item => item?.id === chestId);
@@ -228,10 +240,10 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
 
 
     // --- HANDLERS (CALLBACKS) ---
-    const handleRollRequest = (e: React.MouseEvent, name: string, modifier: number, bonusDiceFormula?: string) => {
+    const handleRollRequest = useCallback((e: React.MouseEvent, name: string, modifier: number, bonusDiceFormula?: string) => {
         e.preventDefault();
         setContextMenu({ x: e.clientX, y: e.clientY, name, modifier, bonusDiceFormula });
-    };
+    }, []);
 
     const handleLevelChange = useCallback((newLevel: number) => {
         if (newLevel === character.level + 1 && newLevel <= 20) {
@@ -244,7 +256,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
     const handleItemDrop = useCallback((destination: DropLocation) => {
         if (!draggedItemInfo) return;
 
-        if (draggedItemInfo.container === 'doll' as any) {
+        if (draggedItemInfo.container === 'doll') {
             if (destination.container === 'inventory') {
                 dispatch({
                     type: 'UNEQUIP_ITEM_FROM_DOLL',
@@ -263,6 +275,83 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
         setDraggedItemInfo(null);
     }, []);
 
+    const handleItemDragStart = useCallback((index: number) => {
+        setDraggedItemInfo({ container: 'inventory', index });
+    }, []);
+
+    const handleDollItemDragStart = useCallback((index: number) => {
+        setDraggedItemInfo({ container: 'doll', index });
+    }, []);
+
+    const handleInventoryItemDrop = useCallback((index: number) => {
+        handleItemDrop({ container: 'inventory', index });
+    }, [handleItemDrop]);
+
+    const handleOpenShortRest = useCallback(() => {
+        setIsShortRestModalOpen(true);
+    }, []);
+
+    const handleOpenDiceRoller = useCallback(() => {
+        setIsDiceRollerOpen(true);
+    }, []);
+
+    const handleCloseDiceRoller = useCallback(() => {
+        setIsDiceRollerOpen(false);
+    }, []);
+
+    const handleCloseLevelUpModal = useCallback(() => {
+        setIsLevelUpModalOpen(false);
+    }, []);
+
+    const handleCloseShortRestModal = useCallback(() => {
+        setIsShortRestModalOpen(false);
+    }, []);
+
+    const handleCloseFeatureModal = useCallback(() => {
+        setEditingFeature(null);
+        setIsNewFeature(false);
+        setTargetGroupId(null);
+    }, []);
+
+    const handleCloseContextMenu = useCallback(() => {
+        setContextMenu(null);
+    }, []);
+
+    const handleRollContextMenuAdvantage = useCallback(() => {
+        if (!contextMenu) return;
+        handleRoll(contextMenu.name, contextMenu.modifier, RollType.Advantage, contextMenu.bonusDiceFormula);
+    }, [contextMenu, handleRoll]);
+
+    const handleRollContextMenuDisadvantage = useCallback(() => {
+        if (!contextMenu) return;
+        handleRoll(contextMenu.name, contextMenu.modifier, RollType.Disadvantage, contextMenu.bonusDiceFormula);
+    }, [contextMenu, handleRoll]);
+
+    const handleSetActiveTab = useCallback((t: string) => {
+        if (isSheetTab(t)) setActiveTab(t);
+    }, []);
+
+    const handleTabDragStart = useCallback((_e: React.DragEvent, tab: string) => {
+        const idx = tabOrder.indexOf(tab as SheetTab);
+        if (idx !== -1) setDraggedTabIndex(idx);
+    }, [tabOrder]);
+
+    const handleTabDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+    }, []);
+
+    const handleTabDrop = useCallback((_e: React.DragEvent, targetTab: string) => {
+        const targetIdx = tabOrder.indexOf(targetTab as SheetTab);
+        if (draggedTabIndex !== null && targetIdx !== -1) {
+            handleTabReorder(draggedTabIndex, targetIdx);
+        }
+    }, [tabOrder, draggedTabIndex, handleTabReorder]);
+
+    const handleTabDragEnd = useCallback(() => {
+        setDraggedTabIndex(null);
+        setDragOverTabIndex(null);
+    }, []);
+
     const handleInventorySlotClick = useCallback((index: number, e?: React.MouseEvent, fromDoll?: boolean) => {
         if (fromDoll) {
             const item = (character.equippedItems || [])[index];
@@ -270,7 +359,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                 if (item.isChest && !e?.altKey) {
                     setViewingChestId(item.id);
                 } else {
-                    setEditingSlot({ container: 'doll' as any, index });
+                    setEditingSlot({ container: 'doll', index });
                 }
             }
             return;
@@ -443,9 +532,9 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                 return (
                     <div className="space-y-6 animate-fade-in">
                         <Inventory
-                            onItemDragStart={(index) => setDraggedItemInfo({ container: 'inventory', index })}
-                            onDollItemDragStart={(index) => setDraggedItemInfo({ container: 'doll' as any, index })}
-                            onItemDrop={(index) => handleItemDrop({ container: 'inventory', index })}
+                            onItemDragStart={handleItemDragStart}
+                            onDollItemDragStart={handleDollItemDragStart}
+                            onItemDrop={handleInventoryItemDrop}
                             onSlotClick={handleInventorySlotClick}
                             draggedItemInfo={draggedItemInfo}
                             onItemDragEnd={handleDragEnd}
@@ -471,7 +560,6 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                 return null;
         }
     }, [
-        character,
         isReadOnly,
         effectiveAbilityScores,
         abilityModifiers,
@@ -487,9 +575,10 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
         handleAddNewFeature,
         handleEditFeature,
         handleInventorySlotClick,
-        handleItemDrop,
-        handleDragEnd,
-        dispatch
+        handleItemDragStart,
+        handleDollItemDragStart,
+        handleInventoryItemDrop,
+        handleDragEnd
     ]);
 
     const isFeatureModalOpen = !!editingFeature || isNewFeature;
@@ -505,11 +594,11 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
             <SheetModals
                 character={character}
                 isDiceRollerOpen={isDiceRollerOpen}
-                onCloseDiceRoller={() => setIsDiceRollerOpen(false)}
+                onCloseDiceRoller={handleCloseDiceRoller}
                 onDiceRollResult={showRollResult}
                 onDiceRollingStatusChange={setIsRollingDice}
                 isLevelUpModalOpen={isLevelUpModalOpen}
-                onCloseLevelUpModal={() => setIsLevelUpModalOpen(false)}
+                onCloseLevelUpModal={handleCloseLevelUpModal}
                 onConfirmLevelUp={(method) => {
                     // Бросок кости для HP вынесен из reducer: выполняется здесь (source of randomness).
                     // При method='average' бросок не нужен.
@@ -520,7 +609,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                 hitDie={character.hitDie}
                 conModifier={calculateModifier(character.scores[Ability.CON])}
                 isShortRestModalOpen={isShortRestModalOpen}
-                onCloseShortRestModal={() => setIsShortRestModalOpen(false)}
+                onCloseShortRestModal={handleCloseShortRestModal}
                 onConfirmShortRest={(diceToSpend) => {
                     // Бросок костей выполняется в компоненте (source of randomness),
                     // reducer получает уже детерминированные результаты.
@@ -563,7 +652,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                 handleDeleteCustomIcon={handleDeleteCustomIcon}
                 isFeatureModalOpen={isFeatureModalOpen}
                 featureToEdit={featureToEdit}
-                onCloseFeatureModal={() => { setEditingFeature(null); setIsNewFeature(false); setTargetGroupId(null); }}
+                onCloseFeatureModal={handleCloseFeatureModal}
                 onSaveFeature={handleSaveFeature}
                 onDeleteFeature={handleDeleteFeature}
                 featureGroups={character.featureGroups || []}
@@ -578,7 +667,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
 
             {/* d20 Dice Spinner overlay */}
             {isRollingDice && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center animate-fade-in pointer-events-auto select-none">
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex flex-col items-center justify-center animate-fade-in pointer-events-auto select-none">
                     <div className="relative w-28 h-28 animate-spin-dice">
                         <svg viewBox="0 0 100 100" className="w-full h-full text-[var(--color-accent-primary)] drop-shadow-[0_0_15px_var(--color-accent-primary)]">
                             <polygon points="50,0 93.3,25 93.3,75 50,100 6.7,75 6.7,25" fill="none" stroke="currentColor" strokeWidth="2.5" />
@@ -602,14 +691,14 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                 <RollContextMenu
                     x={contextMenu.x}
                     y={contextMenu.y}
-                    onClose={() => setContextMenu(null)}
-                    onRollAdvantage={() => handleRoll(contextMenu.name, contextMenu.modifier, RollType.Advantage, contextMenu.bonusDiceFormula)}
-                    onRollDisadvantage={() => handleRoll(contextMenu.name, contextMenu.modifier, RollType.Disadvantage, contextMenu.bonusDiceFormula)}
+                    onClose={handleCloseContextMenu}
+                    onRollAdvantage={handleRollContextMenuAdvantage}
+                    onRollDisadvantage={handleRollContextMenuDisadvantage}
                 />
             )}
 
             {/* Global Dice Roller FAB */}
-            <DiceFab onOpen={() => setIsDiceRollerOpen(true)} />
+            <DiceFab onOpen={handleOpenDiceRoller} />
 
             <div className="max-w-[1600px] mx-auto space-y-6 px-2 md:px-4">
                 
@@ -634,7 +723,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                 <StatusDashboard
                     equippedBonuses={equippedBonuses}
                     effectiveAbilityScores={effectiveAbilityScores}
-                    onOpenShortRest={() => setIsShortRestModalOpen(true)}
+                    onOpenShortRest={handleOpenShortRest}
                 />
 
                 {/* Bottom Tabs Section (Full Width) */}
@@ -642,33 +731,16 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                     <SheetTabNavigation
                         character={character}
                         activeTab={activeTab}
-                        setActiveTab={(t) => setActiveTab(t as any)}
+                        setActiveTab={handleSetActiveTab}
                         isEditingTabs={isEditingTabs}
                         setIsEditingTabs={setIsEditingTabs}
-                        tabNames={{
-                            stats: 'Характеристики',
-                            combat: 'Бой',
-                            inventory: 'Инвентарь',
-                            features: 'Умения',
-                            notes: 'Заметки'
-                        }}
+                        tabNames={TAB_NAMES}
                         tabOrder={tabOrder}
                         draggedTab={draggedTabIndex !== null && tabOrder[draggedTabIndex] ? tabOrder[draggedTabIndex]! : null}
-                        handleTabDragStart={(e, tab) => {
-                            const idx = tabOrder.indexOf(tab as any);
-                            if (idx !== -1) setDraggedTabIndex(idx);
-                        }}
-                        handleTabDragOver={(e) => e.preventDefault()}
-                        handleTabDrop={(e, targetTab) => {
-                            const targetIdx = tabOrder.indexOf(targetTab as any);
-                            if (draggedTabIndex !== null && targetIdx !== -1) {
-                                handleTabReorder(draggedTabIndex, targetIdx);
-                            }
-                        }}
-                        handleTabDragEnd={() => {
-                            setDraggedTabIndex(null);
-                            setDragOverTabIndex(null);
-                        }}
+                        handleTabDragStart={handleTabDragStart}
+                        handleTabDragOver={handleTabDragOver}
+                        handleTabDrop={handleTabDrop}
+                        handleTabDragEnd={handleTabDragEnd}
                         dispatch={dispatch}
                     />
 

@@ -49,6 +49,11 @@ const pushToHistory = (
     characterState: CharacterEntry,
     newPresent: Character,
 ): CharacterEntry => {
+    // Центральный chokepoint: любая мутация персонажа фиксирует метку времени правки
+    const stampedPresent: Character = {
+        ...newPresent,
+        lastModified: Date.now(),
+    };
     const previous = characterState.history.present;
     // 1. Извлекаем картинки из ПРЕДЫДУЩЕГО состояния для помещения в past[]
     const { light: lightPrevious, images: prevImages } = extractImages(previous);
@@ -57,7 +62,7 @@ const pushToHistory = (
 
     // 2. Также извлекаем картинки из НОВОГО состояния, чтобы они не потерялись при
     // последующем undo (например, если пользователь только что загрузил новое изображение)
-    const { images: newImages } = extractImages(newPresent);
+    const { images: newImages } = extractImages(stampedPresent);
 
     // 3. Объединяем кэш: старый кэш + картинки из previous + картинки из newPresent
     let imageCache = characterState.imageCache ?? new Map();
@@ -72,7 +77,7 @@ const pushToHistory = (
         ...characterState,
         history: {
             past: newPast,
-            present: newPresent,
+            present: stampedPresent,
             future: [],
         },
         imageCache,
@@ -127,8 +132,9 @@ export const charactersReducer = (state: CharactersState, action: CharactersActi
                     continue;
                 }
 
-                const remoteTime = entry.log.length > 0 ? entry.log[0]!.timestamp : 0;
-                const localTime = local.log.length > 0 ? local.log[0]!.timestamp : 0;
+                // LWW: используем lastModified персонажа с фолбэком на верхушку лога
+                const remoteTime = Number(entry.history.present.lastModified) || (entry.log.length > 0 ? entry.log[0]!.timestamp : 0);
+                const localTime = Number(local.history?.present?.lastModified) || (local.log.length > 0 ? local.log[0]!.timestamp : 0);
 
                 if (remoteTime > localTime) {
                     next[id] = entry;
@@ -196,18 +202,23 @@ export const charactersReducer = (state: CharactersState, action: CharactersActi
             };
         }
 
-        case 'ADD_CHARACTER':
+        case 'ADD_CHARACTER': {
+            const character: Character = {
+                ...action.payload.character,
+                lastModified: action.payload.character.lastModified || Date.now(),
+            };
             return {
                 ...state,
                 [action.payload.id]: {
                     history: {
                         past: [],
-                        present: action.payload.character,
+                        present: character,
                         future: [],
                     },
                     log: [],
                 }
             };
+        }
 
         case 'DELETE_CHARACTER': {
             const { id } = action.payload;
@@ -279,7 +290,16 @@ export const charactersReducer = (state: CharactersState, action: CharactersActi
             );
             return {
                 ...state,
-                [id]: restored,
+                [id]: {
+                    ...restored,
+                    history: {
+                        ...restored.history,
+                        present: {
+                            ...restored.history.present,
+                            lastModified: Date.now(),
+                        },
+                    },
+                },
             };
         }
 
@@ -288,7 +308,7 @@ export const charactersReducer = (state: CharactersState, action: CharactersActi
             const characterState = state[id];
             if (!characterState || characterState.history.future.length === 0) return state;
 
-            const { past, present, future } = characterState.history;
+            const { present, future } = characterState.history;
             // future.length > 0 гарантировано проверкой выше
             const nextState = future[0]!;
             const newFuture = future.slice(1);
@@ -300,7 +320,16 @@ export const charactersReducer = (state: CharactersState, action: CharactersActi
             const restored = restoreFromHistory(updated, nextState, updated.history.past, newFuture);
             return {
                 ...state,
-                [id]: restored,
+                [id]: {
+                    ...restored,
+                    history: {
+                        ...restored.history,
+                        present: {
+                            ...restored.history.present,
+                            lastModified: Date.now(),
+                        },
+                    },
+                },
             };
         }
 

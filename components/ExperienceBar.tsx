@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useCharacter } from '../context/CharacterContext';
 import { XP_THRESHOLDS } from '../constants';
 
 export const ExperienceBar: React.FC<{
@@ -39,7 +38,7 @@ export const ExperienceBar: React.FC<{
           type="number"
           value={amount}
           onChange={handleAmountChange}
-          className="w-14 bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-1.5 text-center text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
+          className="w-14 bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-1.5 text-center text-xs font-semibold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
           min="0"
           data-tooltip="Сумма получаемого опыта"
         />

@@ -5,7 +5,7 @@ import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   {
-    ignores: ['node_modules/**', 'dist/**', 'coverage/**'],
+    ignores: ['node_modules/**', 'dist/**', 'coverage/**', 'plans/**', 'audits/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -22,9 +22,11 @@ export default tseslint.config(
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
 
+      // Базлайн any-предупреждений снят (0 в коде), правило зафиксировано на error.
+      '@typescript-eslint/no-explicit-any': 'error',
+
       // Существующий базлайн кода: предупреждения вместо ошибок.
       // Ужесточаются по мере рефакторинга (Phase 5/7 плана аудита).
-      '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': [
         'warn',
         {

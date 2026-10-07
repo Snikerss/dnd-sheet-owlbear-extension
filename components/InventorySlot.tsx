@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { InventoryItem, Rarity, ItemBonuses } from '../types';
-import { RARITY_COLORS, RARITY_NAMES, RECOVERY_TYPE_NAMES } from '../constants';
+import { RARITY_COLORS, RARITY_NAMES } from '../constants';
 import { calculateItemWeight } from '../utils/inventory';
 import { computeTooltipPosition } from '../hooks/useGlobalTooltips';
 import { FormattedText } from './RichTextFormatting';
@@ -127,7 +127,7 @@ const InventorySlotComponent: React.FC<InventorySlotProps> = ({
     };
   }, []);
 
-  const updateCoords = () => {
+  const updateCoords = useCallback(() => {
     if (slotRef.current) {
       const placeBelow = index !== undefined && index < 20;
       const base = computeTooltipPosition(slotRef.current, placeBelow ? 'bottom' : 'top');
@@ -137,7 +137,7 @@ const InventorySlotComponent: React.FC<InventorySlotProps> = ({
         placeBelow
       });
     }
-  };
+  }, [index]);
 
   useEffect(() => {
     if (!showTooltip) {
@@ -157,7 +157,7 @@ const InventorySlotComponent: React.FC<InventorySlotProps> = ({
       window.removeEventListener('scroll', handleScrollOrResize, { capture: true });
       window.removeEventListener('resize', handleScrollOrResize);
     };
-  }, [showTooltip]);
+  }, [showTooltip, updateCoords]);
 
   const rarityBorderClass = item ? RARITY_COLORS[item.rarity] : 'border-transparent';
   const baseClasses = `aspect-square w-full rounded-lg flex items-center justify-center cursor-pointer transition-all duration-150 relative shadow-inner border-2`;

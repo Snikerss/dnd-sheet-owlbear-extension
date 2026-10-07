@@ -1,7 +1,8 @@
 import OBR from '@owlbear-rodeo/sdk';
 import { logger } from './logger';
-import { Character, Ability, ProficiencyLevel, Currency } from '../types';
+import { Character, Ability, ProficiencyLevel, Currency, InventoryItem } from '../types';
 import { defaultCharacterState } from '../state/defaultCharacterState';
+import { INVENTORY_COLUMNS } from '../constants';
 import { extractImages } from './imageStore';
 import { imageDb } from './indexedDbStore';
 import { CHARACTER_BASIC_FIELDS } from './characterSchema';
@@ -11,10 +12,11 @@ import { generateUUID } from './uuid';
 import { SYNC_CHANNEL, SyncMessageType } from '../protocol/messages';
 import { getCachedRole } from '../auth/roleService';
 import { restoreStrippedCharacter, mergeImageCacheEntries } from './restoreStripped';
+import type { RawCharacterStorageData } from '../state/persistence';
 
 export { isOwlbear };
 
-const inMemoryCharactersCache: Record<string, any> = {};
+const inMemoryCharactersCache: Record<string, Record<string, unknown>> = {};
 
 /**
  * Удаляет персонажа из синхронного in-memory кэша.
@@ -42,7 +44,7 @@ const GRANULAR_KEY_PREFIX = 'com.antigravity.dnd-sheet/v2/character/';
  *
  * lightEntry — запись БЕЗ imageCache: { character, log, history:{past,future}, lastModified }.
  */
-export function saveCharacterMirrorToGranularKey(id: string, lightEntry: any): void {
+export function saveCharacterMirrorToGranularKey(id: string, lightEntry: Record<string, unknown>): void {
   if (typeof window === 'undefined' || !id) return;
   const key = GRANULAR_KEY_PREFIX + id;
   try {
@@ -81,18 +83,18 @@ export { SESSION_CLIENT_ID };
 /**
  * Minifies a full Character sheet to a lightweight format to save space in VTT metadata (under 1KB).
  */
-export function minifyCharacter(char: Character): any {
+export function minifyCharacter(char: Character): Record<string, unknown> {
   if (!char) return char;
   // If it's already minified (e.g. missing STR in scores or missing savingThrowProficiencies), return it as is
   if (!char.savingThrowProficiencies || !char.scores || typeof char.scores.STR === 'undefined') {
-    return char;
+    return char as unknown as Record<string, unknown>;
   }
 
-  const min: any = {};
+  const min: Record<string, unknown> = {};
 
   for (const field of CHARACTER_BASIC_FIELDS) {
-    if ((char as any)[field] !== undefined) {
-      min[field] = (char as any)[field];
+    if (char[field as keyof Character] !== undefined) {
+      min[field] = char[field as keyof Character];
     }
   }
 
@@ -147,11 +149,13 @@ export function minifyCharacter(char: Character): any {
   if (acSources.length > 0) min.acSources = acSources;
 
   // Inventory: store only non-null items with index
-  const inv: any[] = [];
-  char.inventory.forEach((item, index) => {
-    if (item) inv.push({ index, item });
-  });
-  if (inv.length > 0) min.inv = inv;
+  if (Array.isArray(char.inventory)) {
+    const inv: Array<{ index: number; item: InventoryItem }> = [];
+    char.inventory.forEach((item, index) => {
+      if (item) inv.push({ index, item });
+    });
+    if (inv.length > 0) min.inv = inv;
+  }
 
   // Currency: only non-zero
   const cur: Record<string, number> = {};
@@ -188,33 +192,47 @@ export function minifyCharacter(char: Character): any {
 /**
  * Reconstructs a full Character sheet from minified cloud data, merging it with defaults.
  */
-export function unminifyCharacter(min: any): Character {
-  if (!min) return structuredClone(defaultCharacterState);
-  if (min.scores && typeof min.scores === 'object' && !Array.isArray(min.scores) && 'STR' in min.scores) {
-    return structuredClone(min);
+export function unminifyCharacter(min: unknown): Character {
+  if (!min || typeof min !== 'object') return structuredClone(defaultCharacterState);
+  const m = min as Record<string, unknown>;
+  if (m.scores && typeof m.scores === 'object' && !Array.isArray(m.scores) && 'STR' in m.scores) {
+    const fullChar = structuredClone(min as Character);
+    // Защитная нормализация инвентаря для уже развёрнутого персонажа (legacy-данные со срезанным размером)
+    const rows = typeof fullChar.inventoryRows === 'number' && fullChar.inventoryRows > 0 ? fullChar.inventoryRows : 5;
+    const invSize = rows * INVENTORY_COLUMNS;
+    if (!Array.isArray(fullChar.inventory)) {
+      fullChar.inventory = Array(invSize).fill(null);
+    } else if (fullChar.inventory.length < invSize) {
+      const padded = [...fullChar.inventory];
+      while (padded.length < invSize) padded.push(null);
+      fullChar.inventory = padded;
+    } else if (fullChar.inventory.length > invSize) {
+      fullChar.inventory = fullChar.inventory.slice(0, invSize);
+    }
+    return fullChar;
   }
   
   const char: Character = structuredClone(defaultCharacterState);
 
   for (const field of CHARACTER_BASIC_FIELDS) {
-    if (min[field] !== undefined) {
-      (char as any)[field] = min[field];
+    if (m[field] !== undefined) {
+      (char as unknown as Record<string, unknown>)[field] = m[field];
     }
   }
 
   // Scores
-  if (Array.isArray(min.scores) && min.scores.length === 6) {
-    char.scores.STR = min.scores[0];
-    char.scores.DEX = min.scores[1];
-    char.scores.CON = min.scores[2];
-    char.scores.INT = min.scores[3];
-    char.scores.WIS = min.scores[4];
-    char.scores.CHA = min.scores[5];
+  if (Array.isArray(m.scores) && m.scores.length === 6) {
+    char.scores.STR = Number(m.scores[0]);
+    char.scores.DEX = Number(m.scores[1]);
+    char.scores.CON = Number(m.scores[2]);
+    char.scores.INT = Number(m.scores[3]);
+    char.scores.WIS = Number(m.scores[4]);
+    char.scores.CHA = Number(m.scores[5]);
   }
 
   // Saving throw proficiencies
-  if (Array.isArray(min.stProf)) {
-    for (const ability of min.stProf) {
+  if (Array.isArray(m.stProf)) {
+    for (const ability of m.stProf) {
       if (char.savingThrowProficiencies[ability as Ability] !== undefined) {
         char.savingThrowProficiencies[ability as Ability] = true;
       }
@@ -222,8 +240,8 @@ export function unminifyCharacter(min: any): Character {
   }
 
   // Ability bonuses
-  if (min.abBonus) {
-    for (const [ability, bonus] of Object.entries(min.abBonus)) {
+  if (m.abBonus && typeof m.abBonus === 'object') {
+    for (const [ability, bonus] of Object.entries(m.abBonus as Record<string, unknown>)) {
       if (char.abilityBonuses[ability as Ability] !== undefined) {
         char.abilityBonuses[ability as Ability] = Number(bonus);
       }
@@ -231,8 +249,8 @@ export function unminifyCharacter(min: any): Character {
   }
 
   // Saving throw bonuses
-  if (min.stBonus) {
-    for (const [ability, bonus] of Object.entries(min.stBonus)) {
+  if (m.stBonus && typeof m.stBonus === 'object') {
+    for (const [ability, bonus] of Object.entries(m.stBonus as Record<string, unknown>)) {
       if (char.savingThrowBonuses[ability as Ability] !== undefined) {
         char.savingThrowBonuses[ability as Ability] = Number(bonus);
       }
@@ -240,8 +258,8 @@ export function unminifyCharacter(min: any): Character {
   }
 
   // Skills
-  if (min.skillProf) {
-    for (const [skillName, prof] of Object.entries(min.skillProf)) {
+  if (m.skillProf && typeof m.skillProf === 'object') {
+    for (const [skillName, prof] of Object.entries(m.skillProf as Record<string, unknown>)) {
       if (char.skills[skillName]) {
         char.skills[skillName].proficiency = Number(prof);
       }
@@ -249,8 +267,8 @@ export function unminifyCharacter(min: any): Character {
   }
 
   // Skill bonuses
-  if (min.skillBonus) {
-    for (const [skillName, bonus] of Object.entries(min.skillBonus)) {
+  if (m.skillBonus && typeof m.skillBonus === 'object') {
+    for (const [skillName, bonus] of Object.entries(m.skillBonus as Record<string, unknown>)) {
       if (char.skillBonuses[skillName] !== undefined) {
         char.skillBonuses[skillName] = Number(bonus);
       }
@@ -258,31 +276,47 @@ export function unminifyCharacter(min: any): Character {
   }
 
   // AC ability sources
-  if (Array.isArray(min.acSources)) {
+  if (Array.isArray(m.acSources)) {
     for (const ability of Object.keys(char.acAbilitySources)) {
       char.acAbilitySources[ability as Ability] = false;
     }
-    for (const ability of min.acSources) {
+    for (const ability of m.acSources) {
       if (char.acAbilitySources[ability as Ability] !== undefined) {
         char.acAbilitySources[ability as Ability] = true;
       }
     }
   }
 
-  // Inventory
-  const invSize = char.inventoryRows * 5;
+  // Inventory (10 колонок на ряд, по умолчанию 5 * 10 = 50 слотов)
+  const invRows = typeof char.inventoryRows === 'number' && char.inventoryRows > 0 ? char.inventoryRows : 5;
+  const invSize = invRows * INVENTORY_COLUMNS;
   char.inventory = Array(invSize).fill(null);
-  if (Array.isArray(min.inv)) {
-    for (const entry of min.inv) {
-      if (entry && entry.index >= 0 && entry.index < invSize) {
-        char.inventory[entry.index] = entry.item;
+  if (Array.isArray(m.inv)) {
+    for (let i = 0; i < m.inv.length; i++) {
+      const entry = m.inv[i];
+      if (!entry) continue;
+      if (typeof entry === 'object' && 'index' in entry && typeof (entry as { index: unknown }).index === 'number') {
+        const itemEntry = entry as { index: number; item: InventoryItem };
+        if (itemEntry.index >= 0 && itemEntry.index < invSize) {
+          char.inventory[itemEntry.index] = itemEntry.item;
+        }
+      } else if (i < invSize) {
+        // Защитная нормализация: поддержка плоского legacy-массива в m.inv
+        char.inventory[i] = entry as InventoryItem;
       }
+    }
+  } else if (Array.isArray(m.inventory)) {
+    // Защитная нормализация: поддержка плоского legacy-поля m.inventory
+    const len = Math.min(m.inventory.length, invSize);
+    for (let i = 0; i < len; i++) {
+      const item = m.inventory[i];
+      char.inventory[i] = (item as InventoryItem | undefined) ?? null;
     }
   }
 
   // Currency
-  if (min.cur) {
-    for (const [coin, amount] of Object.entries(min.cur)) {
+  if (m.cur && typeof m.cur === 'object') {
+    for (const [coin, amount] of Object.entries(m.cur as Record<string, unknown>)) {
       if (char.currency[coin as Currency] !== undefined) {
         char.currency[coin as Currency] = Number(amount);
       }
@@ -290,8 +324,8 @@ export function unminifyCharacter(min: any): Character {
   }
 
   // Spell slots
-  if (min.slots) {
-    for (const [lvlStr, slotData] of Object.entries(min.slots as Record<string, [any, any]>)) {
+  if (m.slots) {
+    for (const [lvlStr, slotData] of Object.entries(m.slots as Record<string, [number, number]>)) {
       const lvl = Number(lvlStr);
       if (char.spellSlots[lvl] && Array.isArray(slotData)) {
         const [total, used] = slotData;
@@ -301,15 +335,23 @@ export function unminifyCharacter(min: any): Character {
   }
 
   // Arrays
-  if (Array.isArray(min.features)) char.features = min.features;
-  if (Array.isArray(min.featureGroups)) char.featureGroups = min.featureGroups;
-  if (Array.isArray(min.attacks)) char.attacks = min.attacks;
-  if (Array.isArray(min.spells)) char.spells = min.spells;
-  if (Array.isArray(min.notes)) char.notes = min.notes;
-  if (Array.isArray(min.tabOrder) && min.tabOrder.length > 0) char.tabOrder = min.tabOrder;
-  if (min.collapsedTabs) char.collapsedTabs = min.collapsedTabs;
-  if (Array.isArray(min.equippedItems)) char.equippedItems = min.equippedItems;
-  if (Array.isArray(min.boundRooms)) char.boundRooms = min.boundRooms;
+  if (Array.isArray(m.features)) char.features = m.features as typeof char.features;
+  if (Array.isArray(m.featureGroups)) char.featureGroups = m.featureGroups as typeof char.featureGroups;
+  if (Array.isArray(m.attacks)) char.attacks = m.attacks as typeof char.attacks;
+  if (Array.isArray(m.spells)) char.spells = m.spells as typeof char.spells;
+  if (Array.isArray(m.notes)) char.notes = m.notes as typeof char.notes;
+  if (Array.isArray(m.noteGroups)) {
+    char.noteGroups = (m.noteGroups as Array<Record<string, unknown>>).map((g) => ({
+      id: typeof g.id === 'string' ? g.id : '',
+      name: typeof g.name === 'string' ? g.name : '',
+      ...(typeof g.isCollapsed === 'boolean' ? { isCollapsed: g.isCollapsed } : {}),
+      noteIds: Array.isArray(g.noteIds) ? (g.noteIds as string[]).filter((id): id is string => typeof id === 'string') : [],
+    }));
+  }
+  if (Array.isArray(m.tabOrder) && m.tabOrder.length > 0) char.tabOrder = m.tabOrder as typeof char.tabOrder;
+  if (m.collapsedTabs) char.collapsedTabs = m.collapsedTabs as typeof char.collapsedTabs;
+  if (Array.isArray(m.equippedItems)) char.equippedItems = m.equippedItems as typeof char.equippedItems;
+  if (Array.isArray(m.boundRooms)) char.boundRooms = m.boundRooms as typeof char.boundRooms;
 
   return char;
 }
@@ -320,45 +362,50 @@ export function unminifyCharacter(min: any): Character {
 // локальные localStorage + IndexedDB.)
 
 // Helper to clean base64 data URLs recursively from any object
-export function stripBase64(obj: any): any {
+export function stripBase64<T>(obj: T): T {
   if (typeof obj !== 'object' || obj === null) {
     if (typeof obj === 'string') {
       if (obj.startsWith('data:')) {
-        return ''; // Strip base64 data URL to protect OBR limits
+        return '' as unknown as T; // Strip base64 data URL to protect OBR limits
       }
     }
     return obj;
   }
 
   if (Array.isArray(obj)) {
-    return obj.map(stripBase64);
+    return obj.map(stripBase64) as unknown as T;
   }
 
-  const cleaned: any = {};
+  const cleaned: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
     cleaned[key] = stripBase64(value);
   }
-  return cleaned;
+  return cleaned as T;
 }
 
 // Merges local base64 images and stripped description texts from LocalStorage back into loaded cloud data.
 // (План 2.5: логика восстановления вынесена в utils/restoreStripped.ts —
 // единая точка для дискового и memory-бэкапов.)
-export const restoreLocalData = (cloudData: any, localBackup: any) => {
+export const restoreLocalData = <T extends Record<string, unknown>>(cloudData: T, localBackup: Record<string, unknown> | null | undefined): T => {
   if (!cloudData) return cloudData;
   if (!localBackup) return cloudData;
 
   const restored = { ...cloudData };
   for (const [id, item] of Object.entries(restored)) {
-    const cloudEntry = item as any;
-    const localEntry = localBackup[id];
+    const cloudEntry = item as Record<string, unknown> | null | undefined;
+    const localEntry = localBackup[id] as Record<string, unknown> | null | undefined;
     if (cloudEntry && localEntry && cloudEntry.character && localEntry.character) {
       cloudEntry.imageCache = mergeImageCacheEntries(
-        Array.isArray(cloudEntry.imageCache) ? cloudEntry.imageCache : [],
-        Array.isArray(localEntry.imageCache) ? localEntry.imageCache : [],
+        Array.isArray(cloudEntry.imageCache) ? (cloudEntry.imageCache as [string, string][]) : [],
+        Array.isArray(localEntry.imageCache) ? (localEntry.imageCache as [string, string][]) : [],
       );
       // Обе стороны — минифицированные записи инвентаря {index,item}.
-      restoreStrippedCharacter(cloudEntry.character, localEntry.character, true, true);
+      restoreStrippedCharacter(
+        cloudEntry.character as Parameters<typeof restoreStrippedCharacter>[0],
+        localEntry.character as Parameters<typeof restoreStrippedCharacter>[1],
+        true,
+        true
+      );
     }
   }
   return restored;
@@ -368,12 +415,12 @@ export const restoreLocalData = (cloudData: any, localBackup: any) => {
  * Loads character data from local stores (IndexedDB primary + localStorage mirror)
  * / Vite dev server fallback.
  */
-export async function loadCharactersApi(): Promise<any> {
-  const restoreGranularData = (rawData: any) => {
+export async function loadCharactersApi(): Promise<Record<string, Record<string, unknown>> | null> {
+  const restoreGranularData = (rawData: Record<string, Record<string, unknown>> | null): Record<string, Record<string, unknown>> | null => {
     if (!rawData) return null;
-    const restored: Record<string, any> = {};
+    const restored: Record<string, Record<string, unknown>> = {};
     for (const [id, item] of Object.entries(rawData)) {
-      const entry = item as any;
+      const entry = item;
       if (entry) {
         restored[id] = {
           ...entry,
@@ -385,7 +432,7 @@ export async function loadCharactersApi(): Promise<any> {
   };
 
   const localBackup = loadFromLocalStorage();
-  const rawData: Record<string, any> = { ...localBackup };
+  const rawData: Record<string, Record<string, unknown>> = { ...localBackup };
 
   // 1. Auto-recover characters from granular localStorage keys
   if (typeof window !== 'undefined' && window.localStorage) {
@@ -418,9 +465,9 @@ export async function loadCharactersApi(): Promise<any> {
     const charId = key.slice(CHAR_FULL_PREFIX.length);
     if (!charId) continue;
     try {
-      const fullEntry = await imageDb.get(key);
-      if (fullEntry && typeof fullEntry === 'object' && (fullEntry as any).character) {
-        rawData[charId] = { ...(fullEntry as any) };
+      const fullEntry = await imageDb.get<Record<string, unknown>>(key);
+      if (fullEntry && typeof fullEntry === 'object' && fullEntry.character) {
+        rawData[charId] = { ...fullEntry };
         idbCoveredIds.add(charId);
       }
     } catch (e) {}
@@ -445,9 +492,18 @@ export async function loadCharactersApi(): Promise<any> {
   for (const id of Object.keys(rawData)) {
     try {
       const existingCacheMap = new Map<string, string>();
-      if (Array.isArray(rawData[id]?.imageCache)) {
-        for (const [k, v] of rawData[id].imageCache) {
+      const rawCache = rawData[id]?.imageCache;
+      if (Array.isArray(rawCache)) {
+        for (const [k, v] of rawCache) {
           if (k && v) existingCacheMap.set(k, v);
+        }
+      } else if (rawCache instanceof Map) {
+        for (const [k, v] of rawCache.entries()) {
+          if (k && v) existingCacheMap.set(k, v);
+        }
+      } else if (rawCache && typeof rawCache === 'object') {
+        for (const [k, v] of Object.entries(rawCache)) {
+          if (k && typeof v === 'string') existingCacheMap.set(k, v);
         }
       }
 
@@ -466,7 +522,9 @@ export async function loadCharactersApi(): Promise<any> {
     }
 
     // Update our synchronous in-memory cache with the full data
-    inMemoryCharactersCache[id] = rawData[id];
+    if (rawData[id]) {
+      inMemoryCharactersCache[id] = rawData[id];
+    }
   }
 
   return restoreGranularData(rawData);
@@ -480,7 +538,7 @@ const CHAR_FULL_PREFIX = 'char-full/';
  * (они живут отдельно в `char-images/{id}`). Это первичное долговременное
  * хранилище: у IndexedDB нет лимитов localStorage.
  */
-async function saveCharacterFullToIndexedDb(id: string, characterData: any): Promise<void> {
+async function saveCharacterFullToIndexedDb(id: string, characterData: Record<string, unknown>): Promise<void> {
   const { imageCache, ...lightEntry } = characterData ?? {};
   void imageCache;
   await imageDb.set(CHAR_FULL_PREFIX + id, lightEntry);
@@ -491,8 +549,8 @@ async function saveCharacterFullToIndexedDb(id: string, characterData: any): Pro
  * чтобы base64-картинки не выедали квоту (аудит #16). Картинки восстанавливаются
  * при загрузке из `char-images/{id}`.
  */
-function toLightMirror(cache: Record<string, any>): Record<string, any> {
-  const out: Record<string, any> = {};
+function toLightMirror(cache: Record<string, Record<string, unknown>>): Record<string, Record<string, unknown>> {
+  const out: Record<string, Record<string, unknown>> = {};
   for (const [k, v] of Object.entries(cache)) {
     if (v && typeof v === 'object' && !Array.isArray(v)) {
       const { imageCache, ...rest } = v;
@@ -583,7 +641,7 @@ export async function broadcastLargeString(
  * Broadcasts character data. Sends the sheet data (without base64 images) on every edit,
  * but ONLY sends portrait or item images if they have actually changed or are new.
  */
-export async function broadcastCharacterSync(id: string, minifiedCharData: any, forceSyncImages: boolean | string[] = false): Promise<void> {
+export async function broadcastCharacterSync(id: string, minifiedCharData: RawCharacterStorageData | Record<string, unknown>, forceSyncImages: boolean | string[] = false): Promise<void> {
   if (!isOwlbear()) return;
 
   // Фикс бага #2 аудита: роль берётся из roleService (кэш + OBR.player.onChange),
@@ -645,12 +703,12 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
       ...minifiedCharData,
       character: minifiedLight,
       imageCache: [],
-      syncImageIds: imagesToSync
+      syncImageIds: imagesToSync,
+      history: {
+        past: [],
+        future: []
+      }
     };
-    if (strippedData.history) {
-      strippedData.history.past = [];
-      strippedData.history.future = [];
-    }
 
     // Все чанки этой передачи (лист + картинки) несут общий syncId — приёмник
     // собирает их в отдельном буфере и не смешивает со следующей версией листа.
@@ -726,7 +784,7 @@ export async function broadcastCharacterSync(id: string, minifiedCharData: any, 
 /**
  * Saves a single character's data to local storage backup and broadcasts it to other players in the room.
  */
-export async function saveCharacterApi(id: string, characterData: any): Promise<void> {
+export async function saveCharacterApi(id: string, characterData: RawCharacterStorageData | Record<string, unknown>): Promise<void> {
   const fullChar = unminifyCharacter(characterData.character);
   const { light, images: newExtractedImages } = extractImages(fullChar);
 
@@ -738,6 +796,10 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
   } else if (characterData.imageCache instanceof Map) {
     for (const [imgId, imgVal] of characterData.imageCache.entries()) {
       if (imgId && imgVal) combinedImageCacheMap.set(imgId, imgVal);
+    }
+  } else if (characterData.imageCache && typeof characterData.imageCache === 'object') {
+    for (const [imgId, imgVal] of Object.entries(characterData.imageCache)) {
+      if (imgId && typeof imgVal === 'string') combinedImageCacheMap.set(imgId, imgVal);
     }
   }
   for (const [imgId, imgVal] of newExtractedImages.entries()) {
@@ -784,14 +846,15 @@ export async function saveCharacterApi(id: string, characterData: any): Promise<
   // для этого персонажа. Главное зеркало 'dnd-characters' при обычных сейвах
   // больше НЕ переписывается (читается с наложением гранулярных записей).
   const entryLog = Array.isArray(characterData.log) ? characterData.log : [];
+  const charHistory = characterData.history as { past?: unknown[]; future?: unknown[] } | undefined;
   saveCharacterMirrorToGranularKey(id, {
     character: minifiedCharData.character,
     log: entryLog,
     history: {
-      past: characterData.history?.past || [],
-      future: characterData.history?.future || [],
+      past: charHistory?.past || [],
+      future: charHistory?.future || [],
     },
-    lastModified: characterData.lastModified || (entryLog[0] as any)?.timestamp || Date.now(),
+    lastModified: (typeof characterData.lastModified === 'number' ? characterData.lastModified : undefined) || (entryLog[0]?.timestamp) || Date.now(),
   });
 
   if (isOwlbear()) {
@@ -851,9 +914,9 @@ export async function deleteCharacterApi(id: string): Promise<void> {
   }
 }
 
-export function loadFromLocalStorage(): any {
+export function loadFromLocalStorage(): Record<string, Record<string, unknown>> {
   if (typeof window === 'undefined') return {};
-  let diskData: Record<string, any> = {};
+  let diskData: Record<string, Record<string, unknown>> = {};
   try {
     const raw = localStorage.getItem('dnd-characters');
     if (raw) {
@@ -881,20 +944,23 @@ export function loadFromLocalStorage(): any {
   return { ...diskData, ...inMemoryCharactersCache };
 }
 
-export function saveToLocalStorage(characters: any) {
+export function saveToLocalStorage(characters: Record<string, unknown>) {
   if (typeof window === 'undefined') return;
+  const serializeSafely = (data: unknown) =>
+    JSON.stringify(data, (_key, val) => (val instanceof Map ? Object.fromEntries(val.entries()) : val));
+
   try {
-    localStorage.setItem('dnd-characters', JSON.stringify(characters));
+    localStorage.setItem('dnd-characters', serializeSafely(characters));
   } catch (e) {
     if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
       logger.warn('[DND Sheet] LocalStorage quota exceeded. Stripping base64 from all local backups to free space...');
       // Strip base64 from all characters in the object to shrink them down
-      const cleaned: any = {};
+      const cleaned: Record<string, unknown> = {};
       for (const [key, val] of Object.entries(characters)) {
         cleaned[key] = stripBase64(val);
       }
       try {
-        localStorage.setItem('dnd-characters', JSON.stringify(cleaned));
+        localStorage.setItem('dnd-characters', serializeSafely(cleaned));
         logger.debug('[DND Sheet] LocalStorage successfully cleared of giant images and saved.');
       } catch (innerErr) {
         logger.error('[DND Sheet] Failed to save even after stripping base64:', innerErr);
@@ -905,7 +971,7 @@ export function saveToLocalStorage(characters: any) {
   }
 }
 
-async function saveToLocalDevApi(characters: any): Promise<any> {
+async function saveToLocalDevApi(characters: Record<string, unknown>): Promise<unknown> {
   if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
     saveToLocalStorage(characters);
     return { success: true };

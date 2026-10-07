@@ -18,6 +18,21 @@ interface ApiSearchPanelProps {
 
 type SearchResult = { index: string; name: string; url: string; type: 'equipment' | 'magic-item' };
 
+interface Dnd5eApiItem {
+  name: string;
+  desc?: string[] | string;
+  special?: string[] | string;
+  contents?: Array<{ item?: { name?: string }; quantity?: number }>;
+  properties?: Array<{ name?: string }>;
+  weapon_range?: string;
+  damage?: { damage_dice?: string; damage_type?: { name?: string } };
+  armor_class?: { base?: number; dex_bonus?: boolean; max_bonus?: number };
+  cost?: { quantity?: number; unit?: string };
+  weight?: number;
+  rarity?: { name?: string };
+  variants?: Array<{ name: string; url: string }>;
+}
+
 export const ApiSearchPanel: React.FC<ApiSearchPanelProps> = ({ updateFormData, onRequestClosePanel }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [ruleset, setRuleset] = useState<'2014' | '2024'>('2014');
@@ -42,12 +57,13 @@ export const ApiSearchPanel: React.FC<ApiSearchPanelProps> = ({ updateFormData, 
         // Expand query terms for synonym fuzzy matching
         const terms = expandSearchTerms(englishQuery).slice(0, 5);
 
+        type ApiEntry = { index: string; name: string; url: string };
         const eqPromises = terms.map(async (term) => {
             const url = `${baseEndpoint}/equipment?name=${encodeURIComponent(term)}`;
             const res = await fetch(url);
             if (!res.ok) return [];
             const data = await res.json();
-            return (data.results || []).map((r: any) => ({ ...r, type: 'equipment' }));
+            return ((data.results || []) as ApiEntry[]).map((r) => ({ ...r, type: 'equipment' as const }));
         });
 
         const miPromises = terms.map(async (term) => {
@@ -55,12 +71,12 @@ export const ApiSearchPanel: React.FC<ApiSearchPanelProps> = ({ updateFormData, 
             const res = await fetch(url);
             if (!res.ok) return [];
             const data = await res.json();
-            return (data.results || []).map((r: any) => ({ ...r, type: 'magic-item' }));
+            return ((data.results || []) as ApiEntry[]).map((r) => ({ ...r, type: 'magic-item' as const }));
         });
 
         const allResults = await Promise.all([...eqPromises, ...miPromises]);
         const seen = new Set<string>();
-        const mergedResults: any[] = [];
+        const mergedResults: SearchResult[] = [];
         for (const list of allResults) {
             for (const item of list) {
                 const uniqueKey = `${item.type}-${item.index}`;
@@ -98,7 +114,7 @@ export const ApiSearchPanel: React.FC<ApiSearchPanelProps> = ({ updateFormData, 
         if (!response.ok) {
             throw new Error(`Item detail API error: ${response.status}`);
         }
-        const apiItem = await response.json();
+        const apiItem: Dnd5eApiItem & { index: string } = await response.json();
 
         const packWeights: Record<string, number> = {
             'explorers-pack': 59,
@@ -110,8 +126,8 @@ export const ApiSearchPanel: React.FC<ApiSearchPanelProps> = ({ updateFormData, 
             'scholars-pack': 10
         };
         let mappedWeight = apiItem.weight || 0;
-        if (mappedWeight === 0 && packWeights[apiItem.index]) {
-            mappedWeight = packWeights[apiItem.index];
+        if (mappedWeight === 0 && packWeights[apiItem.index] !== undefined) {
+            mappedWeight = packWeights[apiItem.index]!;
         }
 
         let mappedCostAmount = 0;
@@ -132,18 +148,18 @@ export const ApiSearchPanel: React.FC<ApiSearchPanelProps> = ({ updateFormData, 
 
         let descText = '';
         if (apiItem.desc) {
-            descText = Array.isArray(apiItem.desc) ? apiItem.desc.filter((d: any) => d).join('\n\n') : apiItem.desc;
+            descText = Array.isArray(apiItem.desc) ? apiItem.desc.filter(Boolean).join('\n\n') : apiItem.desc;
         }
 
         if (apiItem.special && apiItem.special.length > 0) {
-            const specialText = Array.isArray(apiItem.special) ? apiItem.special.filter((s: any) => s).join('\n\n') : apiItem.special;
+            const specialText = Array.isArray(apiItem.special) ? apiItem.special.filter(Boolean).join('\n\n') : apiItem.special;
             if (specialText) {
                 descText = descText ? `${descText}\n\n**Особое:**\n${specialText}` : `**Особое:**\n${specialText}`;
             }
         }
 
         if (apiItem.contents && apiItem.contents.length > 0) {
-            const contentsList = apiItem.contents.map((c: any) => {
+            const contentsList = apiItem.contents.map((c) => {
                 const itemName = c.item?.name || '';
                 const quantity = c.quantity || 1;
                 return `- ${itemName} x${quantity}`;
@@ -153,7 +169,7 @@ export const ApiSearchPanel: React.FC<ApiSearchPanelProps> = ({ updateFormData, 
         }
 
         if (apiItem.properties && apiItem.properties.length > 0) {
-            const props = apiItem.properties.map((p: any) => p.name).join(', ');
+            const props = apiItem.properties.map((p) => p.name).filter(Boolean).join(', ');
             descText += `\n\n**Свойства:** ${props}`;
         }
         if (apiItem.weapon_range) {
@@ -270,7 +286,7 @@ export const ApiSearchPanel: React.FC<ApiSearchPanelProps> = ({ updateFormData, 
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   placeholder="Название предмета на русском или английском..."
-                  className="flex-grow bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
+                  className="flex-grow bg-[var(--color-background)] border border-[var(--color-border-subtle)] rounded-lg py-1 px-3 text-sm focus:outline-hidden focus:ring-1 focus:ring-[var(--color-focus-ring)] text-[var(--color-text-base)]"
               />
               <button
                   type="button"

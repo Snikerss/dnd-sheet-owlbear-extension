@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { extractImages, applyImages, mergeImageMaps } from './imageStore';
+import { extractImages, applyImages } from './imageStore';
 import { makeTestCharacter } from '../state/testFixtures';
-import { InventoryItem, Currency, Rarity, Attack, Spell } from '../types';
+import { InventoryItem, Currency, Rarity } from '../types';
 
 const makeItemWithImage = (id: string, imageUrl: string): InventoryItem => ({
     id,

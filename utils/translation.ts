@@ -203,8 +203,8 @@ export const translateText = async (text: string): Promise<string> => {
                             const response = await fetch(url);
                             if (!response.ok) throw new Error(`GT status ${response.status}`);
                             const data = await response.json();
-                            if (data && data[0]) {
-                                return data[0].map((x: any) => x[0] || '').join('');
+                            if (data && Array.isArray(data[0])) {
+                                return (data[0] as Array<[string | null | undefined]>).map((x) => x[0] || '').join('');
                             }
                             throw new Error("Invalid GT response format");
                         })
@@ -319,8 +319,8 @@ export const translateQueryToEnglish = async (query: string): Promise<string> =>
         const response = await fetch(url);
         if (!response.ok) throw new Error(`GT status ${response.status}`);
         const data = await response.json();
-        if (data && data[0]) {
-            const translated = data[0].map((x: any) => x[0] || '').join('').trim();
+        if (data && Array.isArray(data[0])) {
+            const translated = (data[0] as Array<[string | null | undefined]>).map((x) => x[0] || '').join('').trim();
             // Clean up leading/trailing spaces or quotes that the translator might wrap
             return translated.replace(/^["']|["']$/g, '').trim();
         }
@@ -399,7 +399,7 @@ export const expandSearchTerms = (query: string): string[] => {
     return Array.from(terms);
 };
 
-export const parseRobustJSON = (text: string): any => {
+export const parseRobustJSON = <T = unknown>(text: string): T => {
     let cleanText = text.trim();
     
     // Find the first '{' and last '}'
@@ -411,8 +411,9 @@ export const parseRobustJSON = (text: string): any => {
     }
     
     try {
-        return JSON.parse(cleanText);
-    } catch (e: any) {
-        throw new Error(`Invalid JSON format: ${e.message}. Raw text: ${text.substring(0, 150)}...`, { cause: e });
+        return JSON.parse(cleanText) as T;
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new Error(`Invalid JSON format: ${msg}. Raw text: ${text.substring(0, 150)}...`, { cause: e });
     }
 };

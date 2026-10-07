@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { metaReducer } from './meta.reducer';
 import { makeTestCharacter } from '../testFixtures';
-import { Ability, CharacterSize, HitDie, CharacterAction } from '../../types';
+import { CharacterSize, HitDie, CharacterAction } from '../../types';
 
 afterEach(() => {
     vi.restoreAllMocks();

@@ -52,7 +52,7 @@ describe('ChunkAssembler', () => {
     expect(asm.push('k', makeMsg({ totalChunks: 0 }))).toBeNull();
     expect(asm.push('k', makeMsg({ totalChunks: -3 }))).toBeNull();
     expect(asm.push('k', makeMsg({ totalChunks: 1e9 }))).toBeNull(); // защита от гигантского массива
-    expect(asm.push('k', { syncId: 's', chunkIndex: 0, totalChunks: 1, chunkData: undefined as any })).toBeNull();
+    expect(asm.push('k', { syncId: 's', chunkIndex: 0, totalChunks: 1, chunkData: undefined as unknown as string })).toBeNull();
     expect(asm.size).toBe(0);
   });
 

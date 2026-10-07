@@ -24,7 +24,7 @@ export const sanitizeRichTextString = (str: string): string => {
  * @param item The item object to migrate.
  * @returns The migrated item object.
  */
-const migrateItem = (item: any): any => {
+const migrateItem = (item: Record<string, unknown> | null | undefined): Record<string, unknown> | null | undefined => {
     if (typeof item !== 'object' || item === null) return item;
 
     const migrated = { ...item };
@@ -74,25 +74,26 @@ const migrateItem = (item: any): any => {
  * @param characterData The character data to migrate.
  * @returns The migrated character data.
  */
-export const migrateCharacterData = (characterData: any): any => {
-    if (typeof characterData !== 'object' || characterData === null) return characterData;
+export const migrateCharacterData = (characterData: unknown): Character => {
+    if (typeof characterData !== 'object' || characterData === null) return structuredClone(defaultCharacterState);
+    const cd = characterData as Record<string, unknown>;
 
     // Shallow merge characterData with defaultCharacterState, and deep merge core nested maps
-    const migrated = {
+    const migrated: Record<string, unknown> = {
         ...defaultCharacterState,
-        ...characterData,
-        scores: { ...defaultCharacterState.scores, ...characterData.scores },
-        skills: { ...defaultCharacterState.skills, ...characterData.skills },
-        savingThrowProficiencies: { ...defaultCharacterState.savingThrowProficiencies, ...characterData.savingThrowProficiencies },
-        abilityBonuses: { ...defaultCharacterState.abilityBonuses, ...characterData.abilityBonuses },
-        skillBonuses: { ...defaultCharacterState.skillBonuses, ...characterData.skillBonuses },
-        savingThrowBonuses: { ...defaultCharacterState.savingThrowBonuses, ...characterData.savingThrowBonuses },
-        acAbilitySources: { ...defaultCharacterState.acAbilitySources, ...characterData.acAbilitySources },
-        currency: { ...defaultCharacterState.currency, ...characterData.currency },
+        ...cd,
+        scores: { ...defaultCharacterState.scores, ...(cd.scores as Record<string, unknown> || {}) },
+        skills: { ...defaultCharacterState.skills, ...(cd.skills as Record<string, unknown> || {}) },
+        savingThrowProficiencies: { ...defaultCharacterState.savingThrowProficiencies, ...(cd.savingThrowProficiencies as Record<string, unknown> || {}) },
+        abilityBonuses: { ...defaultCharacterState.abilityBonuses, ...(cd.abilityBonuses as Record<string, unknown> || {}) },
+        skillBonuses: { ...defaultCharacterState.skillBonuses, ...(cd.skillBonuses as Record<string, unknown> || {}) },
+        savingThrowBonuses: { ...defaultCharacterState.savingThrowBonuses, ...(cd.savingThrowBonuses as Record<string, unknown> || {}) },
+        acAbilitySources: { ...defaultCharacterState.acAbilitySources, ...(cd.acAbilitySources as Record<string, unknown> || {}) },
+        currency: { ...defaultCharacterState.currency, ...(cd.currency as Record<string, unknown> || {}) },
     };
 
     if (Array.isArray(migrated.inventory)) {
-        migrated.inventory = migrated.inventory.map(migrateItem);
+        migrated.inventory = migrated.inventory.map((i) => migrateItem(i as Record<string, unknown>));
     }
     
     // Migrate items equipped on doll from inventory to equippedItems
@@ -100,24 +101,25 @@ export const migrateCharacterData = (characterData: any): any => {
         migrated.equippedItems = [];
     }
     if (Array.isArray(migrated.inventory)) {
-        migrated.inventory.forEach((item: any, idx: number) => {
-            if (item && item.equippedX !== undefined && item.equippedY !== undefined) {
-                migrated.equippedItems.push(item);
-                migrated.inventory[idx] = null;
+        migrated.inventory.forEach((item: unknown, idx: number) => {
+            const it = item as { equippedX?: unknown; equippedY?: unknown } | null;
+            if (it && it.equippedX !== undefined && it.equippedY !== undefined) {
+                (migrated.equippedItems as unknown[]).push(it);
+                (migrated.inventory as unknown[])[idx] = null;
             }
         });
     }
     if (Array.isArray(migrated.attunementItems)) {
-        migrated.attunementItems = migrated.attunementItems.map(migrateItem);
+        migrated.attunementItems = migrated.attunementItems.map((i) => migrateItem(i as Record<string, unknown>));
     }
     if (Array.isArray(migrated.notes)) {
-        migrated.notes = migrated.notes.map((n: any) => ({
+        migrated.notes = migrated.notes.map((n: { content?: unknown }) => ({
             ...n,
             content: typeof n?.content === 'string' ? sanitizeRichTextString(n.content) : ''
         }));
     }
     if (Array.isArray(migrated.features)) {
-        migrated.features = migrated.features.map((f: any) => ({
+        migrated.features = migrated.features.map((f: { description?: unknown }) => ({
             ...f,
             description: typeof f?.description === 'string' ? sanitizeRichTextString(f.description) : ''
         }));
@@ -125,7 +127,7 @@ export const migrateCharacterData = (characterData: any): any => {
         migrated.features = [];
     }
     if (Array.isArray(migrated.spells)) {
-        migrated.spells = migrated.spells.map((s: any) => ({
+        migrated.spells = migrated.spells.map((s: { description?: unknown; components?: { materialDescription?: unknown } }) => ({
             ...s,
             description: typeof s?.description === 'string' ? sanitizeRichTextString(s.description) : '',
             components: s?.components ? {
@@ -135,10 +137,12 @@ export const migrateCharacterData = (characterData: any): any => {
         }));
     }
     if (Array.isArray(migrated.attacks)) {
-        migrated.attacks = migrated.attacks.map((attack: any) => {
+        migrated.attacks = migrated.attacks.map((attack: unknown) => {
             if (typeof attack === 'object' && attack !== null) {
-                if (typeof attack.imageUrl !== 'string') attack.imageUrl = '';
-                if (typeof attack.notes === 'string') attack.notes = sanitizeRichTextString(attack.notes);
+                const atk = { ...(attack as Record<string, unknown>) };
+                if (typeof atk.imageUrl !== 'string') atk.imageUrl = '';
+                if (typeof atk.notes === 'string') atk.notes = sanitizeRichTextString(atk.notes);
+                return atk;
             }
             return attack;
         });
@@ -184,28 +188,30 @@ export const migrateCharacterData = (characterData: any): any => {
     }
     // Spell migration
     if (Array.isArray(migrated.spells)) {
-        migrated.spells = migrated.spells.map((spell: any) => {
+        migrated.spells = migrated.spells.map((spell: unknown) => {
             if (typeof spell === 'object' && spell !== null) {
-                if (typeof spell.components !== 'object' || spell.components === null) {
-                    spell.components = {
+                const s = { ...(spell as Record<string, unknown>) };
+                if (typeof s.components !== 'object' || s.components === null) {
+                    s.components = {
                         verbal: false,
                         somatic: false,
                         material: false,
                         materialDescription: '',
                     };
                 }
-                if (typeof spell.range !== 'string') {
-                    spell.range = '60 футов';
+                if (typeof s.range !== 'string') {
+                    s.range = '60 футов';
                 }
-                if (typeof spell.duration !== 'string') {
-                    spell.duration = 'Мгновенная';
+                if (typeof s.duration !== 'string') {
+                    s.duration = 'Мгновенная';
                 }
-                if (typeof spell.isRitual !== 'boolean') {
-                    spell.isRitual = false;
+                if (typeof s.isRitual !== 'boolean') {
+                    s.isRitual = false;
                 }
-                if (typeof spell.requiresConcentration !== 'boolean') {
-                    spell.requiresConcentration = false;
+                if (typeof s.requiresConcentration !== 'boolean') {
+                    s.requiresConcentration = false;
                 }
+                return s;
             }
             return spell;
         });
@@ -213,21 +219,20 @@ export const migrateCharacterData = (characterData: any): any => {
         migrated.spells = [];
     }
 
-    if (typeof migrated.spellcastingAbility !== 'string' || !Object.values(Ability).includes(migrated.spellcastingAbility)) {
+    if (typeof migrated.spellcastingAbility !== 'string' || !Object.values(Ability).includes(migrated.spellcastingAbility as Ability)) {
         migrated.spellcastingAbility = Ability.INT;
     }
     if (typeof migrated.maxPreparedSpells !== 'number') {
         migrated.maxPreparedSpells = 0;
     }
-    if (typeof migrated.spellSlots !== 'object' || migrated.spellSlots === null) {
-        migrated.spellSlots = {};
-    }
+    const spellSlots = (migrated.spellSlots as Record<number, { total: number; used: number }>) || {};
+    migrated.spellSlots = spellSlots;
     for (let i = 1; i <= 9; i++) {
-        if (typeof migrated.spellSlots[i] !== 'object' || migrated.spellSlots[i] === null) {
-            migrated.spellSlots[i] = { total: 0, used: 0 };
+        if (typeof spellSlots[i] !== 'object' || spellSlots[i] === null) {
+            spellSlots[i] = { total: 0, used: 0 };
         }
-        if (typeof migrated.spellSlots[i].total !== 'number') migrated.spellSlots[i].total = 0;
-        if (typeof migrated.spellSlots[i].used !== 'number') migrated.spellSlots[i].used = 0;
+        if (typeof spellSlots[i]!.total !== 'number') spellSlots[i]!.total = 0;
+        if (typeof spellSlots[i]!.used !== 'number') spellSlots[i]!.used = 0;
     }
     if (typeof migrated.spellSaveDcBonus !== 'number') {
         migrated.spellSaveDcBonus = 0;
@@ -272,7 +277,7 @@ export const migrateCharacterData = (characterData: any): any => {
             {
                 id: 'default',
                 name: 'Особенности',
-                featureIds: (migrated.features || []).map((f: any) => f.id)
+                featureIds: ((migrated.features as Array<{ id: string }>) || []).map((f) => f.id)
             }
         ];
     }
@@ -281,7 +286,7 @@ export const migrateCharacterData = (characterData: any): any => {
             {
                 id: 'default',
                 name: 'Мои заметки',
-                noteIds: (migrated.notes || []).map((n: any) => n.id)
+                noteIds: ((migrated.notes as Array<{ id: string }>) || []).map((n) => n.id)
             }
         ];
     }
@@ -291,9 +296,9 @@ export const migrateCharacterData = (characterData: any): any => {
         migrated.attunementMaxBonus = 0;
     }
     if (Array.isArray(migrated.attunementItems) && migrated.attunementItems.length > 0) {
-        const itemsToMove = migrated.attunementItems.filter((i: any) => i !== null);
+        const itemsToMove = (migrated.attunementItems as Array<Record<string, unknown> | null>).filter((i): i is Record<string, unknown> => i !== null);
         if (itemsToMove.length > 0) {
-            const processedItems = itemsToMove.map((item: any, index: number) => ({
+            const processedItems = itemsToMove.map((item, index: number) => ({
                 ...item,
                 isEquipped: true,
                 requiresAttunement: true,
@@ -306,14 +311,15 @@ export const migrateCharacterData = (characterData: any): any => {
             }
 
             let targetIdx = 0;
-            processedItems.forEach((item: any) => {
-                while (targetIdx < migrated.inventory.length && migrated.inventory[targetIdx] !== null) {
+            const inv = migrated.inventory as Array<unknown>;
+            processedItems.forEach((item) => {
+                while (targetIdx < inv.length && inv[targetIdx] !== null) {
                     targetIdx++;
                 }
-                if (targetIdx < migrated.inventory.length) {
-                    migrated.inventory[targetIdx] = item;
+                if (targetIdx < inv.length) {
+                    inv[targetIdx] = item;
                 } else {
-                    migrated.inventory.push(item);
+                    inv.push(item);
                 }
             });
         }
@@ -332,7 +338,7 @@ export const migrateCharacterData = (characterData: any): any => {
         migrated.collapsedTabs = {};
     }
 
-    return migrated;
+    return migrated as unknown as Character;
 };
 
 /**
@@ -340,157 +346,151 @@ export const migrateCharacterData = (characterData: any): any => {
  * @param item The object to validate.
  * @returns True if the object is a valid InventoryItem, false otherwise.
  */
-const isInventoryItem = (item: any): item is InventoryItem => {
+const isInventoryItem = (item: unknown): item is InventoryItem => {
     if (typeof item !== 'object' || item === null) return false;
+    const it = item as Partial<InventoryItem>;
     const hasBaseFields =
-        typeof item.id === 'string' &&
-        typeof item.name === 'string' &&
-        typeof item.description === 'string' &&
-        typeof item.imageUrl === 'string' &&
-        typeof item.quantity === 'number' &&
-        typeof item.weight === 'number' &&
-        typeof item.cost === 'object' && item.cost !== null && typeof item.cost.amount === 'number' && Object.values(Currency).includes(item.cost.currency) &&
-        typeof item.rarity === 'number' && Object.values(Rarity).includes(item.rarity);
+        typeof it.id === 'string' &&
+        typeof it.name === 'string' &&
+        typeof it.description === 'string' &&
+        typeof it.imageUrl === 'string' &&
+        typeof it.quantity === 'number' &&
+        typeof it.weight === 'number' &&
+        typeof it.cost === 'object' && it.cost !== null && typeof it.cost.amount === 'number' && Object.values(Currency).includes(it.cost.currency) &&
+        typeof it.rarity === 'number' && Object.values(Rarity).includes(it.rarity);
 
     if (!hasBaseFields) return false;
 
     // Optional fields for charges
-    if (item.hasCharges !== undefined && typeof item.hasCharges !== 'boolean') return false;
-    if (item.totalCharges !== undefined && typeof item.totalCharges !== 'number') return false;
-    if (item.currentCharges !== undefined && typeof item.currentCharges !== 'number') return false;
-    if (item.chargeRecovery !== undefined && (typeof item.chargeRecovery !== 'number' || !Object.values(RecoveryType).includes(item.chargeRecovery))) return false;
+    if (it.hasCharges !== undefined && typeof it.hasCharges !== 'boolean') return false;
+    if (it.totalCharges !== undefined && typeof it.totalCharges !== 'number') return false;
+    if (it.currentCharges !== undefined && typeof it.currentCharges !== 'number') return false;
+    if (it.chargeRecovery !== undefined && (typeof it.chargeRecovery !== 'number' || !Object.values(RecoveryType).includes(it.chargeRecovery))) return false;
 
-    if (item.isChest === true) {
-        if (!Array.isArray(item.chestInventory)) return false;
+    if (it.isChest === true) {
+        if (!Array.isArray(it.chestInventory)) return false;
         // Recursively validate items inside the chest
-        if (!item.chestInventory.every((subItem: any) => subItem === null || isInventoryItem(subItem))) {
+        if (!it.chestInventory.every((subItem: unknown) => subItem === null || isInventoryItem(subItem))) {
             return false;
         }
     }
     return true;
 };
 
-/**
- * Validates if an object is a valid Feature.
- * @param feature The object to validate.
- * @returns True if the object is a valid Feature, false otherwise.
- */
-const isFeature = (feature: any): feature is Feature => {
+const isFeature = (feature: unknown): feature is Feature => {
     if (typeof feature !== 'object' || feature === null) return false;
+    const f = feature as Partial<Feature>;
     return (
-        typeof feature.id === 'string' &&
-        typeof feature.name === 'string' &&
-        typeof feature.description === 'string' &&
-        typeof feature.totalUses === 'number' &&
-        typeof feature.currentUses === 'number' &&
-        typeof feature.recovery === 'number' && Object.values(RecoveryType).includes(feature.recovery)
+        typeof f.id === 'string' &&
+        typeof f.name === 'string' &&
+        typeof f.description === 'string' &&
+        typeof f.totalUses === 'number' &&
+        typeof f.currentUses === 'number' &&
+        typeof f.recovery === 'number' && Object.values(RecoveryType).includes(f.recovery)
     );
 };
 
-const isAttack = (attack: any): attack is Attack => {
+const isAttack = (attack: unknown): attack is Attack => {
     if (typeof attack !== 'object' || attack === null) return false;
+    const atk = attack as Partial<Attack>;
     return (
-        typeof attack.id === 'string' &&
-        typeof attack.name === 'string' &&
-        typeof attack.imageUrl === 'string' &&
-        typeof attack.attackType === 'number' && Object.values(AttackType).includes(attack.attackType) &&
-        typeof attack.rangeNormal === 'number' &&
-        (typeof attack.rangeLong === 'number' || attack.rangeLong === null) &&
-        typeof attack.hitAbility === 'string' && Object.values(Ability).includes(attack.hitAbility as Ability) &&
-        (typeof attack.damageAbility === 'string' && (Object.values(Ability).includes(attack.damageAbility as Ability) || attack.damageAbility === 'None')) &&
-        typeof attack.isProficient === 'boolean' &&
-        typeof attack.hitBonus === 'number' &&
-        typeof attack.damageDice === 'string' &&
-        typeof attack.damageBonus === 'number' &&
-        typeof attack.damageType === 'string' && Object.values(DamageType).includes(attack.damageType as DamageType) &&
-        typeof attack.notes === 'string'
+        typeof atk.id === 'string' &&
+        typeof atk.name === 'string' &&
+        typeof atk.imageUrl === 'string' &&
+        typeof atk.attackType === 'number' && Object.values(AttackType).includes(atk.attackType) &&
+        typeof atk.rangeNormal === 'number' &&
+        (typeof atk.rangeLong === 'number' || atk.rangeLong === null) &&
+        typeof atk.hitAbility === 'string' && Object.values(Ability).includes(atk.hitAbility as Ability) &&
+        (typeof atk.damageAbility === 'string' && (Object.values(Ability).includes(atk.damageAbility as Ability) || atk.damageAbility === 'None')) &&
+        typeof atk.isProficient === 'boolean' &&
+        typeof atk.hitBonus === 'number' &&
+        typeof atk.damageDice === 'string' &&
+        typeof atk.damageBonus === 'number' &&
+        typeof atk.damageType === 'string' && Object.values(DamageType).includes(atk.damageType as DamageType) &&
+        typeof atk.notes === 'string'
     );
 };
 
-const isSpell = (spell: any): spell is Spell => {
+const isSpell = (spell: unknown): spell is Spell => {
     if (typeof spell !== 'object' || spell === null) return false;
-     const hasComponents = 
-        typeof spell.components === 'object' && spell.components !== null &&
-        typeof spell.components.verbal === 'boolean' &&
-        typeof spell.components.somatic === 'boolean' &&
-        typeof spell.components.material === 'boolean' &&
-        typeof spell.components.materialDescription === 'string';
+    const sp = spell as Partial<Spell>;
+    const hasComponents = 
+        typeof sp.components === 'object' && sp.components !== null &&
+        typeof sp.components.verbal === 'boolean' &&
+        typeof sp.components.somatic === 'boolean' &&
+        typeof sp.components.material === 'boolean' &&
+        typeof sp.components.materialDescription === 'string';
 
     return (
-        typeof spell.id === 'string' &&
-        typeof spell.name === 'string' &&
-        typeof spell.description === 'string' &&
-        typeof spell.level === 'number' && spell.level >= 0 && spell.level <= 9 &&
-        typeof spell.school === 'number' && Object.values(MagicSchool).includes(spell.school) &&
-        typeof spell.castingTime === 'string' &&
-        typeof spell.range === 'string' &&
-        typeof spell.duration === 'string' &&
-        typeof spell.isPrepared === 'boolean' &&
-        typeof spell.imageUrl === 'string' &&
-        typeof spell.isRitual === 'boolean' &&
-        typeof spell.requiresConcentration === 'boolean' &&
+        typeof sp.id === 'string' &&
+        typeof sp.name === 'string' &&
+        typeof sp.description === 'string' &&
+        typeof sp.level === 'number' && sp.level >= 0 && sp.level <= 9 &&
+        typeof sp.school === 'number' && Object.values(MagicSchool).includes(sp.school) &&
+        typeof sp.castingTime === 'string' &&
+        typeof sp.range === 'string' &&
+        typeof sp.duration === 'string' &&
+        typeof sp.isPrepared === 'boolean' &&
+        typeof sp.imageUrl === 'string' &&
+        typeof sp.isRitual === 'boolean' &&
+        typeof sp.requiresConcentration === 'boolean' &&
         hasComponents
     );
 };
 
-const isNote = (note: any): note is Note => {
+const isNote = (note: unknown): note is Note => {
     if (typeof note !== 'object' || note === null) return false;
+    const n = note as Partial<Note>;
     return (
-        typeof note.id === 'string' &&
-        typeof note.title === 'string' &&
-        typeof note.content === 'string'
+        typeof n.id === 'string' &&
+        typeof n.title === 'string' &&
+        typeof n.content === 'string'
     );
 };
 
-
-/**
- * Performs a comprehensive validation to check if an object conforms to the Character interface.
- * This helps prevent app crashes from malformed or outdated data in localStorage.
- * @param data The object to validate.
- * @returns True if the object is a valid Character, false otherwise.
- */
-export const isCharacter = (data: any): data is Character => {
+export const isCharacter = (data: unknown): data is Character => {
     if (typeof data !== 'object' || data === null) {
         logger.warn('[DND Sheet] isCharacter failed: data is null or not an object');
         return false;
     }
+    const d = data as Partial<Character>;
 
     // Individual core field checks for detailed console logging
     const coreChecks: Record<string, boolean> = {
-        name: typeof data.name === 'string',
-        race: typeof data.race === 'string',
-        characterClass: typeof data.characterClass === 'string',
-        level: typeof data.level === 'number' && data.level >= 1 && data.level <= 20,
-        experience: typeof data.experience === 'number',
-        portraitUrl: typeof data.portraitUrl === 'string',
-        maxHitPoints: typeof data.maxHitPoints === 'number',
-        currentHitPoints: typeof data.currentHitPoints === 'number',
-        temporaryHitPoints: typeof data.temporaryHitPoints === 'number',
-        baseAC: typeof data.baseAC === 'number',
-        acBonus: typeof data.acBonus === 'number',
-        initiativeBonus: typeof data.initiativeBonus === 'number',
-        proficiencyBonusBonus: typeof data.proficiencyBonusBonus === 'number',
-        attunementSlots: typeof data.attunementSlots === 'number',
-        inventoryRows: typeof data.inventoryRows === 'number',
-        totalHitDice: typeof data.totalHitDice === 'number',
-        currentHitDice: typeof data.currentHitDice === 'number',
-        speed: typeof data.speed === 'number',
-        speedBonus: typeof data.speedBonus === 'number',
-        longJumpBonus: typeof data.longJumpBonus === 'number',
-        highJumpBonus: typeof data.highJumpBonus === 'number',
-        size: typeof data.size === 'number' && Object.values(CharacterSize).includes(data.size),
-        passivePerceptionBonus: typeof data.passivePerceptionBonus === 'number',
-        passiveInvestigationBonus: typeof data.passiveInvestigationBonus === 'number',
-        passiveInsightBonus: typeof data.passiveInsightBonus === 'number',
-        maxHpBonus: typeof data.maxHpBonus === 'number',
-        globalAttackDiceBonusToHitDice: typeof data.globalAttackDiceBonusToHitDice === 'string',
-        globalAttackDiceBonusToDamageDice: typeof data.globalAttackDiceBonusToDamageDice === 'string',
-        spellcastingAbility: typeof data.spellcastingAbility === 'string' && Object.values(Ability).includes(data.spellcastingAbility),
-        maxPreparedSpells: typeof data.maxPreparedSpells === 'number',
-        spellSaveDcBonus: typeof data.spellSaveDcBonus === 'number',
-        spellAttackBonusBonus: typeof data.spellAttackBonusBonus === 'number',
-        currency: typeof data.currency === 'object' && data.currency !== null,
-        activeNoteId: typeof data.activeNoteId === 'string' || data.activeNoteId === null
+        name: typeof d.name === 'string',
+        race: typeof d.race === 'string',
+        characterClass: typeof d.characterClass === 'string',
+        level: typeof d.level === 'number' && d.level >= 1 && d.level <= 20,
+        experience: typeof d.experience === 'number',
+        portraitUrl: typeof d.portraitUrl === 'string',
+        maxHitPoints: typeof d.maxHitPoints === 'number',
+        currentHitPoints: typeof d.currentHitPoints === 'number',
+        temporaryHitPoints: typeof d.temporaryHitPoints === 'number',
+        baseAC: typeof d.baseAC === 'number',
+        acBonus: typeof d.acBonus === 'number',
+        initiativeBonus: typeof d.initiativeBonus === 'number',
+        proficiencyBonusBonus: typeof d.proficiencyBonusBonus === 'number',
+        attunementSlots: typeof d.attunementSlots === 'number',
+        inventoryRows: typeof d.inventoryRows === 'number',
+        totalHitDice: typeof d.totalHitDice === 'number',
+        currentHitDice: typeof d.currentHitDice === 'number',
+        speed: typeof d.speed === 'number',
+        speedBonus: typeof d.speedBonus === 'number',
+        longJumpBonus: typeof d.longJumpBonus === 'number',
+        highJumpBonus: typeof d.highJumpBonus === 'number',
+        size: typeof d.size === 'number' && Object.values(CharacterSize).includes(d.size),
+        passivePerceptionBonus: typeof d.passivePerceptionBonus === 'number',
+        passiveInvestigationBonus: typeof d.passiveInvestigationBonus === 'number',
+        passiveInsightBonus: typeof d.passiveInsightBonus === 'number',
+        maxHpBonus: typeof d.maxHpBonus === 'number',
+        globalAttackDiceBonusToHitDice: typeof d.globalAttackDiceBonusToHitDice === 'string',
+        globalAttackDiceBonusToDamageDice: typeof d.globalAttackDiceBonusToDamageDice === 'string',
+        spellcastingAbility: typeof d.spellcastingAbility === 'string' && Object.values(Ability).includes(d.spellcastingAbility as Ability),
+        maxPreparedSpells: typeof d.maxPreparedSpells === 'number',
+        spellSaveDcBonus: typeof d.spellSaveDcBonus === 'number',
+        spellAttackBonusBonus: typeof d.spellAttackBonusBonus === 'number',
+        currency: typeof d.currency === 'object' && d.currency !== null,
+        activeNoteId: typeof d.activeNoteId === 'string' || d.activeNoteId === null
     };
 
     const failedCore = Object.entries(coreChecks).filter(([_, passed]) => !passed).map(([name]) => name);
@@ -500,14 +500,14 @@ export const isCharacter = (data: any): data is Character => {
     }
 
     const objectChecks: Record<string, boolean> = {
-        scores: typeof data.scores === 'object' && data.scores !== null,
-        skills: typeof data.skills === 'object' && data.skills !== null,
-        savingThrowProficiencies: typeof data.savingThrowProficiencies === 'object' && data.savingThrowProficiencies !== null,
-        abilityBonuses: typeof data.abilityBonuses === 'object' && data.abilityBonuses !== null,
-        skillBonuses: typeof data.skillBonuses === 'object' && data.skillBonuses !== null,
-        savingThrowBonuses: typeof data.savingThrowBonuses === 'object' && data.savingThrowBonuses !== null,
-        acAbilitySources: typeof data.acAbilitySources === 'object' && data.acAbilitySources !== null,
-        spellSlots: typeof data.spellSlots === 'object' && data.spellSlots !== null
+        scores: typeof d.scores === 'object' && d.scores !== null,
+        skills: typeof d.skills === 'object' && d.skills !== null,
+        savingThrowProficiencies: typeof d.savingThrowProficiencies === 'object' && d.savingThrowProficiencies !== null,
+        abilityBonuses: typeof d.abilityBonuses === 'object' && d.abilityBonuses !== null,
+        skillBonuses: typeof d.skillBonuses === 'object' && d.skillBonuses !== null,
+        savingThrowBonuses: typeof d.savingThrowBonuses === 'object' && d.savingThrowBonuses !== null,
+        acAbilitySources: typeof d.acAbilitySources === 'object' && d.acAbilitySources !== null,
+        spellSlots: typeof d.spellSlots === 'object' && d.spellSlots !== null
     };
 
     const failedObjects = Object.entries(objectChecks).filter(([_, passed]) => !passed).map(([name]) => name);
@@ -517,23 +517,23 @@ export const isCharacter = (data: any): data is Character => {
     }
 
     const validHitDies = [6, 8, 10, 12];
-    if (!validHitDies.includes(data.hitDie)) {
-        logger.warn(`[DND Sheet] isCharacter failed hitDie validation: ${data.hitDie}`, data);
+    if (typeof d.hitDie !== 'number' || !validHitDies.includes(d.hitDie)) {
+        logger.warn(`[DND Sheet] isCharacter failed hitDie validation: ${d.hitDie}`, data);
         return false;
     }
     
     const abilities = Object.values(Ability);
-    const scores = data.scores as Record<string, unknown>;
+    const scores = (d.scores || {}) as Record<string, unknown>;
     const hasAllScores = abilities.every(ability => typeof scores[ability] === 'number');
-    const savingThrowProfs = data.savingThrowProficiencies as Record<string, unknown>;
+    const savingThrowProfs = (d.savingThrowProficiencies || {}) as Record<string, unknown>;
     const hasAllSavingThrowProfs = abilities.every(ability => typeof savingThrowProfs[ability] === 'boolean');
-    const abilityBonuses = data.abilityBonuses as Record<string, unknown>;
+    const abilityBonuses = (d.abilityBonuses || {}) as Record<string, unknown>;
     const hasAllAbilityBonuses = abilities.every(ability => typeof abilityBonuses[ability] === 'number');
-    const savingThrowBonuses = data.savingThrowBonuses as Record<string, unknown>;
+    const savingThrowBonuses = (d.savingThrowBonuses || {}) as Record<string, unknown>;
     const hasAllSavingThrowBonuses = abilities.every(ability => typeof savingThrowBonuses[ability] === 'number');
-    const currencies = data.currency as Record<string, unknown>;
+    const currencies = (d.currency || {}) as Record<string, unknown>;
     const hasAllCurrencies = Object.values(Currency).every(c => typeof currencies[c] === 'number');
-    const acSources = data.acAbilitySources as Record<string, unknown>;
+    const acSources = (d.acAbilitySources || {}) as Record<string, unknown>;
     const hasAllAcSources = abilities.every(ability => typeof acSources[ability] === 'boolean');
 
     if (!hasAllScores || !hasAllSavingThrowProfs || !hasAllAbilityBonuses || !hasAllSavingThrowBonuses || !hasAllCurrencies || !hasAllAcSources) {
@@ -544,44 +544,48 @@ export const isCharacter = (data: any): data is Character => {
     }
 
     const skillNames = Object.keys(SKILLS);
+    const skills = d.skills || {};
     const hasAllSkills = skillNames.every(skillName => {
-        const skill = data.skills[skillName];
+        const skill = skills[skillName];
         return typeof skill === 'object' && skill !== null &&
                typeof skill.name === 'string' &&
                abilities.includes(skill.ability) &&
                Object.values(ProficiencyLevel).includes(skill.proficiency);
     });
-    const hasAllSkillBonuses = skillNames.every(skillName => typeof data.skillBonuses[skillName] === 'number');
+    const skillBonuses = d.skillBonuses || {};
+    const hasAllSkillBonuses = skillNames.every(skillName => typeof skillBonuses[skillName] === 'number');
 
     if (!hasAllSkills || !hasAllSkillBonuses) {
         logger.warn('[DND Sheet] isCharacter failed skills or skillBonuses checks.', { hasAllSkills, hasAllSkillBonuses }, data);
         return false;
     }
 
+    const slots = d.spellSlots || {};
     for (let i = 1; i <= 9; i++) {
-        if (typeof data.spellSlots[i] !== 'object' || data.spellSlots[i] === null || typeof data.spellSlots[i].total !== 'number' || typeof data.spellSlots[i].used !== 'number') {
-            logger.warn(`[DND Sheet] isCharacter failed spellSlots level ${i} checks.`, data.spellSlots[i]);
+        const slot = slots[i];
+        if (typeof slot !== 'object' || slot === null || typeof slot.total !== 'number' || typeof slot.used !== 'number') {
+            logger.warn(`[DND Sheet] isCharacter failed spellSlots level ${i} checks.`, slot);
             return false;
         }
     }
 
     const hasValidArrays = 
-        Array.isArray(data.inventory) &&
-        Array.isArray(data.features) &&
-        Array.isArray(data.attacks) &&
-        Array.isArray(data.spells) &&
-        Array.isArray(data.notes);
+        Array.isArray(d.inventory) &&
+        Array.isArray(d.features) &&
+        Array.isArray(d.attacks) &&
+        Array.isArray(d.spells) &&
+        Array.isArray(d.notes);
 
     if (!hasValidArrays) {
         logger.warn('[DND Sheet] isCharacter failed array type validations.');
         return false;
     }
 
-    const isInventoryValid = data.inventory.every((item: any) => item === null || isInventoryItem(item));
-    const areFeaturesValid = data.features.every(isFeature);
-    const areAttacksValid = data.attacks.every(isAttack);
-    const areSpellsValid = data.spells.every(isSpell);
-    const areNotesValid = data.notes.every(isNote);
+    const isInventoryValid = (d.inventory as unknown[]).every((item: unknown) => item === null || isInventoryItem(item));
+    const areFeaturesValid = (d.features as unknown[]).every(isFeature);
+    const areAttacksValid = (d.attacks as unknown[]).every(isAttack);
+    const areSpellsValid = (d.spells as unknown[]).every(isSpell);
+    const areNotesValid = (d.notes as unknown[]).every(isNote);
 
     if (!isInventoryValid || !areFeaturesValid || !areAttacksValid || !areSpellsValid || !areNotesValid) {
         logger.warn('[DND Sheet] isCharacter failed arrays content validations.', {
